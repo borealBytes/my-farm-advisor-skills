@@ -43,10 +43,16 @@ export interface RunManifestDocument {
   status: string;
   startTime: string;
   endTime: string;
+  totalDurationMs: number;
   outputPaths: string[];
   requestContext: RequestContext;
   operations: OperationManifestRecord[];
   statusCounts: Partial<Record<OperationStatus, number>>;
+  nextCheckpoint: {
+    lastSuccessfulRun: string | null;
+    operationCursorCount: number;
+    outputPaths: string[];
+  };
 }
 
 export interface ManifestWriteOptions {
@@ -68,6 +74,11 @@ export interface WriteRunManifestOptions extends ManifestWriteOptions {
   operations: OperationManifestRecord[];
   outputPaths?: string[];
   runId?: string;
+  nextCheckpoint?: {
+    lastSuccessfulRun: string | null;
+    operationCursorCount: number;
+    outputPaths: string[];
+  };
 }
 
 export interface ManifestWriteResult<TDocument> {
@@ -141,19 +152,39 @@ export class ManifestWriter {
       ...(options.outputPaths ?? []),
       ...options.operations.flatMap((operation) => operation.outputPaths)
     ]);
+    const runId = options.runId ?? formatJohnDeereTimestampPrefix(new Date(startTime));
 
     const document: RunManifestDocument = {
       growerSlug: options.growerSlug,
-      runId: options.runId ?? formatJohnDeereTimestampPrefix(new Date(startTime)),
+      runId,
       status: options.status,
       startTime,
       endTime,
+      totalDurationMs: Math.max(0, Date.parse(endTime) - Date.parse(startTime)),
       outputPaths,
       requestContext: options.requestContext ?? {},
       operations: options.operations,
-      statusCounts: countStatuses(options.operations)
+      statusCounts: countStatuses(options.operations),
+      nextCheckpoint: options.nextCheckpoint ?? {
+        lastSuccessfulRun: null,
+        operationCursorCount: 0,
+        outputPaths: []
+      }
     };
 
-    return writeDocument(options, 'latest-run.json', document);
+    const latestRun = await writeDocument(options, 'latest-run.json', document);
+    const timestampedRun = await writeDocument(
+      {
+        ...options,
+        fileName: `run-${runId}.json`
+      },
+      `run-${runId}.json`,
+      document
+    );
+
+    return {
+      document,
+      outputPaths: uniquePaths([...latestRun.outputPaths, ...timestampedRun.outputPaths])
+    };
   }
 }

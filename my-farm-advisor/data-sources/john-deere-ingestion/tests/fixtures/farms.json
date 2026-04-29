@@ -1,0 +1,22 @@
+{
+  "values": [
+    {
+      "id": "farm-9001",
+      "name": "North Farm",
+      "organizationId": "org-12345",
+      "totalArea": {
+        "value": 1280,
+        "unit": "acre"
+      },
+      "lastModifiedTime": "2026-05-01T09:45:00.000Z",
+      "_links": {
+        "self": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/farms/farm-9001"
+        },
+        "fields": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/farms/farm-9001/fields"
+        }
+      }
+    }
+  ]
+}

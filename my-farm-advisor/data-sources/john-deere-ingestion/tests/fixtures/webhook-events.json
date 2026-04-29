@@ -1,0 +1,14 @@
+{
+  "eventType": "field.updated",
+  "timestamp": "2026-05-01T10:30:00.000Z",
+  "source": {
+    "organizationId": "org-12345",
+    "resourceType": "field",
+    "resourceId": "field-101"
+  },
+  "deliveryId": "delivery-0001",
+  "changeSummary": {
+    "name": "North 80",
+    "status": "updated"
+  }
+}

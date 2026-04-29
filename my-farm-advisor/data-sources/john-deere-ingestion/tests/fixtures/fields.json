@@ -1,0 +1,24 @@
+{
+  "values": [
+    {
+      "id": "field-101",
+      "name": "North 80",
+      "farmId": "farm-9001",
+      "farmName": "North Farm",
+      "archived": false,
+      "totalArea": {
+        "value": 80,
+        "unit": "acre"
+      },
+      "updatedTime": "2026-05-01T10:00:00.000Z",
+      "_links": {
+        "self": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/fields/field-101"
+        },
+        "boundaries": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/fields/field-101/boundaries"
+        }
+      }
+    }
+  ]
+}

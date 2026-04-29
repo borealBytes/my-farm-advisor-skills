@@ -11,7 +11,12 @@ import {
 import type { OperationRegistryEntry, OperationRegistryStatus } from '../registry/operations.js';
 import { operationRegistry } from '../registry/operations.js';
 import { advanceCheckpoint, FileCheckpointStore, type CheckpointState } from '../storage/checkpoint.js';
-import { ManifestWriter, type OperationManifestRecord, type RequestContext } from '../storage/manifest.js';
+import {
+  ManifestWriter,
+  type OperationManifestRecord,
+  type RequestContext,
+  type RunManifestDocument
+} from '../storage/manifest.js';
 import { RawPayloadWriter } from '../storage/raw.js';
 
 type ExecutableOperationStatus = Exclude<
@@ -52,6 +57,8 @@ export interface RegistryExecutorResult {
   runStatus: string;
   startTime: string;
   endTime: string;
+  runManifest: RunManifestDocument;
+  checkpoint: CheckpointState;
   operations: OperationManifestRecord[];
   runManifestPaths: string[];
   operationManifestPaths: string[];
@@ -250,7 +257,15 @@ export class RegistryExecutor {
         since: options.since ?? null
       },
       operations,
-      outputPaths: [...operationManifest.outputPaths, ...checkpointWrite.outputPaths]
+      outputPaths: [
+        ...operationManifest.outputPaths.map((filePath) => toDataRelativePath(options.dataRoot, filePath)),
+        ...checkpointWrite.outputPaths.map((filePath) => toDataRelativePath(options.dataRoot, filePath))
+      ],
+      nextCheckpoint: {
+        lastSuccessfulRun: checkpointWrite.state.lastSuccessfulRun,
+        operationCursorCount: Object.keys(checkpointWrite.state.operationCursors).length,
+        outputPaths: checkpointWrite.outputPaths.map((filePath) => toDataRelativePath(options.dataRoot, filePath))
+      }
     });
 
     return {
@@ -258,6 +273,8 @@ export class RegistryExecutor {
       runStatus: runManifest.document.status,
       startTime: startedAt.toISOString(),
       endTime: endedAt.toISOString(),
+      runManifest: runManifest.document,
+      checkpoint: checkpointWrite.state,
       operations,
       runManifestPaths: runManifest.outputPaths,
       operationManifestPaths: operationManifest.outputPaths,

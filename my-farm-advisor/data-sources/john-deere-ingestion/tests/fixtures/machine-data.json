@@ -1,0 +1,17 @@
+{
+  "values": [
+    {
+      "id": "machine-location-1",
+      "machineId": "machine-s780",
+      "timestamp": "2026-05-01T10:25:00.000Z",
+      "latitude": 42.0384,
+      "longitude": -93.6463,
+      "speed": {
+        "value": 5.7,
+        "unit": "mph"
+      },
+      "heading": 181,
+      "lastModifiedTime": "2026-05-01T10:25:00.000Z"
+    }
+  ]
+}

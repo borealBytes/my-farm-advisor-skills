@@ -6,10 +6,19 @@ import path from 'node:path';
 import { Command } from 'commander';
 
 import { initJohnDeereAuth } from './auth/init.js';
+import { runIngestCommand } from './commands/ingest.js';
+import { runSyncCommand } from './commands/sync.js';
 import { parseConfig } from './config.js';
 import { resolveOAuthEndpoints } from './oauth/endpoints.js';
 import { buildGrowerPaths } from './paths.js';
+import {
+  operationRegistry,
+  serializeOperationRegistry,
+  type OperationRegistryEntry
+} from './registry/index.js';
 import type { TokenStore } from './tokens/store.js';
+import type { RegistryExecutorMockFixture } from './executor/registry-executor.js';
+import { DEFAULT_WEBHOOK_PORT, runWebhookServer } from './webhook/server.js';
 
 export interface RunCliResult {
   output: string;
@@ -26,6 +35,10 @@ export interface RunCliOptions {
   stdin?: NodeJS.ReadableStream;
   stdout?: NodeJS.WritableStream;
   callbackTimeoutMs?: number;
+  now?: () => Date;
+  shutdownSignal?: AbortSignal;
+  registry?: readonly OperationRegistryEntry[];
+  mockFixtures?: Record<string, RegistryExecutorMockFixture>;
 }
 
 interface CliGlobalOptions {
@@ -149,36 +162,6 @@ function formatMissingCredentials(commandName: string, config: ReturnType<typeof
   };
 }
 
-function buildRegistryManifest(config: ReturnType<typeof parseConfig>) {
-  return {
-    generatedAt: new Date().toISOString(),
-    environment: config.environment,
-    hateoas: config.hateoas,
-    orgId: config.orgId ?? null,
-    mock: config.mock,
-    operations: [
-      {
-        apiGroup: 'organizations',
-        operation: 'listOrganizations',
-        sdkPath: 'deere.organizations.list',
-        status: 'pending'
-      },
-      {
-        apiGroup: 'farms',
-        operation: 'listFarms',
-        sdkPath: 'deere.farms.list',
-        status: config.mock ? 'accessible' : 'pending'
-      },
-      {
-        apiGroup: 'fields',
-        operation: 'listFields',
-        sdkPath: 'deere.fields.list',
-        status: config.mock ? 'accessible' : 'pending'
-      }
-    ]
-  };
-}
-
 async function handlePaths(command: Command, options: RunCliOptions): Promise<RunCliResult> {
   const config = buildCommandConfig(command, options);
   const growerPaths = buildGrowerPaths({ dataRoot: config.dataRoot, growerSlug: config.grower });
@@ -233,30 +216,47 @@ async function handleIngestLike(commandName: 'ingest' | 'sync', command: Command
     return formatMissingCredentials(commandName, config);
   }
 
-  return {
-    output: [
-      `John Deere ${commandName} scaffold`,
-      `environment: ${config.environment}`,
-      `dataRoot: ${config.dataRoot}`,
-      `orgId: ${config.orgId ?? 'not-set'}`,
-      `since: ${config.since ?? 'not-set'}`,
-      `mock: ${String(config.mock)}`,
-      `force: ${String(config.force)}`,
-      `hateoas: ${String(config.hateoas)}`,
-      config.dryRun
-        ? 'dry-run: no manifests, tokens, or export files written.'
-        : 'stub: command routing is wired; data export implementation lands in a later task.'
-    ].join('\n'),
-    exitCode: 0,
-    config
-  };
+  try {
+    const result =
+      commandName === 'ingest'
+        ? await runIngestCommand(config, {
+            fetch: options.fetch,
+            tokenStore: options.tokenStore,
+            now: options.now,
+            registry: options.registry,
+            mockFixtures: options.mockFixtures
+          })
+        : await runSyncCommand(config, {
+            fetch: options.fetch,
+            tokenStore: options.tokenStore,
+            now: options.now,
+            registry: options.registry,
+            mockFixtures: options.mockFixtures
+          });
+
+    return {
+      output: result.outputLines.join('\n'),
+      exitCode: 0,
+      config
+    };
+  } catch (error) {
+    return {
+      output: [
+        `Cannot run '${commandName}'.`,
+        error instanceof Error ? error.message : 'Unknown John Deere command error.',
+        'No stack trace emitted.'
+      ].join('\n'),
+      exitCode: 1,
+      config
+    };
+  }
 }
 
 async function handleRegistry(command: Command, options: RunCliOptions): Promise<RunCliResult> {
   const config = buildCommandConfig(command, options);
   const registryOptions = command.optsWithGlobals<RegistryOptions>();
-  const manifest = buildRegistryManifest(config);
-  const manifestJson = JSON.stringify(manifest, null, 2);
+  const registry = options.registry ?? operationRegistry;
+  const manifestJson = serializeOperationRegistry(registry).trimEnd();
 
   if (registryOptions.output && !config.dryRun) {
     await mkdir(path.dirname(registryOptions.output), { recursive: true });
@@ -278,15 +278,53 @@ async function handleRegistry(command: Command, options: RunCliOptions): Promise
 async function handleWebhook(command: Command, options: RunCliOptions): Promise<RunCliResult> {
   const config = buildCommandConfig(command, options);
   const webhookOptions = command.optsWithGlobals<WebhookOptions>();
-  const port = webhookOptions.port ?? 9090;
+  const port = webhookOptions.port ?? DEFAULT_WEBHOOK_PORT;
+  const eventsFile = buildGrowerPaths({ dataRoot: config.dataRoot, growerSlug: config.grower }).rawWebhooksEventsFile;
+
+  if (config.dryRun) {
+    return {
+      output: ['John Deere webhook server', `port: ${port}`, `eventsFile: ${eventsFile}`, 'dry-run: listener not started.'].join(
+        '\n'
+      ),
+      exitCode: 0,
+      config
+    };
+  }
+
+  const startedServer = await runWebhookServer({
+    dataRoot: config.dataRoot,
+    growerSlug: config.grower,
+    port,
+    shutdownSignal: options.shutdownSignal,
+    onStarted: async (server) => {
+      if (!options.stdout) {
+        return;
+      }
+
+      options.stdout.write(
+        `${[
+          'John Deere webhook server',
+          `url: ${server.url}`,
+          `eventsFile: ${server.eventsFile}`,
+          'Listening for John Deere webhook events. Press Ctrl+C to stop.'
+        ].join('\n')}\n`
+      );
+    }
+  });
+  const output = [
+    'John Deere webhook server',
+    `url: ${startedServer.url}`,
+    `eventsFile: ${startedServer.eventsFile}`,
+    'Listening for John Deere webhook events. Press Ctrl+C to stop.',
+    'Webhook server stopped gracefully.'
+  ].join('\n');
+
+  if (options.stdout) {
+    options.stdout.write('Webhook server stopped gracefully.\n');
+  }
 
   return {
-    output: [
-      'John Deere webhook scaffold',
-      `port: ${port}`,
-      `eventsFile: ${buildGrowerPaths({ dataRoot: config.dataRoot, growerSlug: config.grower }).rawWebhooksEventsFile}`,
-      config.dryRun ? 'dry-run: listener not started.' : 'listener startup stubbed; routing is wired.'
-    ].join('\n'),
+    output: options.stdout ? '' : output,
     exitCode: 0,
     config
   };
@@ -371,11 +409,11 @@ export async function runCli(argv: string[], options: RunCliOptions = {}): Promi
   addSharedCommandOptions(
     program
       .command('webhook')
-    .description('Start or describe the local John Deere webhook receiver')
-    .option('--port <port>', 'Port for the local webhook receiver', (value) => Number.parseInt(value, 10), 9090)
-    .action(async function webhookAction() {
-      commandResult = await handleWebhook(this as Command, options);
-    })
+     .description('Start or describe the local John Deere webhook receiver')
+     .option('--port <port>', 'Port for the local webhook receiver', (value) => Number.parseInt(value, 10), DEFAULT_WEBHOOK_PORT)
+     .action(async function webhookAction() {
+       commandResult = await handleWebhook(this as Command, options);
+     })
   );
 
   addSharedCommandOptions(
@@ -428,7 +466,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   const result = await runCli(process.argv.slice(2), {
     cwd: process.cwd(),
     env: process.env,
-    executableName: 'jd'
+    executableName: 'jd',
+    stdout: process.stdout
   });
   if (result.output) {
     process.stdout.write(`${result.output}\n`);

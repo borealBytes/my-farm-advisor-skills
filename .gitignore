@@ -2,6 +2,8 @@ node_modules/
 .cache/
 data/
 .sisyphus/
+.runtime/
+.runtime/**/tokens/
 
 # Generated outputs
 dist/
@@ -9,6 +11,9 @@ build/
 out/
 coverage/
 *.log
+
+# John Deere live validation evidence
+my-farm-advisor/data-sources/john-deere-ingestion/evidence/
 
 # Runtime geodata payloads
 countries.geojson

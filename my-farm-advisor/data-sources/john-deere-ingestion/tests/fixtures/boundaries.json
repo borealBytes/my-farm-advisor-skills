@@ -1,0 +1,25 @@
+{
+  "values": [
+    {
+      "id": "boundary-101",
+      "fieldId": "field-101",
+      "fieldName": "North 80",
+      "farmId": "farm-9001",
+      "farmName": "North Farm",
+      "boundaryType": "Primary",
+      "lastModifiedTime": "2026-05-01T10:05:00.000Z",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [-93.6501, 42.0349],
+            [-93.6425, 42.0349],
+            [-93.6425, 42.0412],
+            [-93.6501, 42.0412],
+            [-93.6501, 42.0349]
+          ]
+        ]
+      }
+    }
+  ]
+}

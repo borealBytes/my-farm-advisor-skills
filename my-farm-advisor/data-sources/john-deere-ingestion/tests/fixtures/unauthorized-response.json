@@ -1,0 +1,12 @@
+{
+  "name": "AuthorizationError",
+  "code": "AUTHORIZATION_FAILED",
+  "message": "The connected grower token is not authorized for the requested John Deere resource.",
+  "details": [
+    {
+      "target": "notifications.list",
+      "scope": "ag1",
+      "organizationId": "org-12345"
+    }
+  ]
+}

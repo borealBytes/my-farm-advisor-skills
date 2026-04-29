@@ -1,0 +1,19 @@
+{
+  "values": [
+    {
+      "id": "plant-2026-north-80",
+      "operationType": "Planting",
+      "operationDate": "2026-03-15T14:30:00.000Z",
+      "farmId": "farm-9001",
+      "farmName": "North Farm",
+      "fieldId": "field-101",
+      "fieldName": "North 80",
+      "cropSeason": 2026,
+      "totalArea": {
+        "value": 79.6,
+        "unit": "acre"
+      },
+      "lastModifiedTime": "2026-05-01T10:10:00.000Z"
+    }
+  ]
+}

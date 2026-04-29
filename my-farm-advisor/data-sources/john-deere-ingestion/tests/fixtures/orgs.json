@@ -1,0 +1,22 @@
+{
+  "values": [
+    {
+      "id": "org-12345",
+      "name": "Prairie View Farms Cooperative",
+      "type": "business",
+      "member": false,
+      "lastModifiedTime": "2026-05-01T09:30:00.000Z",
+      "_links": {
+        "self": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345"
+        },
+        "connections": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/connections"
+        },
+        "farms": {
+          "href": "https://sandboxapi.deere.com/platform/organizations/org-12345/farms"
+        }
+      }
+    }
+  ]
+}

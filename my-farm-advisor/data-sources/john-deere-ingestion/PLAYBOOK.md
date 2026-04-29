@@ -41,6 +41,76 @@ tags: [agriculture, john-deere, ingestion, oauth, operations-center, data-source
 | `jd doctor` | `john-deere doctor`, `john-deer doctor` | Verify env vars, token store, and endpoint reachability |
 | `jd paths` | `john-deere paths`, `john-deer paths` | Print resolved data root and canonical path mapping |
 
+## Execution examples
+
+### Print paths without credentials
+
+```bash
+npx jd paths --dry-run
+```
+
+Output includes the resolved data root, token store path, raw export directory, manifest directory, and example canonical paths for the current configuration.
+
+### Verify the environment
+
+```bash
+JD_CLIENT_ID=<id> JD_CLIENT_SECRET=<secret> npx jd doctor
+```
+
+Reports credential presence, token store state, OAuth endpoint reachability, and data root writability.
+
+### Initialize OAuth in sandbox
+
+```bash
+JD_CLIENT_ID=<id> JD_CLIENT_SECRET=<secret> npx jd init --environment sandboxapi
+```
+
+Starts a local callback server on `localhost:9090/callback`, prints the authorization URL, exchanges the code for tokens, and checks organization connections.
+
+### Headless init with a pre-obtained code
+
+```bash
+JD_CLIENT_ID=<id> JD_CLIENT_SECRET=<secret> npx jd init --code <authorization-code>
+```
+
+Useful for non-interactive environments or when the browser flow is not available.
+
+### Export the operation registry
+
+```bash
+npx jd registry
+```
+
+Prints the full registry JSON. To write it to a file:
+
+```bash
+npx jd registry --output registry-manifest.json
+```
+
+### Full ingest in sandbox
+
+```bash
+JD_CLIENT_ID=<id> JD_CLIENT_SECRET=<secret> npx jd ingest --environment sandboxapi
+```
+
+Runs every enabled operation in the registry, writes raw JSON snapshots, normalized projections, operation manifests, and a run summary.
+
+### Incremental sync
+
+```bash
+JD_CLIENT_ID=<id> JD_CLIENT_SECRET=<secret> npx jd sync
+```
+
+Reads the last checkpoint and skips operations whose data has not changed. Use `--force` to bypass the checkpoint and run a full sync.
+
+### Start the webhook receiver
+
+```bash
+npx jd webhook --port 8080
+```
+
+Logs incoming John Deere webhook events to a JSONL file under the resolved data root.
+
 ## Environment variables
 
 | Variable | Required | Default | Purpose |
@@ -67,6 +137,34 @@ tags: [agriculture, john-deere, ingestion, oauth, operations-center, data-source
 5. Run `jd ingest` to export raw and normalized data.
 6. Only after sandbox validation succeeds should you consider switching to `production`.
 
+## Mock mode
+
+Mock mode runs the full ingest or sync pipeline without calling live John Deere APIs. It uses deterministic fixture payloads so CI pipelines and local testing can exercise manifest writing, checkpoint advancement, and normalized output creation without credentials.
+
+### When to use mock mode
+
+- Local development when credentials are not available.
+- CI pipelines that must test CLI behavior without sandbox secrets.
+- Regression testing for manifest formats, checkpoint logic, and normalized path contracts.
+
+### Mock mode examples
+
+```bash
+# Full ingest with deterministic fixtures
+npx jd ingest --mock
+
+# Sync with mock fixtures (exercises checkpoint skipping logic)
+npx jd sync --mock
+
+# Mock ingest with a custom data root
+npx jd ingest --mock --data-root ./test-output
+
+# Mock ingest with dry-run to inspect intended paths
+npx jd ingest --mock --dry-run
+```
+
+Mock mode writes real files: raw JSON snapshots, normalized projections, operation manifests, and run summaries. Clean the output directory between runs to avoid accumulating mock artifacts.
+
 ## Data root resolution
 
 The subskill resolves the writable data root in this order:
@@ -74,6 +172,25 @@ The subskill resolves the writable data root in this order:
 1. `JD_DATA_ROOT`
 2. `/data/workspace/data/my-farm-advisor`
 3. `.runtime/my-farm-advisor/data/`
+
+## Evidence paths
+
+After a run completes, the following artifacts are available under the resolved data root. These paths are useful for validation, debugging, and CI assertions.
+
+| Artifact | Path pattern | Purpose |
+|---|---|---|
+| Raw API snapshot | `growers/<slug>/source/john-deere/raw/<api_group>/<operation>/<YYYY>/<MM>/<DD>/<HHmmss>_<operation>_<id>.json` | Immutable JSON response from the API |
+| Normalized grower | `growers/<slug>/grower.john-deere.json` | Canonical grower projection |
+| Normalized farm | `growers/<slug>/farms/<farm_slug>/farm.john-deere.json` | Canonical farm projection |
+| Normalized field | `growers/<slug>/farms/<farm_slug>/fields/<field_slug>/field.john-deere.json` | Canonical field projection |
+| Field boundary | `growers/<slug>/farms/<farm_slug>/fields/<field_slug>/boundary/field_boundary.john-deere.geojson` | GeoJSON boundary from Deere |
+| Operation statuses | `growers/<slug>/source/john-deere/manifests/operation-statuses.json` | Per-operation status, timing, and output paths |
+| Latest run | `growers/<slug>/source/john-deere/manifests/latest-run.json` | Run-level summary with status counts and checkpoint |
+| Checkpoint | `growers/<slug>/source/john-deere/checkpoints/latest-checkpoint.json` | Incremental sync cursor state |
+| Token store | `<data_root>/tokens/<grower_slug>.json` | Refresh token persistence (dev-only) |
+| Webhook log | `<data_root>/webhooks/john-deere-events.jsonl` | Incoming webhook events (one JSON object per line) |
+
+In mock mode, the same paths are populated under the resolved (or overridden) data root so tests can assert on file existence and content.
 
 ## Raw + normalized data contract
 
@@ -135,6 +252,56 @@ An R2 adapter can map these JSON payloads into Python dataclasses or pandas Data
 - Do not rename JD artifacts to neutral filenames. Source scoping prevents collisions; removing it would create merge conflicts.
 - Do not claim production R2 integration is complete until an explicit integration phase is planned and tested.
 
+## Validation commands
+
+Use these commands to verify the subskill state before and after runs.
+
+### Verify environment and connectivity
+
+```bash
+npx jd doctor
+```
+
+Checks:
+- `JD_CLIENT_ID` and `JD_CLIENT_SECRET` are present
+- Token store file exists and is readable
+- OAuth discovery endpoint is reachable
+- Data root is writable
+
+### Inspect the operation registry
+
+```bash
+npx jd registry
+```
+
+Prints every registered operation with its default enablement, auth mode, scope, and status. Use this to preview which APIs will be called before running `ingest`.
+
+### Verify outputs after a run
+
+```bash
+# List raw snapshots for a grower
+ls growers/<slug>/source/john-deere/raw/
+
+# Check the latest run manifest
+jq . growers/<slug>/source/john-deere/manifests/latest-run.json
+
+# Count operations by status
+jq '.operations | group_by(.status) | map({status: .[0].status, count: length})' growers/<slug>/source/john-deere/manifests/operation-statuses.json
+
+# Verify checkpoint exists after sync
+ls growers/<slug>/source/john-deere/checkpoints/latest-checkpoint.json
+```
+
+### Run the test suite
+
+```bash
+cd my-farm-advisor/data-sources/john-deere-ingestion
+npm run build
+npm test
+```
+
+All 70 tests across 22 test files exercise unit and integration behavior including mock-mode ingest, sync, registry export, webhook handling, token storage, and R2 adapter contracts.
+
 ## Output guarantee
 
 - Raw payloads are never overwritten.
@@ -143,9 +310,21 @@ An R2 adapter can map these JSON payloads into Python dataclasses or pandas Data
 
 ## Status enum
 
-The registry uses exactly these statuses:
+The registry records every operation with one of these statuses:
 
-`pending | accessible | unauthorized | unsupported_by_sdk | unsupported_environment | empty | error | disabled_by_default | skipped_by_checkpoint`
+| Status | Meaning |
+|---|---|
+| `pending` | Not yet attempted (initial state before a run) |
+| `accessible` | Successful API call with data returned |
+| `unauthorized` | 401/403 or missing OAuth scope |
+| `unsupported_by_sdk` | The requested API method is not present in the installed `deere-sdk` |
+| `unsupported_environment` | SDK/environment mismatch |
+| `empty` | Successful API call that returned no records |
+| `error` | Unexpected failure (network, parsing, or persistence error) |
+| `disabled_by_default` | Write or destructive operation excluded from default export |
+| `skipped_by_checkpoint` | Unchanged since last sync; skipped during incremental runs |
+
+After a full ingest, expect a mix of `accessible`, `empty`, `unauthorized`, and `unsupported_by_sdk`. `disabled_by_default` and `skipped_by_checkpoint` appear during sync or when destructive operations are left excluded.
 
 ## Notes
 

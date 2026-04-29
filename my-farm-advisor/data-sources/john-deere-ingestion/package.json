@@ -1,0 +1,26 @@
+{
+  "name": "john-deere-ingestion",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Isolated John Deere ingestion CLI scaffold for My Farm Advisor.",
+  "bin": {
+    "jd": "./dist/cli.js",
+    "john-deere": "./dist/cli.js",
+    "john-deer": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "commander": "^14.0.1",
+    "deere-sdk": "^0.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.4"
+  }
+}

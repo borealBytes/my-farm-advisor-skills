@@ -74,9 +74,9 @@ npx jd webhook
 npx jd webhook --port 8080
 ```
 
-## Environment variables
+## Environment variables and CLI overrides
 
-All secrets are read from environment variables. No secrets are stored in source files.
+The CLI reads credentials and runtime settings from environment variables by default. For one-off runs, `--client-id` and `--client-secret` are also supported and override `JD_CLIENT_ID` / `JD_CLIENT_SECRET` for that invocation. No secrets are stored in source files.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
@@ -98,7 +98,7 @@ This mirrors the R2 seed pipeline precedence, but R2 direct wiring is explicitly
 
 ## Credential handling
 
-- Never commit credentials. `JD_CLIENT_ID` and `JD_CLIENT_SECRET` must be supplied as environment variables.
+- Never commit credentials. Supply `JD_CLIENT_ID` and `JD_CLIENT_SECRET` as environment variables, or pass them with `--client-id` and `--client-secret` for a single command invocation.
 - The skill reads the client secret fresh on every run and does not cache it.
 - Token storage files live under ignored runtime paths and must never be committed.
 
@@ -107,7 +107,7 @@ This mirrors the R2 seed pipeline precedence, but R2 direct wiring is explicitly
 Rotate `JD_CLIENT_SECRET` on a regular cadence:
 
 1. Generate a new secret in the John Deere developer portal.
-2. Update the environment variable to the new value.
+2. Update the environment variable to the new value, or update the secret passed through your runtime wrapper if you use CLI flags.
 3. Verify connectivity with `jd doctor`.
 4. Revoke the old secret in the developer portal after confirming the new one works.
 

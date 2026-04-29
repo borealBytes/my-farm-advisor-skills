@@ -5,9 +5,11 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
 
+import { initJohnDeereAuth } from './auth/init.js';
 import { parseConfig } from './config.js';
 import { resolveOAuthEndpoints } from './oauth/endpoints.js';
 import { buildGrowerPaths } from './paths.js';
+import type { TokenStore } from './tokens/store.js';
 
 export interface RunCliResult {
   output: string;
@@ -20,6 +22,10 @@ export interface RunCliOptions {
   env?: NodeJS.ProcessEnv;
   executableName?: string;
   fetch?: typeof fetch;
+  tokenStore?: TokenStore;
+  stdin?: NodeJS.ReadableStream;
+  stdout?: NodeJS.WritableStream;
+  callbackTimeoutMs?: number;
 }
 
 interface CliGlobalOptions {
@@ -40,6 +46,10 @@ interface CliGlobalOptions {
 
 interface RegistryOptions extends CliGlobalOptions {
   output?: string;
+}
+
+interface InitCommandOptions extends CliGlobalOptions {
+  code?: string;
 }
 
 interface WebhookOptions extends CliGlobalOptions {
@@ -139,26 +149,6 @@ function formatMissingCredentials(commandName: string, config: ReturnType<typeof
   };
 }
 
-async function buildAuthorizationUrl(
-  config: ReturnType<typeof parseConfig>,
-  fetchImpl?: typeof fetch
-): Promise<string> {
-  const endpoints = await resolveOAuthEndpoints({ environment: config.environment, fetch: fetchImpl });
-  const url = new URL(endpoints.authorizationEndpoint);
-
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('client_id', config.clientId ?? 'missing-client-id');
-  url.searchParams.set('redirect_uri', config.redirectUri);
-  url.searchParams.set('scope', 'ag1 offline_access org2 files');
-  url.searchParams.set('state', `jd-${config.profile}`);
-
-  if (config.orgId) {
-    url.searchParams.set('org_id', config.orgId);
-  }
-
-  return url.toString();
-}
-
 function buildRegistryManifest(config: ReturnType<typeof parseConfig>) {
   return {
     generatedAt: new Date().toISOString(),
@@ -213,23 +203,24 @@ async function handlePaths(command: Command, options: RunCliOptions): Promise<Ru
 
 async function handleInit(command: Command, options: RunCliOptions): Promise<RunCliResult> {
   const config = buildCommandConfig(command, options);
+  const initOptions = command.optsWithGlobals<InitCommandOptions>();
 
   if (missingCredentials(config).length > 0) {
     return formatMissingCredentials('init', config);
   }
 
-  const authorizationUrl = await buildAuthorizationUrl(config, options.fetch);
+  const result = await initJohnDeereAuth({
+    config,
+    fetch: options.fetch,
+    tokenStore: options.tokenStore,
+    stdin: options.stdin,
+    stdout: options.stdout,
+    authorizationCode: initOptions.code,
+    callbackTimeoutMs: options.callbackTimeoutMs
+  });
 
   return {
-    output: [
-      'John Deere init scaffold',
-      `environment: ${config.environment}`,
-      `authorizationUrl: ${authorizationUrl}`,
-      `tokenStorePath: ${config.tokenStorePath}`,
-      config.dryRun
-        ? 'dry-run: token exchange skipped; no token files written.'
-        : 'token exchange not yet implemented in this scaffold; URL printed only.'
-    ].join('\n'),
+    output: result.outputLines.join('\n'),
     exitCode: 0,
     config
   };
@@ -341,6 +332,7 @@ export async function runCli(argv: string[], options: RunCliOptions = {}): Promi
     program
       .command('init')
     .description('Initialize OAuth flow and print or exchange the authorization code')
+    .option('--code <authorizationCode>', 'Paste the callback URL or authorization code instead of using localhost callback')
     .action(async function initAction() {
       commandResult = await handleInit(this as Command, options);
     })

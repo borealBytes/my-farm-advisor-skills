@@ -90,6 +90,51 @@ The highest normalized boundary is always `growers/<grower_slug>/`. No normalize
 - The normalized tree follows the same grower/farm/field/asset shape that the R2 seed pipeline expects, so later integration should be a path/config change rather than a restructure.
 - Object-storage sync semantics such as `rsync --no-times` are not implemented here; they belong in the R2 seed pipeline layer.
 
+## R2 migration notes
+
+When the R2 seed pipeline is ready to consume John Deere ingest outputs, the integration path should be:
+
+1. **Run JD ingest first** so the canonical tree is populated with Deere artifacts.
+2. **Run R2 seed** so shared baselines and non-Deere farm data are present in the same tree.
+3. **R2 scripts read JD manifests** from `growers/<slug>/manifests/john-deere/latest-run.json` to understand which operations succeeded, which were unauthorized, and which produced normalized outputs.
+4. **R2 scripts read JD normalized data** from `.john-deere.` files and `john-deere/` leaf folders without risk of collision, because JD artifacts are source-scoped.
+
+### Data root alignment
+
+Both pipelines resolve the writable root with the same precedence pattern:
+
+- Explicit env override (`JD_DATA_ROOT` / `R2_SEED_DATA_ROOT`)
+- OpenClaw workspace default (`/data/workspace/data/my-farm-advisor`)
+- Local checkout fallback (`data/my-farm-advisor` or `.runtime/my-farm-advisor/data/`)
+
+If both pipelines target the same root, the combined tree contains neutral R2 seed files plus source-scoped JD files in the same canonical structure.
+
+### Manifest consumption contract
+
+An R2 pipeline script that wants to consume JD operation results should expect:
+
+- `operation-statuses.json` lists every attempted API call with `operation`, `status`, `startTime`, `endTime`, `outputPaths`, and `errorDetails`.
+- `latest-run.json` adds run-level metadata: `runId`, `totalDurationMs`, `statusCounts`, and `nextCheckpoint`.
+- Both files are mirrored under `source/john-deere/manifests/` (raw mirror) and `manifests/john-deere/` (normalized mirror).
+
+An R2 adapter can map these JSON payloads into Python dataclasses or pandas DataFrames without restructuring the tree.
+
+### Path mapping checklist
+
+| Canonical R2 path | JD equivalent | Notes |
+|---|---|---|
+| `growers/<slug>/grower.json` | `growers/<slug>/grower.john-deere.json` | JD writes a parallel source-scoped file, not a replacement. |
+| `growers/<slug>/farms/<slug>/farm.json` | `growers/<slug>/farms/<slug>/farm.john-deere.json` | Same pattern: parallel, not overwriting. |
+| `growers/<slug>/farms/<slug>/fields/<slug>/boundary/` | `growers/<slug>/farms/<slug>/fields/<slug>/boundary/field_boundary.john-deere.geojson` | JD boundary is source-scoped; neutral boundary can coexist. |
+| `growers/<slug>/farms/<slug>/fields/<slug>/manifests/` | `growers/<slug>/farms/<slug>/fields/<slug>/manifests/john-deere/` | JD field manifests live in a source subfolder. |
+| `growers/<slug>/farms/<slug>/manifests/` | `growers/<slug>/farms/<slug>/manifests/john-deere/` | Same subfolder convention. |
+
+### What R2 should NOT do
+
+- Do not modify R2 pipeline scripts to invoke `jd ingest` or `jd sync`. Those commands stay in the JD subskill.
+- Do not rename JD artifacts to neutral filenames. Source scoping prevents collisions; removing it would create merge conflicts.
+- Do not claim production R2 integration is complete until an explicit integration phase is planned and tested.
+
 ## Output guarantee
 
 - Raw payloads are never overwritten.

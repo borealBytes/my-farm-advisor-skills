@@ -132,11 +132,155 @@ John Deere artifacts use `.john-deere.` filenames or `john-deere/` leaf folders 
 
 The default `FileTokenStore` saves tokens adjacent to the data root. This is suitable for development and portable setups. For production hardening, swap in an encrypted or keychain-backed implementation behind the `TokenStore` interface.
 
-## R2-readiness boundary
+## R2 Integration
 
-- This subskill does not wire directly into the R2 seed pipeline in v1.
-- The canonical tree shape and data root resolution are designed to align with R2 conventions, so future integration should require only configuration changes.
-- Object-storage sync commands such as `rsync --no-times` belong in the R2 seed pipeline layer, not here.
+This section describes how the John Deere ingestion subskill aligns with the R2 seed pipeline conventions, and what a future R2 integration would look like.
+
+### Canonical tree alignment
+
+The R2 seed pipeline expects a deterministic on-disk tree under `data/my-farm-advisor/`:
+
+```text
+growers/<grower_slug>/
+  grower.json
+  farms/<farm_slug>/
+    farm.json
+    boundary/
+    manifests/
+    logs/
+    derived/
+    fields/<field_slug>/
+      boundary/
+      soil/
+      weather/
+      satellite/
+      manifests/
+      derived/
+      logs/
+```
+
+John Deere normalized outputs follow the same hierarchy, but scope every artifact to its source so it never collides with other ingest pipelines:
+
+```text
+growers/<grower_slug>/
+  grower.john-deere.json
+  farms/<farm_slug>/
+    farm.john-deere.json
+    boundaries/john-deere/
+    fields/<field_slug>/
+      field.john-deere.json
+      boundary/field_boundary.john-deere.geojson
+      planting/john-deere/<YYYY>/
+      harvest/john-deere/<YYYY>/
+      applications/john-deere/<YYYY>/
+      operations/john-deere/<YYYY>/
+      guidance-lines/john-deere/
+      flags/john-deere/
+      map-layers/john-deere/
+  equipment/john-deere/
+  operators/john-deere/
+  products/john-deere/
+  crop-types/john-deere/
+```
+
+Because both pipelines use `growers/<slug>/farms/<slug>/fields/<slug>/` as the canonical anchor, an R2 consumer can walk the same tree and read `.john-deere.` files alongside neutral or other-source artifacts without path conflicts.
+
+### Data root resolution precedence
+
+The subskill resolves the writable data root in the same order as the R2 seed pipeline:
+
+1. `JD_DATA_ROOT` (explicit override)
+2. `/data/workspace/data/my-farm-advisor` (OpenClaw default)
+3. `.runtime/my-farm-advisor/data/` (checkout-relative fallback)
+
+This mirrors the R2 precedence: `R2_SEED_DATA_ROOT` → `/data/workspace/data/my-farm-advisor` → local `data/my-farm-advisor`. When both pipelines target the same root, their outputs live in the same canonical tree.
+
+### Path mapping
+
+| R2 canonical concept | John Deere normalized path |
+|---|---|
+| Grower metadata | `growers/<slug>/grower.john-deere.json` |
+| Farm metadata | `growers/<slug>/farms/<slug>/farm.john-deere.json` |
+| Farm boundaries | `growers/<slug>/farms/<slug>/boundaries/john-deere/` |
+| Field metadata | `growers/<slug>/farms/<slug>/fields/<slug>/field.john-deere.json` |
+| Field boundary | `growers/<slug>/farms/<slug>/fields/<slug>/boundary/field_boundary.john-deere.geojson` |
+| Field manifests | `growers/<slug>/farms/<slug>/fields/<slug>/manifests/john-deere/` |
+| Planting records | `growers/<slug>/farms/<slug>/fields/<slug>/planting/john-deere/<YYYY>/` |
+| Harvest records | `growers/<slug>/farms/<slug>/fields/<slug>/harvest/john-deere/<YYYY>/` |
+| Application records | `growers/<slug>/farms/<slug>/fields/<slug>/applications/john-deere/<YYYY>/` |
+| Machine locations | `growers/<slug>/machine-data/locations/<machine_id>/john-deere/<YYYY>/` |
+
+Raw API snapshots are kept under `growers/<slug>/source/john-deere/raw/...` and are invisible to R2 reporting unless an R2 script explicitly opts into source replay.
+
+### Manifest output format
+
+The subskill writes two manifest documents that an R2 pipeline could consume directly:
+
+**Operation manifest** (`operation-statuses.json`):
+
+```json
+{
+  "growerSlug": "iowa-demo-grower",
+  "generatedAt": "2026-04-29T12:00:00Z",
+  "operations": [
+    {
+      "operation": "organizations.list",
+      "status": "accessible",
+      "startTime": "2026-04-29T12:00:00Z",
+      "endTime": "2026-04-29T12:00:01Z",
+      "outputPaths": [
+        "growers/iowa-demo-grower/source/john-deere/raw/organizations/list/2026/04/29/2026-04-29T12-00-00Z_list-all_page-1.json"
+      ],
+      "errorDetails": null,
+      "requestContext": {}
+    }
+  ]
+}
+```
+
+**Run manifest** (`latest-run.json` and `run-<timestamp>.json`):
+
+```json
+{
+  "growerSlug": "iowa-demo-grower",
+  "runId": "2026-04-29T12-00-00Z",
+  "status": "completed",
+  "startTime": "2026-04-29T12:00:00Z",
+  "endTime": "2026-04-29T12:05:00Z",
+  "totalDurationMs": 300000,
+  "outputPaths": [...],
+  "requestContext": {},
+  "operations": [...],
+  "statusCounts": {
+    "accessible": 42,
+    "unauthorized": 3,
+    "empty": 1
+  },
+  "nextCheckpoint": {
+    "lastSuccessfulRun": "2026-04-29T12-00-00Z",
+    "operationCursorCount": 46,
+    "outputPaths": [...]
+  }
+}
+```
+
+An R2 seed script could read `latest-run.json` from either:
+- `growers/<slug>/source/john-deere/manifests/latest-run.json` (raw mirror)
+- `growers/<slug>/manifests/john-deere/latest-run.json` (normalized mirror)
+
+Both files contain the same payload.
+
+### Out-of-scope statement
+
+**R2 direct wiring is out of scope in v1.**
+
+This subskill does not:
+- Invoke R2 seed pipeline scripts.
+- Implement `rsync --no-times` or object-storage sync semantics.
+- Write neutral (non-source-scoped) filenames that would overwrite R2 seed data.
+- Claim production R2 integration is complete.
+
+Future R2 integration should require only configuration and path mapping changes, because the canonical tree shape, data root resolution, and manifest formats already align with R2 conventions.
 
 ## Operation registry statuses
 

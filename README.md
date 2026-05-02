@@ -25,6 +25,9 @@ my-farm-advisor-skills/
 │   │   └── john-deere-ingestion/              # NEW: John Deere Operations Center import
 │   │       ├── README.md                      # CLI commands, env vars, R2 contract
 │   │       └── PLAYBOOK.md                    # Execution examples & troubleshooting
+│   ├── r2-seed-pipeline/                      # Seed pipeline runtime & reporting
+│   │   ├── README.md                          # Runtime setup, venv bootstrap
+│   │   └── PLAYBOOK.md                        # Seed/sync commands, rsync contracts
 │   ├── field-management/
 │   ├── soil/
 │   ├── weather/
@@ -55,6 +58,7 @@ my-farm-advisor-skills/
 | **[John Deere Ingestion](my-farm-advisor/data-sources/john-deere-ingestion/)** | `my-farm-advisor/data-sources/john-deere-ingestion/` | Standalone CLI that connects to John Deere Operations Center, enumerates every supported API operation, and exports raw + normalized grower/farm/field data into the canonical farm tree. |
 | **[Farm Data Rebuild](my-farm-advisor/data-sources/farm-data-rebuild/)** | `my-farm-advisor/data-sources/farm-data-rebuild/` | Deterministic playbook for rebuilding farm data from seed sources. |
 | **[Farm Intelligence Reporting](my-farm-advisor/data-sources/farm-intelligence-reporting/)** | `my-farm-advisor/data-sources/farm-intelligence-reporting/` | Playbook for generating farm intelligence reports and dashboards. |
+| **[R2 Seed Pipeline](my-farm-advisor/r2-seed-pipeline/)** | `my-farm-advisor/r2-seed-pipeline/` | Runtime bootstrap, deterministic seed/sync scripts, and reporting pipeline orchestration that builds farm data reports and posters from the canonical tree. |
 
 ### What Is Not Here
 
@@ -88,6 +92,8 @@ grower/                          # Customer or operating entity
 Start here for:
 - [Farm data rebuild workflow](my-farm-advisor/data-sources/farm-data-rebuild/PLAYBOOK.md)
 - [Farm intelligence reporting](my-farm-advisor/data-sources/farm-intelligence-reporting/PLAYBOOK.md)
+- [R2 seed pipeline runtime](my-farm-advisor/r2-seed-pipeline/README.md)
+- [R2 seed pipeline playbook](my-farm-advisor/r2-seed-pipeline/PLAYBOOK.md)
 - [John Deere data ingestion](my-farm-advisor/data-sources/john-deere-ingestion/README.md)
 - [Field boundaries](my-farm-advisor/field-management/field-boundaries/GUIDE.md)
 - [SSURGO soil workflows](my-farm-advisor/soil/ssurgo-soil/GUIDE.md)
@@ -296,6 +302,22 @@ my-farm-advisor-skills/
 │   │       ├── package.json
 │   │       ├── src/                   # TypeScript CLI source
 │   │       └── tests/                 # Vitest test suites
+│   ├── r2-seed-pipeline/              # seed pipeline runtime & reporting
+│   │   ├── README.md
+│   │   ├── PLAYBOOK.md
+│   │   ├── requirements.txt
+│   │   ├── scripts/
+│   │   │   └── install.sh             # runtime venv bootstrap
+│   │   └── src/
+│   │       ├── scripts/
+│   │       │   ├── run_farm_pipeline.py
+│   │       │   ├── ingest/
+│   │       │   ├── reporting/
+│   │       │   └── eda/
+│   │       └── shared/
+│   │           ├── geoadmin/
+│   │           ├── corn_maturity/
+│   │           └── soybean_maturity/
 │   └── ...
 ├── my-farm-breeding-trial-management/ # breeding trial skill
 │   ├── SKILL.md

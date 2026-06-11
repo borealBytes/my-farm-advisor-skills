@@ -7,6 +7,7 @@ import argparse
 import json
 import os
 import sys
+import zipfile
 from pathlib import Path
 
 import geopandas as gpd
@@ -35,6 +36,10 @@ from cdl_reporting import extract_crop_composition, summarize_crop_history
 
 DEFAULT_CDL_LATEST_YEAR = 2025
 DEFAULT_CDL_WINDOW_YEARS = 5
+NASS_CDL_BYFIPS_BASE_URL = "https://nassgeodata.gmu.edu/nass_data_cache/byfips"
+NASS_CDL_NATIONAL_BASE_URL = (
+    "https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets"
+)
 
 
 def _cdl_coverage_label(*, conus: bool, state_fips: str | None = None) -> str:
@@ -47,6 +52,61 @@ def _cdl_raster_path(year: int, *, conus: bool, state_fips: str | None = None) -
     return shared_cdl_state_raster_path(year, str(state_fips or "19"))
 
 
+def _cdl_download_url(year: int, *, conus: bool, state_fips: str | None = None) -> str:
+    if conus:
+        return f"{NASS_CDL_NATIONAL_BASE_URL}/{year}_30m_cdls.zip"
+    label = _cdl_coverage_label(conus=False, state_fips=state_fips)
+    return f"{NASS_CDL_BYFIPS_BASE_URL}/CDL_{year}_{label}.tif"
+
+
+def _stream_download(url: str, destination: Path) -> None:
+    with requests.get(url, stream=True, timeout=180) as resp:
+        resp.raise_for_status()
+        with open(destination, "wb") as f:
+            for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                if chunk:
+                    f.write(chunk)
+
+
+def _extract_cdl_tif(zip_path: Path, destination: Path) -> None:
+    with zipfile.ZipFile(zip_path) as archive:
+        tif_names = [
+            name
+            for name in archive.namelist()
+            if name.lower().endswith((".tif", ".tiff")) and not name.endswith("/")
+        ]
+        if not tif_names:
+            raise RuntimeError(f"No GeoTIFF found in national CDL archive: {zip_path}")
+        tif_names.sort(key=lambda name: ("confidence" in name.lower(), len(name), name))
+        with archive.open(tif_names[0]) as src, open(destination, "wb") as dst:
+            for chunk in iter(lambda: src.read(1024 * 1024), b""):
+                if chunk:
+                    dst.write(chunk)
+
+
+def _download_conus_cdl_raster(year: int, *, force: bool = False) -> Path:
+    label = _cdl_coverage_label(conus=True)
+    cdl_path = shared_cdl_conus_raster_path(year)
+    if cdl_path.exists() and not force:
+        print(f"  Cached CDL {year} {label}: {cdl_path}")
+        return cdl_path
+
+    cdl_path.parent.mkdir(parents=True, exist_ok=True)
+    url = _cdl_download_url(year, conus=True)
+    zip_path = cdl_path.with_suffix(".zip.tmp")
+    tmp_path = cdl_path.with_suffix(".tif.tmp")
+    print(f"  Downloading CDL {year} {label} national archive...")
+    try:
+        _stream_download(url, zip_path)
+        _extract_cdl_tif(zip_path, tmp_path)
+        tmp_path.replace(cdl_path)
+    finally:
+        zip_path.unlink(missing_ok=True)
+        tmp_path.unlink(missing_ok=True)
+    print(f"  Downloaded CDL {year} {label}: {cdl_path}")
+    return cdl_path
+
+
 def _download_cdl_raster(
     year: int,
     *,
@@ -55,6 +115,9 @@ def _download_cdl_raster(
     force: bool = False,
 ) -> Path:
     """Download one shared CDL raster and return its canonical runtime path."""
+    if conus:
+        return _download_conus_cdl_raster(year, force=force)
+
     label = _cdl_coverage_label(conus=conus, state_fips=state_fips)
     cdl_path = _cdl_raster_path(year, conus=conus, state_fips=state_fips)
     if cdl_path.exists() and not force:
@@ -62,14 +125,14 @@ def _download_cdl_raster(
         return cdl_path
 
     cdl_path.parent.mkdir(parents=True, exist_ok=True)
-    url = f"https://nassgeodata.gmu.edu/nass_data_cache/byfips/CDL_{year}_{label}.tif"
+    url = _cdl_download_url(year, conus=False, state_fips=state_fips)
+    tmp_path = cdl_path.with_suffix(".tif.tmp")
     print(f"  Downloading CDL {year} {label}...")
-    with requests.get(url, stream=True, timeout=180) as resp:
-        resp.raise_for_status()
-        with open(cdl_path, "wb") as f:
-            for chunk in resp.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
+    try:
+        _stream_download(url, tmp_path)
+        tmp_path.replace(cdl_path)
+    finally:
+        tmp_path.unlink(missing_ok=True)
     print(f"  Downloaded CDL {year} {label}: {cdl_path}")
     return cdl_path
 

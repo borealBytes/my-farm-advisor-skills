@@ -93,7 +93,7 @@ Shared county weather for maturity-by-FIPS uses NASA POWER's public S3 Zarr stor
 ${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/weather/nasa-power/<year>/daily_weather_by_fips.parquet
 ```
 
-For the full shared lower48 baseline, initialize the runtime with multi-year county weather, GDD, corn RM, soybean MG, corn/soybean five-year FIPS averages, and CDL raster outputs. The default shared maturity range is 2021-2025 to match the farm weather and CDL helper defaults; CDL initialization fetches the last five available CONUS rasters by default:
+For the full shared lower48 baseline, initialize the runtime with multi-year county weather, GDD, corn RM, soybean MG, corn/soybean five-year FIPS averages, and CDL raster outputs. The default shared maturity range is 2021-2025 to match the farm weather and CDL helper defaults; CDL initialization fetches the last five available CONUS rasters by default. CONUS CDL downloads use the official NASS National Download ZIPs, such as `https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets/2025_30m_cdls.zip`, then extract the GeoTIFF to `shared/cdl/rasters/CDL_2025_CONUS.tif`. State-scoped CDL downloads keep using the CropScape by-FIPS cache path, such as `https://nassgeodata.gmu.edu/nass_data_cache/byfips/CDL_2025_19.tif`:
 
 ```bash
 export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime

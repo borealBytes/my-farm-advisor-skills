@@ -106,6 +106,8 @@ cd my-farm-advisor/data-pipeline
 
 The shared maturity initializer writes annual corn RM and soybean MG outputs plus final last-five-year FIPS-average datasets such as `shared/corn_maturity/tables/rm_by_fips_2021_2025_average.parquet` and `shared/soybean_maturity/tables/mg_by_fips_2021_2025_average.parquet`.
 
+CONUS CDL initialization downloads the official NASS National Download ZIP for each year, for example `https://www.nass.usda.gov/Research_and_Science/Cropland/Release/datasets/2025_30m_cdls.zip`, and extracts the GeoTIFF to `shared/cdl/rasters/CDL_2025_CONUS.tif`. State-scoped CDL initialization keeps using the CropScape by-FIPS cache URL pattern, for example `https://nassgeodata.gmu.edu/nass_data_cache/byfips/CDL_2025_19.tif`.
+
 Runtime equivalent after install:
 
 ```bash

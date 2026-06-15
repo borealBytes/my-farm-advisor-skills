@@ -26,18 +26,15 @@ from bootstrap_runtime import ensure_runtime_environment
 ensure_runtime_environment()
 
 import geopandas as gpd
+import osmnx as ox
 import pandas as pd
-import requests
 from shapely.geometry import Polygon
 
 from naming import field_slug_from_id
 from paths import DATA_ROOT, SCRIPTS_ROOT, farm_boundary_path, farm_manifest_dir, shared_geoadmin_counties_dir
 
-OVERPASS_URLS = [
-    "https://overpass-api.de/api/interpreter",
-    "https://overpass.kumi.systems/api/interpreter",
-    "https://lz4.overpass-api.de/api/interpreter",
-]
+ox.settings.log_console = False
+ox.settings.timeout = 180
 COUNTIES_PATH = shared_geoadmin_counties_dir() / "counties_usa.geojson"
 
 
@@ -97,58 +94,31 @@ def _load_target_county(state_fips: str, county_name: str) -> gpd.GeoDataFrame:
     return exact.iloc[[0]].copy()
 
 
-def _query_overpass_bbox(bbox: tuple[float, float, float, float]) -> dict:
-    south, west, north, east = bbox
-    query = f"""
-    [out:json][timeout:180];
-    (
-      way["landuse"~"farmland|orchard|vineyard|meadow"]({south},{west},{north},{east});
-    );
-    out geom;
-    """
-    last_error: Exception | None = None
-    for endpoint in OVERPASS_URLS:
-        for attempt in range(1, 4):
-            try:
-                response = requests.post(endpoint, data={"data": query}, timeout=240)
-                response.raise_for_status()
-                return response.json()
-            except Exception as exc:
-                last_error = exc
-                if attempt < 3:
-                    time.sleep(2.0 * attempt)
-    raise RuntimeError(f"Overpass query failed for all endpoints: {last_error}")
-
-
-def _osm_elements_to_fields(
-    *,
-    elements: list[dict],
+def _query_osm_farmland(
+    bbox: tuple[float, float, float, float],
     county_geom,
     state_fips: str,
     county_fips: str,
     county_name: str,
 ) -> gpd.GeoDataFrame:
-    records: list[dict] = []
+    south, west, north, east = bbox
+    tags = {"landuse": ["farmland", "orchard", "vineyard", "meadow"]}
+    features = ox.features_from_bbox((west, south, east, north), tags=tags)
     county_gdf = gpd.GeoDataFrame([{"geometry": county_geom}], crs="EPSG:4326")
 
-    for element in elements:
-        if element.get("type") != "way":
+    records = []
+    for element_type, element_id in features.index:
+        if element_type != "way":
             continue
-        geometry_points = element.get("geometry", [])
-        if len(geometry_points) < 4:
+        row = features.xs((element_type, element_id))
+        if isinstance(row, gpd.GeoDataFrame):
+            row = row.iloc[0]
+        geom = row.geometry
+        if geom is None or geom.is_empty or not geom.is_valid:
             continue
-        ring = [(point["lon"], point["lat"]) for point in geometry_points]
-        if ring[0] != ring[-1]:
-            ring.append(ring[0])
-
-        try:
-            polygon = Polygon(ring)
-            if not polygon.is_valid or polygon.is_empty or polygon.area == 0:
-                continue
-        except Exception:
+        if geom.area <= 0:
             continue
-
-        field_gdf = gpd.GeoDataFrame([{"geometry": polygon}], crs="EPSG:4326")
+        field_gdf = gpd.GeoDataFrame([{"geometry": geom}], crs="EPSG:4326")
         clipped = gpd.overlay(field_gdf, county_gdf, how="intersection")
         if clipped.empty:
             continue
@@ -156,12 +126,12 @@ def _osm_elements_to_fields(
         if clipped_geom.is_empty:
             continue
 
-        tags = element.get("tags", {})
+        landuse_val = row.get("landuse", "Unknown")
         records.append(
             {
-                "field_id": f"osm-{element.get('id')}",
-                "source": "OpenStreetMap/Overpass",
-                "crop_name": str(tags.get("crop") or tags.get("landuse", "Unknown")),
+                "field_id": f"osm-{element_id}",
+                "source": "OpenStreetMap/osmnx",
+                "crop_name": str(landuse_val) if landuse_val is not None else "Unknown",
                 "state_fips": state_fips.zfill(2),
                 "county_fips": county_fips.zfill(3),
                 "county_name": county_name,
@@ -314,9 +284,8 @@ def main() -> None:
     bounds = county.total_bounds
     bbox = (float(bounds[1]), float(bounds[0]), float(bounds[3]), float(bounds[2]))
 
-    payload = _query_overpass_bbox(bbox)
-    fields = _osm_elements_to_fields(
-        elements=payload.get("elements", []),
+    fields = _query_osm_farmland(
+        bbox=bbox,
         county_geom=county_geom,
         state_fips=args.state_fips,
         county_fips=county_fips,

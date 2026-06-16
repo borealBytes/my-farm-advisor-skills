@@ -574,6 +574,21 @@ with_runtime_lock() {
   fi
 }
 
+stage_grower_web_map() {
+  local gwm_src="${SKILL_DIR}/grower-web-map/src"
+  if [[ ! -d "${gwm_src}" ]]; then
+    log "No grower-web-map source found at ${gwm_src}; skipping"
+    return 0
+  fi
+  if [[ "${DRY_RUN}" -eq 1 ]]; then
+    log "Dry run: would copy grower-web-map scripts to ${RUNTIME_SRC}/scripts/"
+    return 0
+  fi
+  mkdir -p "${RUNTIME_SRC}/scripts"
+  cp "${gwm_src}/generate_grower_map.py" "${RUNTIME_SRC}/scripts/generate_grower_map.py"
+  log "Staged grower-web-map script to ${RUNTIME_SRC}/scripts/generate_grower_map.py"
+}
+
 write_source_locator() {
   local locator_path="${RUNTIME_BASE}/${SOURCE_LOCATOR_NAME}"
   if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -741,6 +756,7 @@ case "${PERSIST_MODE}" in
 esac
 
 with_runtime_lock
+stage_grower_web_map
 write_source_locator
 install_dependencies
 prepare_shared_data

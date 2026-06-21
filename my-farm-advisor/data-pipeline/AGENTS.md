@@ -144,6 +144,18 @@ DATA_PIPELINE_DATA_ROOT="$tmp_root" \
   ./scripts/install.sh --non-interactive --force-refresh --no-install-deps
 ```
 
+Generate an interactive grower-level web map with Leaflet showing all farm field boundaries, NDVI overlay, and SSURGO soil overlay:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/grower_web_map.py \
+  --grower-slug il-grower
+```
+
+The map is written to `growers/<grower-slug>/dashboards/grower_web_map.html`. Toggle between Boundaries, NDVI (peak 95th %ile), and SSURGO (selectable property) layers. Click any field to see grower, farm, area, county, and per-year crop composition from CDL history.
+
 Root repository validation after documentation or structure changes:
 
 ```bash

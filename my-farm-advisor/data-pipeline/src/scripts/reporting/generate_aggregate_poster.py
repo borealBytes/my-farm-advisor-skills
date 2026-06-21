@@ -121,8 +121,12 @@ def _risk_matrix(ax, field_df):
     ax.grid(True, alpha=0.25)
 
 
-def _cdl_csv_path() -> Path:
-    return _CDL_PRIMARY if _CDL_PRIMARY.exists() else _CDL_FALLBACK
+def _cdl_csv_path() -> Path | None:
+    if _CDL_PRIMARY.exists():
+        return _CDL_PRIMARY
+    if _CDL_FALLBACK.exists():
+        return _CDL_FALLBACK
+    return None
 
 
 def _field_slug_lookup(inventory_path: Path = _FIELD_INVENTORY) -> dict[str, str]:
@@ -225,13 +229,14 @@ def main() -> None:
             for path in spotlight_assets.values()
             if path.exists()
         ]
+    _cls_cdl_path = _cdl_csv_path()
     manifest = build_step_manifest(
         step_name=STEP_FARM_POSTER_RENDER,
         input_paths=[
             config.field_boundary_path,
             str(farm_ssurgo_summary_path(config.grower_slug, config.farm_slug)),
             str(farm_weather_path(config.grower_slug, config.farm_slug)),
-            str(_cdl_csv_path().relative_to(_REPO)),
+            *([str(_cls_cdl_path.relative_to(_REPO))] if _cls_cdl_path is not None else []),
             *spotlight_inputs,
         ],
         output_paths=[output_path],
@@ -250,7 +255,12 @@ def main() -> None:
         farm_weather_path(config.grower_slug, config.farm_slug),
         parse_dates=["date"],
     )
-    cdl = pd.read_csv(_cdl_csv_path())
+    _cdl_path = _cdl_csv_path()
+    if _cdl_path is not None:
+        cdl = pd.read_csv(_cdl_path)
+    else:
+        cdl = pd.DataFrame()
+        print("  Warning: CDL composition data not available; skipping crop history")
 
     hl_rows = []
     for idx, frow in fields.iterrows():

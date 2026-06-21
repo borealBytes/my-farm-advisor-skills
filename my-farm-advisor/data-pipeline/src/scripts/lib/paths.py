@@ -33,6 +33,22 @@ def grower_logs_dir(grower_slug: str) -> Path:
     return grower_dir(grower_slug) / "logs"
 
 
+def grower_maps_dir(grower_slug: str) -> Path:
+    return grower_dir(grower_slug) / "maps"
+
+
+def grower_web_map_path(grower_slug: str) -> Path:
+    return grower_maps_dir(grower_slug) / "grower_web_map.html"
+
+
+def grower_metadata_path(grower_slug: str) -> Path:
+    return grower_dir(grower_slug) / "grower.json"
+
+
+def farm_metadata_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_dir(grower_slug, farm_slug) / "farm.json"
+
+
 def farm_dir(grower_slug: str, farm_slug: str) -> Path:
     return grower_dir(grower_slug) / "farms" / farm_slug
 

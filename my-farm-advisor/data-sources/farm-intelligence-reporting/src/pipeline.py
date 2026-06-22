@@ -90,7 +90,7 @@ class FieldReportingConfig:
     headland_width_m: float = 9.0
     weather_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
     cdl_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
-    imagery_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
+    imagery_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025, 2026)
     imagery_start_date: str = "2025-03-01"
     imagery_end_date: str = "2025-11-30"
     sentinel_cloud_cover_max: float = 20.0

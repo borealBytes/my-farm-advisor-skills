@@ -131,8 +131,12 @@ def _ndvi_asset_links(field_slug: str | None) -> list[str]:
     return links
 
 
-def _cdl_csv_path() -> Path:
-    return _CDL_PRIMARY if _CDL_PRIMARY.exists() else _CDL_FALLBACK
+def _cdl_csv_path() -> Path | None:
+    if _CDL_PRIMARY.exists():
+        return _CDL_PRIMARY
+    if _CDL_FALLBACK.exists():
+        return _CDL_FALLBACK
+    return None
 
 
 def _field_centroid_latitude(fields: gpd.GeoDataFrame, row_index: int) -> float:
@@ -176,13 +180,14 @@ def main() -> None:
                 ndvi_input_paths.append(str(path.relative_to(_REPO)))
 
     prior = load_manifest(manifest_dir / f"{STEP_FARM_MARKDOWN}.json")
+    _md_cdl_path = _cdl_csv_path()
     manifest = build_step_manifest(
         step_name=STEP_FARM_MARKDOWN,
         input_paths=[
             config.field_boundary_path,
             str(farm_ssurgo_summary_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
             str(farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
-            str(_cdl_csv_path().relative_to(_REPO)),
+            *([str(_md_cdl_path.relative_to(_REPO))] if _md_cdl_path is not None else []),
             *ndvi_input_paths,
         ],
         output_paths=[output_path],
@@ -199,7 +204,12 @@ def main() -> None:
         farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM),
         parse_dates=["date"],
     )
-    cdl = pd.read_csv(_cdl_csv_path())
+    _cdl_path = _cdl_csv_path()
+    if _cdl_path is not None:
+        cdl = pd.read_csv(_cdl_path)
+    else:
+        cdl = pd.DataFrame()
+        print("  Warning: CDL composition data not available; skipping crop history")
     hl_rows = []
     for idx, frow in fields.iterrows():
         fgdf = fields.iloc[[idx]].to_crs(_utm(frow))

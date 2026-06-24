@@ -139,8 +139,10 @@ def prepare_shared_cdl_rasters(
                 raise ValueError("scope must be conus or state")
         except HTTPError as exc:
             response = getattr(exc, "response", None)
-            if response is not None and response.status_code == 404 and years is None:
-                print(f"  Warning: CDL {year} {scope} is not available yet; trying older year")
+            status = response.status_code if response is not None else 0
+            if status in {404, 503} and years is None:
+                reason = "not available yet" if status == 404 else "server temporarily unavailable"
+                print(f"  Warning: CDL {year} {scope} {reason}; trying older year")
                 continue
             raise
         completed_years.add(year)
@@ -301,10 +303,10 @@ def main():
                 cdl_year_path = download_cdl(year, state_fips=state_fips)
             except HTTPError as exc:
                 response = getattr(exc, "response", None)
-                if response is not None and response.status_code == 404:
-                    print(
-                        f"  Warning: CDL {year} is not available yet for state {state_fips}; skipping"
-                    )
+                status = response.status_code if response is not None else 0
+                if status in {404, 503}:
+                    reason = "not available yet" if status == 404 else "server temporarily unavailable"
+                    print(f"  Warning: CDL {year} state {state_fips} {reason}; skipping")
                     continue
                 raise
             state_frames.append(extract_crop_composition(state_fields, cdl_year_path, year=year))
@@ -321,7 +323,8 @@ def main():
             break
 
     if not crop_mix_frames:
-        raise RuntimeError("No CDL years were available for download")
+        print("  Warning: No CDL years were available for download; skipping CDL analysis")
+        return tuple()
 
     # Create rotation analysis
     print("\n--- Crop Rotation ---")

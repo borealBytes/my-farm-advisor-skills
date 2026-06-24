@@ -201,6 +201,18 @@ flowchart TB
     class fail bad
 ```
 
+## Custom EDA Skills
+
+### Assignment 2 Field-Level EDA
+
+`assignment-2-field-eda` is a custom EDA subskill under `my-farm-advisor/eda/`. It generates static visualizations and statistical summaries for multi-grower field-level analysis of weather, CDL/cropland, and field boundary data.
+
+- **Skill location:** `my-farm-advisor/eda/assignment-2-field-eda/`
+- **Entrypoint:** [`my-farm-advisor/eda/assignment-2-field-eda/GUIDE.md`](my-farm-advisor/eda/assignment-2-field-eda/GUIDE.md)
+- **Scripts:** `scripts/run_assignment2_eda.py` (generates artifacts), `scripts/generate_assignment2_report.py` (generates HTML report)
+- **Runtime outputs:** `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/assignment-2/`
+- **Report:** Self-contained HTML report at `assignment-2-field-eda-report.html`
+
 ## Repository Layout
 
 ```text

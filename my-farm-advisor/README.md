@@ -242,6 +242,8 @@ The umbrella entrypoint is [`SKILL.md`](SKILL.md). From there, the skill routes 
 | Strategy         | Crop strategy and maturity planning workflows                          | [`strategy/INDEX.md`](strategy/INDEX.md)                 |
 | Weather          | NASA POWER weather ingestion and downstream weather analysis           | [`weather/INDEX.md`](weather/INDEX.md)                   |
 
+**Custom EDA subskill:** [`eda/assignment2-eda/GUIDE.md`](eda/assignment2-eda/GUIDE.md) is a field-level EDA that compares boundaries, CDL cropland history, and weather across 3 growers (IL, IA, NE). It generates 12 static figures and 4 CSV tables under `shared/assignment2-eda/derived/` in the runtime root, plus a self-contained HTML report at `shared/assignment2-eda/derived/reports/assignment2_eda_report.html`.
+
 ## Typical Workflow
 
 ```mermaid

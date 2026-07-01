@@ -88,9 +88,9 @@ class FieldReportingConfig:
     output_dir: str = "data/my-farm-advisor/EDA"
     reporting_dir: str = "data/my-farm-advisor/reporting"
     headland_width_m: float = 9.0
-    weather_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
-    cdl_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
-    imagery_years: tuple[int, ...] = (2021, 2022, 2023, 2024, 2025)
+    weather_years: tuple[int, ...] = (2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025)
+    cdl_years: tuple[int, ...] = (2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025)
+    imagery_years: tuple[int, ...] = (2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025)
     imagery_start_date: str = "2025-03-01"
     imagery_end_date: str = "2025-11-30"
     sentinel_cloud_cover_max: float = 20.0

@@ -1,36 +1,71 @@
 ---
 name: eda-field-compare
-description: Compare field boundaries, CDL/cropland data, and weather across multiple growers and states using static Python visualizations. Generates 9 publication-ready PNGs for cross-grower EDA.
+description: Compare field boundaries, weather, and CDL/cropland data across multiple growers and states. Produces 10 static PNGs in a four-act story arc with a geospatial context map.
 version: 1.0.0
 author: Boreal Bytes
-tags: [eda, comparison, boundaries, cdl, weather, cross-grower]
+tags: [eda, comparison, boundaries, cdl, weather, terrain, cross-grower]
 ---
 
 # Workflow: eda-field-compare
 
-## Description
+## Story Arc
 
-Compare field boundaries, CDL/cropland data, and weather across multiple growers using a single Python script. The workflow produces 9 static visualizations organized into 3 categories (boundaries, CDL, weather), each with 2 statistical plots and 1 comparison analysis.
+The workflow follows a four-act narrative:
 
-Comparisons span three dimensions:
-- **Within-field**: year-over-year CDL and weather variation
-- **Across fields within a grower**: field size, crop diversity, and microclimate spread
-- **Across growers**: IL, IA, and NE differences in acreage, cropping practices, and climate
+1. **Geospatial Context** — where are the fields located?
+2. **Field Boundaries** — what does the physical canvas look like?
+3. **Weather** — what environmental conditions drive decisions?
+4. **CDL/Cropland** — how do farmers respond to those conditions?
 
-## When to Use This Workflow
+Each act builds on the previous one to form a complete picture of three distinct growing environments.
 
-- **Multi-grower analysis**: Compare farm characteristics across states
-- **Crop rotation study**: Examine corn/soy dominance and diversity by region
-- **Climate context**: Understand temperature and precipitation differences that drive management
-- **First-look report**: Generate a comprehensive set of static PNGs for review before deeper analysis
+## Outputs
 
-## Prerequisites
+### Act 1 — Geospatial Context
+
+| File | Type | What it shows |
+|------|------|---------------|
+| `geospatial_context.png` | Map with basemap | All 30 field boundaries, state/county outlines, county labels, field centroids. Auto-includes mean elevation when DEM terrain data is available. |
+
+### Act 2 — Field Boundaries (2 stat-viz + 1 compare)
+
+| File | Type | What it shows |
+|------|------|---------------|
+| `field_size_distribution.png` | Faceted histogram | Distribution of field sizes per grower with KDE overlay. Annotated with median acreage. |
+| `field_area_by_grower.png` | Box plot | Median, IQR, and outlier comparison across IL/IA/NE. |
+| `field_size_comparison.png` | ANOVA + stats table | One-way ANOVA testing whether field sizes differ significantly by state. Stats table with count, mean, std, min, max per grower. |
+
+### Act 3 — Weather (2 stat-viz + 1 compare)
+
+| File | Type | What it shows |
+|------|------|---------------|
+| `monthly_temperature_profile.png` | Line + ribbon | Mean monthly temperature with ±1 std ribbon. Growing-season band highlighted (May–Sep). |
+| `annual_precipitation.png` | Grouped bar | Year-by-year total precipitation comparison. Annotated with IL/NE rainfall ratio. |
+| `growing_season_climate.png` | Scatter + Pearson r | Apr–Oct mean temperature vs total precipitation per field per year. Pearson correlation per grower. |
+
+### Act 4 — CDL/Cropland (2 stat-viz + 1 compare)
+
+| File | Type | What it shows |
+|------|------|---------------|
+| `crop_composition_by_grower.png` | 100% stacked bar | Dominant crop shares across all years. Annotated with corn/soy percentages per grower. |
+| `crop_diversity_by_grower.png` | Faceted histogram | Distinct crops per field over 5 years. Monoculture fields highlighted. |
+| `corn_soybean_tradeoff.png` | Scatter + Pearson r | Corn vs soybean years per field per grower. Strict rotation line annotated. |
+
+## Terrain / DEM Support
+
+The script automatically checks for terrain data under each field's `terrain/dem/` directory. When the `dem_terrain_summary.csv` files exist (produced by `download_dem_terrain.py` in the pipeline), the script loads mean elevation per field and includes it on the geospatial context map.
+
+To generate terrain data:
 
 ```bash
-pip install pandas numpy matplotlib seaborn geopandas
+export DATA_PIPELINE_DATA_ROOT=~/my-farm-advisor-runtime
+cd ${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src
+python scripts/ingest/download_dem_terrain.py \
+  --grower <grower-slug> --farm <farm-slug> \
+  --allow-live-downloads
 ```
 
-## Script Usage
+## Usage
 
 ```bash
 python src/field_compare_eda.py \
@@ -38,54 +73,16 @@ python src/field_compare_eda.py \
   --output-dir ${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-compare/output
 ```
 
-Without arguments the script reads `DATA_PIPELINE_DATA_ROOT` from the environment and writes to `{data-root}/eda/field-compare/output/`.
+Without arguments the script reads `DATA_PIPELINE_DATA_ROOT` from the environment.
 
-## Outputs
+## Prerequisites
 
-### Category 1: Field Boundaries
-
-| File | Type | Story |
-|------|------|-------|
-| `field_size_distribution.png` | Histogram (faceted by grower) | How do field sizes differ? NE center-pivot fields vs IL/IA grid patterns. |
-| `field_area_by_grower.png` | Box plot | Median field sizes, spread, and outliers per state. |
-| `field_size_stats_table.png` | Stats table + bar chart | Quantified mean, median, std per grower with annotated bar chart. |
-
-### Category 2: CDL / Cropland
-
-| File | Type | Story |
-|------|------|-------|
-| `crop_composition_by_grower.png` | 100% stacked horizontal bar | Dominant crop shares across all fields and years per grower. |
-| `crop_diversity_by_grower.png` | Histogram (faceted by grower) | How many distinct crops per field? Monoculture vs diverse rotation. |
-| `corn_soybean_tradeoff.png` | Scatter with Pearson r | Corn years vs soybean years per field. Inverse slope shows rotation tightness per grower. |
-
-### Category 3: Weather
-
-| File | Type | Story |
-|------|------|-------|
-| `monthly_temperature_profile.png` | Line + ribbon (faceted by grower) | Mean monthly temperature with across-field spread. Growing season length differences. |
-| `annual_precipitation.png` | Grouped bar chart | Year-by-year total precipitation comparison across growers. Wet/dry year identification. |
-| `growing_season_climate.png` | Scatter with Pearson r | Mean temperature vs total precipitation for Apr-Oct growing season. NE warmer/drier than IL/IA. |
-
-## Complete Example
-
-```python
-import subprocess
-import sys
-from pathlib import Path
-
-script = Path(__file__).parent / "src" / "field_compare_eda.py"
-subprocess.run([sys.executable, str(script)], check=True)
+```bash
+pip install pandas numpy matplotlib seaborn geopandas contextily scipy
 ```
-
-## Data Sources
-
-- **Field boundaries**: OSM farmland polygons via Overpass API, stored as GeoJSON
-- **CDL crop data**: USDA NASS Cropland Data Layer, year-by-year composition and rotation summary
-- **Weather**: NASA POWER daily records (2021-2025): temperature, precipitation, solar radiation, humidity, wind
 
 ## Resources
 
 - [Matplotlib Documentation](https://matplotlib.org/stable/contents.html)
 - [Seaborn Documentation](https://seaborn.pydata.org/)
-- [Pandas Documentation](https://pandas.pydata.org/docs/)
-- [Geopandas Documentation](https://geopandas.org/en/stable/)
+- [Contextily](https://contextily.readthedocs.io/)

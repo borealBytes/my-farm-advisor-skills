@@ -145,8 +145,12 @@ def _update_grower_manifest(
     _write_json(manifest_path, payload)
 
 
-def _run(script: str, extra_env: dict | None = None) -> bool:
-    cmd = [sys.executable, str(_SCRIPTS / script)]
+def _run(
+    script: str,
+    extra_env: dict | None = None,
+    command_args: tuple[str, ...] = (),
+) -> bool:
+    cmd = [sys.executable, str(_SCRIPTS / script), *command_args]
     t0 = time.monotonic()
     env = os.environ.copy()
     if extra_env:
@@ -201,6 +205,32 @@ def main() -> None:
         choices=["lst", "utc"],
         default=os.environ.get("AG_WEATHER_TIME_STANDARD", "lst"),
         help="NASA POWER time standard for farm weather outputs",
+    )
+    parser.add_argument(
+        "--dem-context-meters",
+        type=float,
+        default=20.0,
+        help="DEM terrain context buffer in meters for explicit terrain runs",
+    )
+    parser.add_argument(
+        "--dem-source-policy",
+        choices=[
+            "auto",
+            "us",
+            "global",
+            "usgs-tnm",
+            "illinois",
+            "nasadem",
+            "copernicus-glo30",
+            "alos-aw3d30",
+        ],
+        default="auto",
+        help="DEM terrain source policy for explicit terrain runs",
+    )
+    parser.add_argument(
+        "--skip-dem-terrain",
+        action="store_true",
+        help="Skip DEM terrain ingestion when terrain is explicitly added to a pipeline run",
     )
     parser.add_argument("--force", action="store_true", help="Force rerun all steps")
     parser.add_argument(
@@ -262,20 +292,33 @@ def main() -> None:
         finished_at=None,
     )
 
+    dem_command_args = (
+        "--allow-live-downloads",
+        "--context-meters",
+        str(args.dem_context_meters),
+        "--source-policy",
+        args.dem_source_policy,
+    )
     steps = [
-        ("ingest/download_fields.py", "Canonical field boundaries"),
-        ("ingest/download_soil.py", "SSURGO field soil tables"),
-        ("ingest/download_weather.py", "Weather history tables"),
-        ("ingest/download_cdl.py", "Shared CDL history tables"),
-        ("ingest/download_satellite_imagery.py", "Raw satellite TIFFs"),
-        ("reporting/generate_ndvi_composites.py", "NDVI yearly composites"),
-        ("reporting/generate_ndvi_cards.py", "NDVI cached cards"),
-        ("reporting/generate_ssurgo_maps.py", "SSURGO soil maps with basemap"),
-        ("reporting/generate_field_posters.py", "Field posters"),
-        ("reporting/generate_aggregate_poster.py", "Farm portfolio poster"),
-        ("reporting/generate_ssurgo_cards.py", "SSURGO soil profile cards"),
-        ("reporting/generate_farm_html.py", "Self-contained HTML report"),
-        ("reporting/generate_farm_markdown.py", "Markdown report"),
+        ("ingest/download_fields.py", "Canonical field boundaries", (), False),
+        (
+            "ingest/download_dem_terrain.py",
+            "Live DEM terrain derivatives",
+            dem_command_args,
+            args.skip_dem_terrain,
+        ),
+        ("ingest/download_soil.py", "SSURGO field soil tables", (), False),
+        ("ingest/download_weather.py", "Weather history tables", (), False),
+        ("ingest/download_cdl.py", "Shared CDL history tables", (), False),
+        ("ingest/download_satellite_imagery.py", "Raw satellite TIFFs", (), False),
+        ("reporting/generate_ndvi_composites.py", "NDVI yearly composites", (), False),
+        ("reporting/generate_ndvi_cards.py", "NDVI cached cards", (), False),
+        ("reporting/generate_ssurgo_maps.py", "SSURGO soil maps with basemap", (), False),
+        ("reporting/generate_field_posters.py", "Field posters", (), False),
+        ("reporting/generate_aggregate_poster.py", "Farm portfolio poster", (), False),
+        ("reporting/generate_ssurgo_cards.py", "SSURGO soil profile cards", (), False),
+        ("reporting/generate_farm_html.py", "Self-contained HTML report", (), False),
+        ("reporting/generate_farm_markdown.py", "Markdown report", (), False),
     ]
 
     all_ok = True
@@ -294,7 +337,7 @@ def main() -> None:
         extra_env["AG_WEATHER_CSV"] = str(_runtime_path(args.weather_csv))
     if args.force:
         extra_env["AG_FORCE"] = "1"
-    for script, label in steps:
+    for script, label, command_args, skip_step in steps:
         _update_grower_manifest(
             grower_manifest,
             farm_slug=args.farm_slug,
@@ -303,7 +346,11 @@ def main() -> None:
             step_results=step_results,
         )
         print(f"\n[{label}]")
-        ok = _run(script, extra_env=extra_env)
+        if skip_step:
+            print(f"  SKIPPED by operator request: {script}")
+            step_results.append({"step": script, "status": "skipped", "reason": "operator_request"})
+            continue
+        ok = _run(script, extra_env=extra_env, command_args=command_args)
         step_results.append({"step": script, "status": "ok" if ok else "failed"})
         if not ok:
             all_ok = False

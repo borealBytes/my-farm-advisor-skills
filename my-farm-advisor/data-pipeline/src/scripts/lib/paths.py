@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 try:
@@ -15,10 +16,46 @@ DATA_ROOT = _RUNTIME_PATHS.runtime_base
 SCRIPTS_ROOT = _RUNTIME_PATHS.runtime_scripts
 GROWERS_ROOT = DATA_ROOT / "growers"
 SHARED_ROOT = DATA_ROOT / "shared"
+_SAFE_SLUG_PATTERN = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def validate_path_slug(value: str, label: str = "slug") -> str:
+    slug = str(value)
+    if not slug:
+        raise ValueError(f"{label} must not be empty")
+    if slug in {".", ".."}:
+        raise ValueError(f"{label} must not be '.' or '..'")
+    if "/" in slug or "\\" in slug:
+        raise ValueError(f"{label} must not contain path separators: {slug!r}")
+    if Path(slug).is_absolute():
+        raise ValueError(f"{label} must not be an absolute path: {slug!r}")
+    if "://" in slug or not _SAFE_SLUG_PATTERN.fullmatch(slug):
+        raise ValueError(
+            f"{label} contains unsafe characters: {slug!r}; "
+            "use only letters, digits, dot, underscore, and hyphen"
+        )
+    return slug
+
+
+def ensure_data_root_path(path: Path) -> Path:
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = DATA_ROOT / candidate
+    resolved_root = DATA_ROOT.resolve(strict=False)
+    resolved_candidate = candidate.resolve(strict=False)
+    try:
+        resolved_candidate.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(f"Path escapes data-pipeline runtime root: {candidate}") from exc
+    return resolved_candidate
+
+
+def _data_root_path(*parts: str) -> Path:
+    return ensure_data_root_path(DATA_ROOT.joinpath(*parts))
 
 
 def grower_dir(grower_slug: str) -> Path:
-    return GROWERS_ROOT / grower_slug
+    return _data_root_path("growers", validate_path_slug(grower_slug, "grower_slug"))
 
 
 def grower_manifest_dir(grower_slug: str) -> Path:
@@ -34,7 +71,9 @@ def grower_logs_dir(grower_slug: str) -> Path:
 
 
 def farm_dir(grower_slug: str, farm_slug: str) -> Path:
-    return grower_dir(grower_slug) / "farms" / farm_slug
+    return ensure_data_root_path(
+        grower_dir(grower_slug) / "farms" / validate_path_slug(farm_slug, "farm_slug")
+    )
 
 
 def farm_manifest_dir(grower_slug: str, farm_slug: str) -> Path:
@@ -82,7 +121,7 @@ def farm_table_path(grower_slug: str, farm_slug: str, filename: str) -> Path:
 
 
 def _normalized_farm_artifact_prefix(farm_slug: str) -> str:
-    normalized = farm_slug.strip().replace("-", "_")
+    normalized = validate_path_slug(farm_slug, "farm_slug").replace("-", "_")
     if normalized == "iowa_demo_farm":
         return "iowa"
     if normalized.endswith("_farm"):
@@ -152,7 +191,9 @@ def farm_report_asset_path(grower_slug: str, farm_slug: str, extension: str) -> 
 
 
 def field_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
-    return farm_dir(grower_slug, farm_slug) / "fields" / field_slug
+    return ensure_data_root_path(
+        farm_dir(grower_slug, farm_slug) / "fields" / validate_path_slug(field_slug, "field_slug")
+    )
 
 
 def field_boundary_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
@@ -191,12 +232,24 @@ def field_satellite_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Pa
     return field_dir(grower_slug, farm_slug, field_slug) / "satellite"
 
 
+def field_terrain_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
+    return field_dir(grower_slug, farm_slug, field_slug) / "terrain"
+
+
+def field_dem_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
+    return field_terrain_dir(grower_slug, farm_slug, field_slug) / "dem"
+
+
 def field_manifest_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
     return field_dir(grower_slug, farm_slug, field_slug) / "manifests"
 
 
 def field_derived_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
     return field_dir(grower_slug, farm_slug, field_slug) / "derived"
+
+
+def field_terrain_derived_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
+    return field_derived_dir(grower_slug, farm_slug, field_slug) / "terrain"
 
 
 def field_reports_dir(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
@@ -235,6 +288,10 @@ def field_report_path(grower_slug: str, farm_slug: str, field_slug: str, filenam
     return field_reports_dir(grower_slug, farm_slug, field_slug) / filename
 
 
+def field_dem_manifest_path(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
+    return field_manifest_dir(grower_slug, farm_slug, field_slug) / "dem_terrain_manifest.json"
+
+
 def farm_report_path(grower_slug: str, farm_slug: str, filename: str) -> Path:
     return farm_reports_dir(grower_slug, farm_slug) / filename
 
@@ -252,6 +309,12 @@ def farm_cdl_year_table_path(grower_slug: str, farm_slug: str, year: int) -> Pat
 def farm_cdl_rotation_path(grower_slug: str, farm_slug: str) -> Path:
     return farm_table_path(
         grower_slug, farm_slug, f"{_normalized_farm_artifact_prefix(farm_slug)}_crop_rotation.csv"
+    )
+
+
+def farm_dem_summary_table_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_table_path(
+        grower_slug, farm_slug, f"{_normalized_farm_artifact_prefix(farm_slug)}_dem_summary.csv"
     )
 
 
@@ -282,6 +345,14 @@ def farm_cdl_preferred_full_composition_path(
 
 def shared_cdl_dir() -> Path:
     return SHARED_ROOT / "cdl"
+
+
+def shared_dem_dir() -> Path:
+    return SHARED_ROOT / "dem"
+
+
+def shared_dem_cache_path(adapter_slug: str) -> Path:
+    return ensure_data_root_path(shared_dem_dir() / validate_path_slug(adapter_slug, "adapter_slug"))
 
 
 def shared_cdl_raster_dir() -> Path:

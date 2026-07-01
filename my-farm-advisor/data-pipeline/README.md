@@ -37,7 +37,7 @@ cd my-farm-advisor/data-pipeline
   --seed-farm-name "Acme Illinois Farm"
 ```
 
-That command installs the runtime source and venv, builds shared geoadmin L0/L1/L2 payloads, shared NASA POWER county weather, GDD, annual corn RM, annual soybean MG, five-year FIPS-average corn RM and soybean MG datasets, and last-five-year CONUS CDL rasters. It then selects a top-crop county in the requested state, samples the requested number of OSM fields, and runs the full farm pipeline so derived tables, field weather, soil outputs, CDL history, satellite/NDVI products, reports, cards, posters, and HTML/Markdown farm reports are generated automatically.
+That command installs the runtime source and venv, builds shared geoadmin L0/L1/L2 payloads, shared NASA POWER county weather, GDD, annual corn RM, annual soybean MG, five-year FIPS-average corn RM and soybean MG datasets, and last-five-year CONUS CDL rasters. It then selects a top-crop county in the requested state, samples the requested number of OSM fields, and runs the full farm pipeline so derived tables, field weather, real DEM terrain, soil outputs, CDL history, satellite/NDVI products, reports, cards, posters, and HTML/Markdown farm reports are generated automatically. The generated farm and field reports do not integrate terrain metrics in this change.
 
 If the runtime is already installed, run the equivalent from the runtime source copy:
 
@@ -132,6 +132,63 @@ python scripts/run_maturity_by_fips.py \
 ```
 
 Use `--weather-backend api` only when explicitly debugging the legacy NASA POWER point API path for county weather.
+
+## Default DEM terrain package
+
+Normal farm pipeline initialization and add-field runs that invoke `scripts/run_farm_pipeline.py` include real DEM terrain by default. The pipeline calls `scripts/ingest/download_dem_terrain.py` immediately after field boundary download, passes live real-source permission through `--allow-live-downloads`, and writes elevation, slope, aspect, hillshade, curvature, wetness, depression, relative elevation, and erosion-proxy products under the runtime field tree. Generated farm and field reports do not integrate terrain metrics in this change.
+
+Use `--skip-dem-terrain` only as an explicit operator override when a run must omit DEM terrain. The `scripts/run_farm_pipeline.py --structure-test` path remains a no-DEM, no-download structure check and must not import DEM-only dependencies or contact live services.
+
+The direct DEM CLI remains available from the runtime source copy for focused dry runs, package inspection, or operator-led terrain retries. Direct CLI dry-run mode plans field paths and sources only. It does not write rasters, download DEM tiles, or require live provider services.
+
+Safe temp-root install and dry-run check. This creates the runtime venv before invoking `.venv/bin/python`:
+
+```bash
+tmp_root="$(mktemp -d)"
+export DATA_PIPELINE_DATA_ROOT="$tmp_root"
+cd my-farm-advisor/data-pipeline
+./scripts/install.sh --non-interactive --force-refresh
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/ingest/download_dem_terrain.py \
+  --grower il-dekalb-grower \
+  --farm dekalb-demo-farm \
+  --context-meters 20 \
+  --dry-run
+```
+
+For a no-network full-package smoke, use offline fixtures only as a direct CLI test-only synthetic path. These packages are not real grower DEM evidence, are not valid farm validation, and are marked with `synthetic_fixture=true`, `synthetic://...` source URLs, and warnings in the manifest/source reference. Synthetic fixture mode is unreachable from default farm-pipeline orchestration because `run_farm_pipeline.py` does not expose fixture flags. The CLI refuses fixture writes unless the deliberately named `--allow-synthetic-fixtures` test override is present. Prefer a temporary or disposable runtime root for this smoke:
+
+```bash
+tmp_root="$(mktemp -d)"
+export DATA_PIPELINE_DATA_ROOT="$tmp_root"
+cd my-farm-advisor/data-pipeline
+./scripts/install.sh --non-interactive --force-refresh
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/ingest/download_dem_terrain.py \
+  --grower il-dekalb-grower \
+  --farm dekalb-demo-farm \
+  --context-meters 20 \
+  --offline-fixtures \
+  --allow-synthetic-fixtures \
+  --limit-fields 1
+```
+
+Focused direct CLI runs for real grower DEM verification must use cached real source DEM rasters or live provider access. Live DEM provider discovery or downloads are disabled in direct CLI runs unless you opt in. Add `--allow-live-downloads` only when the operator expects network access, provider availability, and downloaded DEM cache writes under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/dem/`:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/ingest/download_dem_terrain.py \
+  --grower il-dekalb-grower \
+  --farm dekalb-demo-farm \
+  --context-meters 20 \
+  --allow-live-downloads
+```
+
+Default farm orchestration already invokes real DEM terrain with live real-source controls after field boundaries. Use `--dem-context-meters` and `--dem-source-policy` to tune that default path, or `--skip-dem-terrain` when the operator explicitly chooses to omit DEM terrain for a run.
 
 To persist the default data root for future login sessions, write the user environment file and still export the variable in the current shell before running commands:
 

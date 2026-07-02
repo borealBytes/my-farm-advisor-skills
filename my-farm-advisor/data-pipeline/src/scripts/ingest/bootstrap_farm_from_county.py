@@ -110,7 +110,7 @@ def _query_overpass_bbox(bbox: tuple[float, float, float, float]) -> dict:
     for endpoint in OVERPASS_URLS:
         for attempt in range(1, 4):
             try:
-                response = requests.post(endpoint, data={"data": query}, timeout=240)
+                response = requests.post(endpoint, data={"data": query}, timeout=240, headers={"Accept": "application/json"})
                 response.raise_for_status()
                 return response.json()
             except Exception as exc:

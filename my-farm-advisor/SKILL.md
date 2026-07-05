@@ -2,7 +2,7 @@
 name: my-farm-advisor
 description: >
   Umbrella agricultural data science and farm management skill that routes requests into
-  field management, imagery, soil, weather, exploratory analysis, strategy, and farm-data
+  field management, imagery, soil, terrain, weather, exploratory analysis, strategy, and farm-data
   rebuild/reporting workflows.
 license: Apache-2.0
 metadata:
@@ -34,6 +34,7 @@ Open the subtree index that matches the request:
 - [Field Management](field-management/INDEX.md)
 - [Imagery](imagery/INDEX.md)
 - [Soil](soil/INDEX.md)
+- [Terrain](terrain/INDEX.md)
 - [Strategy](strategy/INDEX.md)
 - [Weather](weather/INDEX.md)
 
@@ -42,6 +43,7 @@ Open the subtree index that matches the request:
 - Use **Field Management** for boundaries, deterministic field sampling, or headlands.
 - Use **Imagery** for Landsat or Sentinel-2 scene acquisition and vegetation products.
 - Use **Soil** for SSURGO and CDL-derived soil and crop-layer analysis.
+- Use **Terrain** for DEM source policy, elevation provenance, and terrain derivatives.
 - Use **EDA** for exploration, comparisons, correlations, visualization, and time series.
 - Use **Data Sources** for canonical data rebuilds and farm-level intelligence reporting.
 - Use **Strategy** for maturity planning and crop-strategy decisions.

@@ -354,8 +354,12 @@ def _load_ndvi_cards(field_slug: str | None) -> dict[str, str]:
     return cards
 
 
-def _cdl_csv_path() -> Path:
-    return _CDL_PRIMARY if _CDL_PRIMARY.exists() else _CDL_FALLBACK
+def _cdl_csv_path() -> Path | None:
+    if _CDL_PRIMARY.exists():
+        return _CDL_PRIMARY
+    if _CDL_FALLBACK.exists():
+        return _CDL_FALLBACK
+    return None
 
 
 def _soil_card_specs() -> list[tuple[str, str, Path]]:
@@ -665,13 +669,14 @@ def main() -> None:
                 soil_input_paths.append(str(path.relative_to(_REPO)))
 
     prior = load_manifest(manifest_dir / f"{STEP_FARM_HTML_RENDER}.json")
+    _html_cdl_path = _cdl_csv_path()
     manifest = build_step_manifest(
         step_name=STEP_FARM_HTML_RENDER,
         input_paths=[
             config.field_boundary_path,
             str(farm_ssurgo_summary_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
             str(farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
-            str(_cdl_csv_path().relative_to(_REPO)),
+            *([str(_html_cdl_path.relative_to(_REPO))] if _html_cdl_path is not None else []),
             str(farm_report_asset_path(_DEFAULT_GROWER, _DEFAULT_FARM, "png")),
             str(
                 farm_summary_path(
@@ -697,7 +702,12 @@ def main() -> None:
         farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM),
         parse_dates=["date"],
     )
-    cdl = pd.read_csv(_cdl_csv_path())
+    _cdl_path = _cdl_csv_path()
+    if _cdl_path is not None:
+        cdl = pd.read_csv(_cdl_path)
+    else:
+        cdl = pd.DataFrame()
+        print("  Warning: CDL composition data not available; skipping crop history")
     hl_rows = []
     for idx, frow in fields.iterrows():
         fgdf = fields.iloc[[idx]].to_crs(_utm(frow))

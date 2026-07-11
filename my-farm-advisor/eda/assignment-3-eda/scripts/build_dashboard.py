@@ -329,12 +329,73 @@ def find_growth_stage_dates(df):
     return results
 
 
+def compute_drought_context(field_dir, target_year):
+    """Compute monthly precip anomaly for target_year vs 5-year baseline.
+    
+    Returns (month_name, anomaly_pct, label) or None if insufficient data.
+    Uses available weather record (2021-2025) — not a 30-yr climatology.
+    """
+    path = field_dir / "weather" / "daily_weather.csv"
+    if not path.exists():
+        return None
+    df = pd.read_csv(path, parse_dates=["date"])
+    df["year"] = df["date"].dt.year
+    df["month"] = df["date"].dt.month
+    years_avail = sorted(df["year"].unique())
+    if target_year not in years_avail or len(years_avail) < 2:
+        return None
+
+    monthly = df.groupby(["year", "month"])["PRECTOTCORR"].sum().reset_index()
+    baseline = monthly[monthly["year"] != target_year].groupby("month")["PRECTOTCORR"].mean()
+    this_year = monthly[monthly["year"] == target_year].set_index("month")["PRECTOTCORR"]
+
+    anomalies = []
+    for m in sorted(set(baseline.index) & set(this_year.index)):
+        avg = baseline[m]
+        val = this_year[m]
+        if avg > 0:
+            pct = (val - avg) / avg * 100
+            anomalies.append((m, pct, val, avg))
+
+    if not anomalies:
+        return None
+
+    # Pick the most extreme anomaly, preferring growing season (Apr–Sep)
+    month_map = {1:"Jan",2:"Feb",3:"Mar",4:"Apr",5:"May",6:"Jun",
+                 7:"Jul",8:"Aug",9:"Sep",10:"Oct",11:"Nov",12:"Dec"}
+    growing = [a for a in anomalies if a[0] in range(4, 10)]
+    other = [a for a in anomalies if a[0] not in range(4, 10)]
+    best = max(growing, key=lambda x: abs(x[1])) if growing else max(other, key=lambda x: abs(x[1]))
+    adverb = "wettest" if best[1] > 0 else "driest"
+    season_note = "" if best[0] in range(4, 10) else " (post-season)"
+    label = (f"{month_map[best[0]]}: {best[2]:.0f}mm ({best[1]:+.0f}% vs "
+             f"5-yr avg {best[3]:.0f}mm) — {adverb} month{season_note}")
+    return (month_map[best[0]], best[1], label)
+
+
+def save_events_json(events, output_dir, field_slug, year):
+    """Save detected events as machine-readable JSON."""
+    records = []
+    for ev in events:
+        d = ev["date"]
+        records.append({
+            "type": ev["type"],
+            "date": d.strftime("%Y-%m-%d"),
+            "doy": d.timetuple().tm_yday,
+            "label": ev["label"],
+        })
+    path = output_dir / f"events_{field_slug}_{year}.json"
+    with open(path, "w") as f:
+        json.dump(records, f, indent=2)
+    print(f"  Events saved: {path}")
+
+
 # ---------------------------------------------------------------------------
 # DASHBOARD BUILDER
 # ---------------------------------------------------------------------------
 
 def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
-                    events, stage_dates, output_path):
+                    events, stage_dates, output_path, drought_ctx=None):
     """Generate 4-panel aligned dashboard and save to output_path."""
 
     fig, axes = plt.subplots(4, 1, figsize=(14, 18), sharex=True,
@@ -384,9 +445,9 @@ def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
                         bbox=dict(boxstyle="round,pad=0.2", fc="#e8f5e9", ec="#a5d6a7",
                                   alpha=0.9))
 
-    ax.set_ylabel("NDVI", fontsize=11)
+    ax.set_ylabel("NDVI (unitless)", fontsize=11)
     ax.set_ylim(-0.05, 1.05)
-    ax.legend(loc="upper left", fontsize=8, ncol=2)
+    ax.legend(loc="upper left", fontsize=9, ncol=2)
     ax.set_title(f"1. NDVI Time Series — {FIELD_SLUG} ({YEAR})", loc="left",
                  fontsize=12, fontweight="bold")
     ax.grid(True, alpha=0.3)
@@ -405,7 +466,7 @@ def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
     ax = ax_precip
     bars = ax.bar(date_arr, weather_df["PRECTOTCORR"].values, width=0.8,
                   color="#1565c0", alpha=0.8, label="Daily precip")
-    ax.set_ylabel("Precipitation (mm)", fontsize=11)
+    ax.set_ylabel("Precipitation (mm/day)", fontsize=11)
     ax.set_title("2. Daily Precipitation", loc="left", fontsize=12, fontweight="bold")
     # Cumulative precip as secondary axis
     ax_precip2 = ax.twinx()
@@ -425,8 +486,16 @@ def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
                             arrowprops=dict(arrowstyle="->", color="#0d47a1", lw=0.8),
                             bbox=dict(boxstyle="round,pad=0.2", fc="#e3f2fd",
                                       ec="#90caf9", alpha=0.9))
-    ax.legend(loc="upper left", fontsize=8)
+    ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3)
+
+    # Drought context annotation (monthly precip anomaly vs 5-yr baseline)
+    if drought_ctx is not None:
+        _, _, ctx_label = drought_ctx
+        ax.annotate(ctx_label, xy=(0.02, 0.95), xycoords="axes fraction",
+                    fontsize=7.5, color="#004d40", va="top",
+                    bbox=dict(boxstyle="round,pad=0.3", fc="#e0f2f1",
+                              ec="#80cbc4", alpha=0.9))
 
     # ------------------------------------------------------------------
     # PANEL 3: Temperature
@@ -474,7 +543,7 @@ def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
                             arrowprops=dict(arrowstyle="->", color="#0d47a1", lw=0.8),
                             bbox=dict(boxstyle="round,pad=0.2", fc="#e8eaf6",
                                       ec="#9fa8da", alpha=0.9))
-    ax.legend(loc="upper left", fontsize=8, ncol=3)
+    ax.legend(loc="upper left", fontsize=9, ncol=3)
     ax.grid(True, alpha=0.3)
 
     # ------------------------------------------------------------------
@@ -514,7 +583,7 @@ def build_dashboard(weather_df, ndvi_df, cdl_info, soil_info, centroid, acres,
                 fontsize=8, color="#bf360c", fontweight="bold",
                 bbox=dict(boxstyle="round,pad=0.3", fc="#fbe9e7", ec="#ffab91"))
 
-    ax.legend(loc="upper left", fontsize=8)
+    ax.legend(loc="upper left", fontsize=9)
     ax.grid(True, alpha=0.3)
 
     # ------------------------------------------------------------------
@@ -646,11 +715,22 @@ def main():
         if sdate:
             print(f"    {sname}: {sgdd} GDD ≈ {sdate.strftime('%b %d')}")
 
-    # 7. Build dashboard
-    print(f"\n[6/6] Building dashboard...")
+    # 7. Drought context (monthly precip anomaly vs 5-yr baseline)
+    print(f"\n[6/7] Computing drought context...")
+    drought_ctx = compute_drought_context(FIELD_DIR, YEAR)
+    if drought_ctx:
+        print(f"  {drought_ctx[2]}")
+    else:
+        print("  Insufficient data for drought context")
+
+    # 8. Build dashboard
+    print(f"\n[7/7] Building dashboard...")
     output_path = OUTPUT_DIR / f"dashboard_{FIELD_SLUG}_{YEAR}.png"
     build_dashboard(weather, ndvi, cdl, soil, centroid, acres,
-                    events, stage_dates, output_path)
+                    events, stage_dates, output_path, drought_ctx)
+
+    # 9. Save machine-readable events JSON
+    save_events_json(events, OUTPUT_DIR, FIELD_SLUG, YEAR)
 
     print(f"\n{'=' * 60}")
     print(f"Dashboard complete: {output_path}")

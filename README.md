@@ -1,4 +1,4 @@
-# My Farm Advisor Skills
+    # My Farm Advisor Skills
 
 This repository is the My Farm Advisor skill catalog. It contains three in-repo skills and the local instructions, examples, scripts, and validation checks that make those skills discoverable by agents and readable by humans.
 

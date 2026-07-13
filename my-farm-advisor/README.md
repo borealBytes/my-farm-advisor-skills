@@ -314,6 +314,46 @@ This skill is the main farm-specific intelligence layer. The rest of the reposit
 - Some workflows assume pulled large files or generated artifacts are available under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline`.
 - The nested subtree documents are the real operating surface; this README is the map, not the full manual.
 
+## Assignment 3 – Field-Season Weather & NDVI Storylines
+
+Generates a four-panel dashboard for one field and growing season,
+combining NDVI, precipitation, temperature extremes, and cumulative GDD
+with event annotations.
+
+**Input files from data-pipeline:**
+- Farm-level CDL year table (`derived/tables/<farm>_<year>_cdl.csv`) for crop identification
+- Field daily weather (`fields/<field>/weather/daily_weather.csv`) with T2M, T2M_MAX, T2M_MIN, PRECTOTCORR
+- Sentinel-2 NDVI rasters (`fields/<field>/satellite/sentinel/<year>/*/*_ndvi.tif`)
+
+**Weather metrics:** daily GDD (base 10°C), cumulative GDD, heavy-rain
+events (≥25.4 mm), hot days (T2M_MAX ≥ 35°C), large NDVI changes
+(|delta| ≥ 0.15).
+
+**Dashboard output path:**
+```
+<runtime>/growers/<grower>/farms/<farm>/fields/<field>/derived/reports/<field>_<year>_storyline.png
+```
+
+**How to rerun:**
+```bash
+export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/eda/assignment_3/eda_weather_ndvi_storyline.py \
+  --grower-slug <grower> --farm-slug <farm> --farm-name "<Name>" \
+  --field-slug <field> --year <year>
+```
+
+**Known limitations:**
+- NDVI is sparse (one value per clear-sky Sentinel overpass, typically
+  6–10 dates per season). Interpolation between scenes is not performed.
+- GDD uses the simple average method ((Tmax+Tmin)/2 − base), not the
+  Sinclair or single-sine method.
+- Heavy-rain threshold is absolute (25.4 mm/day); local soil infiltration
+  rates and field slope are not considered.
+- The workflow requires pre-existing CDL tables, daily weather, and
+  downloaded Sentinel-2 NDVI rasters in the runtime.
+
 ## Quick Start
 
 1. Start with [`SKILL.md`](SKILL.md).

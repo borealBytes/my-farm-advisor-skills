@@ -255,9 +255,46 @@ def _build_dashboard(
 
     from collections import defaultdict
 
-    stack_counts: dict[tuple[str, str], int] = defaultdict(int)
+    ndvi_lookup = {e["date"]: e["mean_ndvi"] for e in ndvi_series}
+    ndvi_ev = [(idx, e) for idx, e in enumerate(events) if e["panel"] == "ndvi"]
+    ndvi_ypos: dict[int, float] = {}
+    ndvi_below: set[int] = set()
+    if ndvi_ev:
+        ndvi_sorted = sorted(ndvi_ev, key=lambda x: x[1]["date"])
+        groups: list[list[tuple[int, dict]]] = []
+        cur = [ndvi_sorted[0]]
+        for item in ndvi_sorted[1:]:
+            gap = abs(pd.Timestamp(item[1]["date"]) - pd.Timestamp(cur[-1][1]["date"]))
+            if gap <= pd.Timedelta(days=30):
+                cur.append(item)
+            else:
+                groups.append(cur)
+                cur = [item]
+        groups.append(cur)
+        ndvi_y_range = ax_ndvi.get_ylim()[1] - ax_ndvi.get_ylim()[0]
+        ndvi_offset = 0.14 * ndvi_y_range
+        MAX_NDVI_LABEL = 0.95
+        for group in groups:
+            n = len(group)
+            max_anchor = max(ndvi_lookup.get(gev["date"], 0) for _, gev in group)
+            top = min(MAX_NDVI_LABEL, max_anchor + n * ndvi_offset)
+            for gi, (gidx, gev) in enumerate(group):
+                label = gev.get("label", "")
+                extra = 1 if "Peak" in label else 0
+                y_pos = top - (gi + extra) * ndvi_offset
+                anchor_y = ndvi_lookup.get(gev["date"], 0)
+                if "Peak" in label:
+                    y_pos = max(y_pos, anchor_y - 0.05)
+                else:
+                    y_pos = max(y_pos, anchor_y + 0.02)
+                y_pos = min(y_pos, MAX_NDVI_LABEL)
+                ndvi_ypos[gidx] = y_pos
+                if y_pos < anchor_y:
+                    ndvi_below.add(gidx)
 
-    for ev in events:
+    stack_counts: dict[str, int] = defaultdict(int)
+
+    for ev_idx, ev in enumerate(events):
         ev_date = pd.Timestamp(ev["date"]).to_pydatetime()
         panel_map = {"ndvi": ax_ndvi, "precip": ax_precip, "temp": ax_temp, "gdd": ax_gdd}
         ax = panel_map.get(ev["panel"])
@@ -266,15 +303,19 @@ def _build_dashboard(
 
         ax.axvline(ev_date, color=ev["color"], linewidth=1.2, linestyle="--", alpha=0.6)
 
-        key = (ev["panel"], ev["date"])
-        stack_counts[key] += 1
-        stack_idx = stack_counts[key] - 1
-        y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
-        base_y = ax.get_ylim()[1] * 0.92
-        y_pos = base_y - stack_idx * 0.07 * y_range
+        ndvi_va_below = ev["panel"] == "ndvi" and ev_idx in ndvi_below
+        if ev["panel"] == "ndvi" and ev_idx in ndvi_ypos:
+            y_pos = ndvi_ypos[ev_idx]
+        else:
+            stack_idx = stack_counts[ev["panel"]]
+            stack_counts[ev["panel"]] += 1
+            y_range = ax.get_ylim()[1] - ax.get_ylim()[0]
+            base_y = ax.get_ylim()[1] * 0.92
+            y_pos = base_y - stack_idx * 0.07 * y_range
 
+        va = "top" if ndvi_va_below else "center"
         ax.annotate(ev["label"], xy=(ev_date, y_pos), fontsize=7.5, color=ev["color"],
-                   ha="center", fontweight="bold",
+                   ha="center", va=va, fontweight="bold",
                    bbox=dict(boxstyle="round,pad=0.2", fc="white", ec=ev["color"], alpha=0.8))
 
     ax_gdd.xaxis.set_major_locator(mdates.MonthLocator(interval=1))

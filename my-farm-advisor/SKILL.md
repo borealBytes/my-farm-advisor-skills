@@ -30,6 +30,7 @@ Open the subtree index that matches the request:
 
 - [Admin](admin/INDEX.md)
 - [Data Sources](data-sources/INDEX.md)
+- [Grower Web Map](grower-web-map/INDEX.md)
 - [EDA](eda/INDEX.md)
 - [Field Management](field-management/INDEX.md)
 - [Imagery](imagery/INDEX.md)
@@ -49,6 +50,7 @@ Open the subtree index that matches the request:
 - Use **Strategy** for maturity planning and crop-strategy decisions.
 - Use **Weather** for NASA POWER weather acquisition and downstream farm weather analysis.
 - Use **Admin** for geospatial administration and browser-based interactive map workflows.
+- Use **Grower Web Map** for generating interactive browser-based HTML maps from actual runtime field boundary polygons.
 
 ## Runtime Notes
 

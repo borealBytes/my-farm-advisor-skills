@@ -240,3 +240,55 @@ my-farm-advisor-skills/
 | Change catalog structure | Root [`AGENTS.md`](AGENTS.md) and `scripts/validate.sh` | `bash -n scripts/validate.sh && ./scripts/validate.sh` |
 
 Keep edits focused, keep generated outputs out of Git, and route through the nearest `INDEX.md` before opening detailed workflow docs.
+
+---
+
+## Assignment 3 — Field-Season Dashboard
+
+### Skill / Workflow
+
+`eda-field-season-dashboard` at `my-farm-advisor/eda/eda-field-season-dashboard/`
+
+### Input files (from data-pipeline runtime)
+
+| File | Path relative to `{DATA_PIPELINE_DATA_ROOT}/data-pipeline/` |
+|------|--------------------------------------------------------------|
+| Field boundary | `growers/{grower}/farms/{farm}/fields/{field_id}/boundary/field_boundary.geojson` |
+| Sentinel manifest | `growers/{grower}/farms/{farm}/fields/{field_id}/satellite/sentinel/manifest.json` |
+| Sentinel NDVI rasters | `growers/{grower}/farms/{farm}/fields/{field_id}/satellite/sentinel/{year}/{scene_date}/sentinel_{scene_date}_ndvi.tif` |
+| Daily weather | `growers/{grower}/farms/{farm}/fields/{field_id}/weather/daily_weather.csv` |
+| CDL crop composition | `growers/{grower}/farms/{farm}/derived/tables/{prefix}_cdl_2021_2025_full_composition.csv` |
+
+### Weather metrics calculated
+
+- **Daily precipitation** — `PRECTOTCORR` (mm), heavy rain flagged at >95th percentile
+- **Temperature** — daily min (`T2M_MIN`), mean (`T2M`), max (`T2M_MAX`), hot days >32°C flagged
+- **Daily GDD** — `(cap(T2M_MAX, 30) + floor(T2M_MIN, 10)) / 2 − 10`, floored at 0
+- **Cumulative GDD** — running sum from April 1, with soybean stage reference lines (VE ~125, R1 ~800, R5 ~1400, R7 ~2200 GDD)
+
+### Dashboard image path
+
+`eda/season-dashboard/output/{field_id}_{year}_season_dashboard.png`
+
+Example: `eda/season-dashboard/output/osm-1360316062_2023_season_dashboard.png`
+
+### How to rerun
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=~/my-farm-advisor-runtime
+python my-farm-advisor/eda/eda-field-season-dashboard/src/field_season_dashboard.py \
+  --grower-slug ia-grower \
+  --farm-slug ia-grower-iowa \
+  --field-id osm-1360316062 \
+  --year 2023
+```
+
+### Known data limitations
+
+- **No terrain/elevation data** — the DEM terrain pipeline (`terrain/dem-terrain`) was not executed for these fields; elevation context is absent from the analysis
+- **Cloud-limited NDVI** — only clear-sky Sentinel scenes are usable (9 for the prototype year); cloudier years would produce fewer NDVI data points
+- **NASA POWER gridded weather** — weather data is reanalysis grid (~0.5°) rather than station-based; local microclimate effects are not captured
+- **OSM boundary accuracy** — field boundaries from OpenStreetMap are crowd-sourced and may not align exactly with USDA CLU boundaries
+- **CDL 30m resolution** — small or irregular fields may have edge-mixing artifacts in crop percentages
+- **GDD thresholds for corn/soy only** — the stage reference lines currently use soybean thresholds; other crops would require updating `SOYBEAN_GDD_THRESHOLDS` in the script
+- **Soil excluded** — SSURGO soil data was intentionally not loaded per the assignment scope

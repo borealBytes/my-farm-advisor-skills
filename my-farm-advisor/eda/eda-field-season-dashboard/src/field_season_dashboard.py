@@ -301,7 +301,8 @@ def _build_dashboard(
         if ax is None:
             continue
 
-        ax.axvline(ev_date, color=ev["color"], linewidth=1.2, linestyle="--", alpha=0.6)
+        ls = ":" if "Peak" in ev.get("label", "") else "--"
+        ax.axvline(ev_date, color=ev["color"], linewidth=1.2, linestyle=ls, alpha=0.6)
 
         ndvi_va_below = ev["panel"] == "ndvi" and ev_idx in ndvi_below
         if ev["panel"] == "ndvi" and ev_idx in ndvi_ypos:

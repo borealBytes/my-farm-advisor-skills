@@ -244,7 +244,7 @@ def _build_dashboard(
             cross_date = pd.Timestamp(dates_w[cross_idx])
             ax_gdd.axhline(gdd_val, color="gray", linewidth=0.5, linestyle=":", alpha=0.3)
             ax_gdd.text(cross_date, gdd_val, f"  {stage} ~{cross_date.strftime('%b %d')}",
-                       fontsize=6.5, color="#555", va="center", ha="left", fontweight="bold")
+                       fontsize=8, color="#555", va="center", ha="left", fontweight="bold")
     ax_gdd.set_ylabel("Cumul. GDD (base 10°C)", fontsize=11)
     ax_gdd.set_xlabel("Date (2023)", fontsize=11)
     ax_gdd.legend(loc="upper left", fontsize=8)

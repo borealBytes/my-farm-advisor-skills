@@ -133,6 +133,125 @@ python scripts/run_maturity_by_fips.py \
 
 Use `--weather-backend api` only when explicitly debugging the legacy NASA POWER point API path for county weather.
 
+## Grower Field Weather Dashboard
+
+The data-pipeline can generate a production-quality, offline, single-file weather dashboard for any grower/farm output directory. The dashboard is an interactive HTML file with embedded Plotly charts showing cumulative growing degree days and rainfall per field-year, plus a satellite-backed field map.
+
+### Standalone generation
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_weather_dashboard.py \
+  --farm-dir ~/my-farm-advisor-runtime/data-pipeline/growers/<grower>/farms/<farm>
+```
+
+The standalone command reads only existing pipeline outputs (boundaries, field metadata, per-field weather CSVs). It does not invoke weather downloads, field-boundary downloads, or external data processing.
+
+Auto-discover a single available farm (fails with a clear error if multiple are found):
+
+```bash
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_weather_dashboard.py
+```
+
+Custom output path:
+
+```bash
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_weather_dashboard.py \
+  --farm-dir ~/path/to/farm \
+  --output ~/path/to/output.html
+```
+
+Skip satellite basemap (produces a fully functional dashboard with a neutral map background):
+
+```bash
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_weather_dashboard.py \
+  --farm-dir ~/path/to/farm \
+  --no-basemap
+```
+
+### Full pipeline integration
+
+Dashboard generation can run as an optional final stage after all pipeline steps:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/run_farm_pipeline.py \
+  --grower-slug <grower> \
+  --farm-slug <farm> \
+  --generate-dashboard
+```
+
+Use `--no-dashboard-basemap` to skip satellite basemap in pipeline mode, or `--dashboard-output <path>` for a custom output location.
+
+### Runtime directory discovery
+
+The dashboard generator resolves the farm directory with the following precedence:
+
+1. Explicit `--farm-dir <path>`
+2. Explicit `--growers-dir <path>` (must contain exactly one farm)
+3. `MY_FARM_ADVISOR_DATA_ROOT` or `DATA_PIPELINE_DATA_ROOT` environment variable
+4. Automatic discovery under `~` looking for likely runtime roots
+
+If multiple valid farm directories exist and none is explicitly selected, the generator fails with a clear error listing all candidates. Never silently selects an arbitrary grower or farm.
+
+### Input data assumptions
+
+The generator expects the canonical farm layout:
+
+```text
+<farm-dir>/
+  boundary/
+    field_boundaries.geojson     (Polygon/MultiPolygon, EPSG:4326)
+  fields/
+    <field-id>/
+      field.json                 (optional; falls back to field ID)
+      weather/
+        daily_weather.csv        (columns: date, T2M_MIN, T2M_MAX, PRECTOTCORR)
+```
+
+- Polygon and MultiPolygon geometries are supported.
+- Missing `field.json`, empty weather directories, and header-only CSVs are tolerated gracefully.
+- Fields without weather data are labeled `(no data)` in the field selector.
+
+### Weather calculations
+
+- Growing degree days: `dailyGdd = max((T2M_MAX + T2M_MIN) / 2 - 10.0, 0)` (base 10 degrees C)
+- Cumulative GDD starts on the last frost date (latest day before July 1 where T2M_MIN <= 0 degrees C; January 1 if no qualifying frost is found)
+- Daily rainfall: `dailyRainfallIn = PRECTOTCORR * 0.0393701` (mm to inches)
+- Cumulative rainfall starts on the last frost date
+
+### Offline guarantee
+
+The generated HTML has zero runtime external dependencies:
+- No CDN references (Plotly.js is vendored and inlined at build time)
+- No external API calls
+- No externally loaded fonts, CSS, JS, images, or data files
+- Works from `file://` without a local web server
+
+The Plotly.js v2.x bundle is downloaded once and cached under `shared/dashboard_assets/` in the runtime tree.
+
+### Satellite basemap
+
+At generation time, satellite imagery tiles are optionally fetched from Esri World Imagery, stitched with Pillow, and base64-encoded into the HTML. If tile download fails or `--no-basemap` is given, the generator produces a fully functional dashboard with a neutral background.
+
+### Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| No farm found | Use `--farm-dir`, `--growers-dir`, or set `MY_FARM_ADVISOR_DATA_ROOT` |
+| Multiple farms found | Use `--farm-dir` to select one explicitly |
+| Missing GeoJSON | Ensure `boundary/field_boundaries.geojson` exists in the farm directory |
+| Empty weather data | Fields without data are labeled `(no data)`; this is not an error |
+| Tile download failure | Use `--no-basemap` for a functional offline dashboard |
+| Missing Plotly bundle | Run once with network access to cache the Plotly.js bundle |
+
 To persist the default data root for future login sessions, write the user environment file and still export the variable in the current shell before running commands:
 
 ```bash
@@ -160,3 +279,40 @@ bash -lc 'export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runti
 
 This ensures every pipeline step (including geopandas/rasterio operations) uses
 the shared environment that lives alongside the replicated scripts.
+
+## Assignment 3 — Field-Year Weather & NDVI Dashboard
+
+**Reusable workflow**: Align Sentinel-2 NDVI observations with daily weather for a selected field-year, compute derived metrics, detect seasonal events, and generate a reusable four-panel dashboard.
+
+**Selected field-year**: `northern-illinois-grower / osm-1499474531 / 2025`, crop **Soybeans**. Change the grower, field, and year constants at the top of each script to reuse the workflow for other supported field-years.
+
+**Input files** (under the field's runtime directory):
+- `weather/daily_weather.csv` — NASA POWER daily data at field centroid
+- `satellite/sentinel/2025/*/sentinel_*_ndvi.tif` — per-date Sentinel-2 NDVI rasters
+- `derived/tables/ndvi_year_crop_join.csv` — CDL crop classification
+
+**Metrics calculated**: daily precipitation (`PRECTOTCORR`), average temperature (`T2M`), temperature extremes (`T2M_MAX`, `T2M_MIN`), and cumulative soybean GDD (base 10°C).
+
+**Dashboard output** (relative to `${DATA_PIPELINE_DATA_ROOT}/data-pipeline`):
+```
+growers/northern-illinois-grower/farms/northern-illinois-grower-illinois/
+  fields/osm-1499474531/derived/reports/assignment3_dashboard_2025.png
+```
+
+**To rerun**:
+```bash
+export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/assignment3_alignment.py
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/assignment3_dashboard.py
+```
+
+Step 5 (`assignment3_alignment.py`) produces `assignment3_aligned_data.csv` and `assignment3_events.json`. Step 6 (`assignment3_dashboard.py`) reads those outputs and renders the dashboard.
+
+**Known limitations**:
+- NDVI is plotted only at real Sentinel-2 acquisition dates (9 scenes for 2025); no daily interpolation is applied.
+- Weather is daily NASA POWER point data at the field centroid, not spatially distributed.
+- Annotations describe observed timing (e.g. "followed," "occurred near") and do not imply weather→NDVI causation.
+- Soybean growth stages are estimated from cumulative GDD using literature-based thresholds; they are not field-verified.

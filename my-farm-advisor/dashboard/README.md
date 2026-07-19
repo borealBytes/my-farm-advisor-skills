@@ -2,15 +2,27 @@
 
 A Plotly Dash application that combines exploratory analysis, geospatial mapping, weather/climate insights, and soil health/sustainability metrics into a single interactive agricultural intelligence dashboard.
 
-## Quick Start
+## Two Ways to Run
+
+### Option A: JSON data package (no runtime tree needed, recommended for local machines)
 
 ```bash
-export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
-cd /path/to/my-farm-advisor-skills/my-farm-advisor/dashboard/src
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" row_crop_dashboard.py
+cd src
+pip install -r ../requirements.txt
+python row_crop_dashboard.py --json ../dashboard_data.json
 ```
 
-Open http://127.0.0.1:8050 in your browser.
+Open http://127.0.0.1:8050. This uses the pre-computed `dashboard_data.json` (56 KB, included in the repo) and requires no runtime tree, no heavy dependencies (geopandas/rasterio not needed).
+
+### Option B: Runtime tree mode (when you have the full data pipeline)
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/path/to/my-farm-advisor-runtime
+cd src
+python row_crop_dashboard.py --grower iowa-grower --farm iowa-farm
+```
+
+This reads from the canonical runtime tree (SSURGO CSV, weather, NDVI TIFFs, etc.).
 
 ## What It Does
 
@@ -30,23 +42,35 @@ The dashboard integrates field boundary data, NRCS SSURGO soil surveys, NASA POW
 ## Requirements
 
 - Python 3.8+
-- Packages: plotly, dash, pandas, geopandas, numpy, rasterio
-- `DATA_PIPELINE_DATA_ROOT` environment variable pointing to a My Farm Advisor runtime
+- **Core packages**: plotly, dash, pandas, numpy (install via `pip install -r requirements.txt`)
+- **Runtime tree mode only**: geopandas, rasterio
 
 ## Usage
 
 ```bash
-# Default (Iowa grower)
-python src/row_crop_dashboard.py
+# JSON mode (simplest - no runtime tree needed)
+python src/row_crop_dashboard.py --json dashboard_data.json
 
-# Custom grower/farm
-python src/row_crop_dashboard.py --grower nebraska-grower --farm nebraska-farm
+# Runtime tree mode
+python src/row_crop_dashboard.py --grower iowa-grower --farm iowa-farm
 
 # Custom port
-python src/row_crop_dashboard.py --port 8051
+python src/row_crop_dashboard.py --json dashboard_data.json --port 8051
+
+# Bind to all interfaces (for Dokploy/Cloudflare)
+python src/row_crop_dashboard.py --json dashboard_data.json --host 0.0.0.0 --port 8050
 
 # Export to static HTML
-python src/row_crop_dashboard.py --export /tmp/dashboard.html
+python src/row_crop_dashboard.py --json dashboard_data.json --export /tmp/dashboard.html
+```
+
+## Re-generating the Data Package
+
+Run `export_data_package.py` on a machine with the runtime tree to refresh `dashboard_data.json`:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/path/to/my-farm-advisor-runtime
+python src/export_data_package.py --grower iowa-grower --farm iowa-farm
 ```
 
 ## Data Sources
@@ -69,9 +93,12 @@ dashboard/
   README.md             - This file
   AGENTS.md             - Agent instructions
   SUPPLEMENTARY.md      - Project overview and documentation
+  requirements.txt      - Python dependencies
+  dashboard_data.json   - Pre-computed data package (56 KB)
   src/
     row_crop_dashboard.py   - Main Dash application
     dashboard_utils.py      - Data loading and metric computation
+    export_data_package.py  - Script to regenerate dashboard_data.json
 ```
 
 ## Analytics Story

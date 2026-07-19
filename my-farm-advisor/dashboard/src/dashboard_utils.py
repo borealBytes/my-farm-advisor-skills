@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import warnings
@@ -5,33 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import geopandas as gpd
-
-DATA_PIPELINE_VENV = os.environ.get(
-    "DATA_PIPELINE_VENV_DIR",
-    str(Path(os.environ.get("DATA_PIPELINE_DATA_ROOT", "")) / "data-pipeline" / ".venv"),
-)
-_RUNTIME_SRC = Path(os.environ.get("DATA_PIPELINE_DATA_ROOT", "")) / "data-pipeline" / "src"
-if str(_RUNTIME_SRC / "scripts" / "lib") not in sys.path and _RUNTIME_SRC.exists():
-    sys.path.insert(0, str(_RUNTIME_SRC / "scripts" / "lib"))
-try:
-    from lib.paths import (
-        GROWERS_ROOT,
-        farm_dir,
-        farm_derived_dir,
-        farm_tables_dir,
-        farm_boundary_path,
-        farm_dashboards_dir,
-        farm_manifest_dir,
-        field_dir,
-        field_boundary_dir,
-        field_derived_dir,
-        field_features_dir,
-        field_tables_dir,
-    )
-    _HAVE_PATHS = True
-except Exception:
-    _HAVE_PATHS = False
 
 
 class DashboardData:
@@ -43,7 +17,86 @@ class DashboardData:
         self._resolve_farm_path()
         self._load_all()
 
+    @classmethod
+    def from_json(cls, json_path):
+        self = cls.__new__(cls)
+        with open(json_path) as f:
+            pkg = json.load(f)
+
+        self.grower_slug = pkg["grower_slug"]
+        self.farm_slug = pkg["farm_slug"]
+        self.field_ids = pkg["field_ids"]
+        self.data_root = None
+
+        bdy = pkg.get("field_boundaries", [])
+        geo_features = []
+        for fb in bdy:
+            geom_type = "MultiPolygon" if len(fb["coordinates"]) > 1 else "Polygon"
+            if geom_type == "Polygon":
+                geometry = {"type": "Polygon", "coordinates": fb["coordinates"]}
+            else:
+                geometry = {"type": "MultiPolygon", "coordinates": fb["coordinates"]}
+            geo_features.append({
+                "type": "Feature",
+                "geometry": geometry,
+                "properties": {
+                    "field_id": fb["field_id"],
+                    "area_acres": fb["area_acres"],
+                },
+            })
+        import geopandas as gpd
+        self.field_geojson = gpd.GeoDataFrame.from_features(
+            geo_features, crs="EPSG:4326"
+        ) if geo_features else gpd.GeoDataFrame()
+
+        fm = pkg.get("field_metrics", [])
+        self.metrics = pd.DataFrame(fm) if fm else pd.DataFrame()
+
+        self.soil = self.metrics[["field_id", "avg_om_pct", "avg_ph", "total_aws_inches",
+                                  "avg_cec", "avg_clay_pct", "avg_sand_pct",
+                                  "dominant_soil", "drainage_class", "erosion_risk"]].copy() if not self.metrics.empty else pd.DataFrame()
+
+        weather_records = pkg.get("weather_monthly", [])
+        if weather_records:
+            wdf = pd.DataFrame(weather_records)
+            wdf["date"] = pd.to_datetime(wdf["year"].astype(str) + "-" + wdf["month"].astype(str) + "-01")
+            self.weather = wdf.rename(columns={"precip": "prectotcorr", "temp": "t2m",
+                                                "tmin": "t2m_min", "tmax": "t2m_max"})
+            self.weather["field_id"] = self.field_ids[0] if self.field_ids else "unknown"
+        else:
+            self.weather = pd.DataFrame()
+
+        cdl = pkg.get("cdl_composition", [])
+        self.cdl_composition = pd.DataFrame(cdl) if cdl else pd.DataFrame()
+
+        rot = pkg.get("crop_rotation", [])
+        self.crop_rotation = pd.DataFrame(rot) if rot else pd.DataFrame()
+
+        ndvi_records = pkg.get("ndvi_annual", [])
+        self.ndvi_list = ndvi_records
+        ndvi_df = pd.DataFrame(ndvi_records) if ndvi_records else pd.DataFrame()
+        if not ndvi_df.empty and "ndvi" in ndvi_df.columns:
+            ndvi_df = ndvi_df.dropna(subset=["ndvi"])
+        self.ndvi = ndvi_df
+
+        self._compute_from_json(pkg)
+        return self
+
+    def _compute_from_json(self, pkg):
+        self.kpis_cache = pkg.get("kpis", {})
+        if not self.metrics.empty:
+            self.metrics["soil_health_score"] = self.metrics.get("soil_health_score", None)
+            self.metrics["sustainability_index"] = self.metrics.get("sustainability_index", None)
+            if "soil_health_score" not in self.metrics.columns or self.metrics["soil_health_score"].isna().all():
+                df = self.compute_soil_health_score(force=True)
+                self.metrics["soil_health_score"] = df["soil_health_score"]
+            if "sustainability_index" not in self.metrics.columns or self.metrics["sustainability_index"].isna().all():
+                df = self.compute_sustainability_index(force=True)
+                self.metrics["sustainability_index"] = df["sustainability_index"]
+
     def _resolve_farm_path(self):
+        import geopandas as gpd
+        self._gpd = gpd
         base = self.growers_root / self.grower_slug
         direct = base / "farms" / self.farm_slug
         nested = base / self.grower_slug / "farms" / self.farm_slug
@@ -92,6 +145,7 @@ class DashboardData:
         return p
 
     def _load_field_boundaries(self):
+        gpd = self._gpd
         bdy_path = self.farm_boundary_dir / "field_boundaries.geojson"
         for path in [bdy_path]:
             if path.exists():
@@ -244,10 +298,12 @@ class DashboardData:
 
         self.metrics = pd.DataFrame(field_metrics) if field_metrics else pd.DataFrame()
 
-    def compute_soil_health_score(self):
+    def compute_soil_health_score(self, force=False):
         if self.metrics.empty:
             return self.metrics
         df = self.metrics.copy()
+        if not force and "soil_health_score" in df.columns and df["soil_health_score"].notna().any():
+            return df
         scores = []
         for _, row in df.iterrows():
             score = 0.0
@@ -268,9 +324,11 @@ class DashboardData:
         df["soil_health_score"] = scores
         return df
 
-    def compute_sustainability_index(self):
-        df = self.compute_soil_health_score()
+    def compute_sustainability_index(self, force=False):
+        df = self.compute_soil_health_score(force=force)
         if df.empty:
+            return df
+        if not force and "sustainability_index" in df.columns and df["sustainability_index"].notna().any():
             return df
         scores = []
         for _, row in df.iterrows():
@@ -290,6 +348,8 @@ class DashboardData:
         return df
 
     def get_kpis(self):
+        if hasattr(self, "kpis_cache") and self.kpis_cache:
+            return self.kpis_cache
         df = self.compute_sustainability_index()
         stats = {}
         stats["total_fields"] = len(self.field_ids)
@@ -305,9 +365,14 @@ class DashboardData:
         if not self.weather.empty:
             precip_col = "prectotcorr"
             if precip_col in self.weather.columns:
-                per_field_yr = self.weather.groupby(["field_id", self.weather["date"].dt.year])[precip_col].sum()
-                per_field_avg = per_field_yr.groupby("field_id").mean()
-                stats["avg_rainfall_mm"] = round(float(per_field_avg.mean()), 1) if len(per_field_avg) > 0 else None
+                if self.weather["date"].dtype == "object":
+                    self.weather["date"] = pd.to_datetime(self.weather["date"])
+                if "field_id" in self.weather.columns:
+                    per_field_yr = self.weather.groupby(["field_id", self.weather["date"].dt.year])[precip_col].sum()
+                    per_field_avg = per_field_yr.groupby("field_id").mean()
+                    stats["avg_rainfall_mm"] = round(float(per_field_avg.mean()), 1) if len(per_field_avg) > 0 else None
+                else:
+                    stats["avg_rainfall_mm"] = round(float(self.weather[precip_col].mean()), 1)
             else:
                 stats["avg_rainfall_mm"] = None
         else:
@@ -322,6 +387,7 @@ class DashboardData:
             stats["avg_sustainability"] = round(float(vals.mean()), 1) if len(vals) > 0 else None
         else:
             stats["avg_sustainability"] = None
+        self.kpis_cache = stats
         return stats
 
 

@@ -6,9 +6,12 @@ Plotly Dash application that combines exploratory analysis, geospatial mapping,
 weather/climate insights, and soil health/sustainability metrics into a
 single interactive agricultural intelligence dashboard for a grower's farm.
 
-Usage:
-    export DATA_PIPELINE_DATA_ROOT=/path/to/my-farm-advisor-runtime
-    python src/row_crop_dashboard.py [--grower iowa-grower] [--farm iowa-farm] [--port 8050]
+Two modes:
+  1. Runtime tree mode (requires DATA_PIPELINE_DATA_ROOT):
+       python row_crop_dashboard.py --grower iowa-grower --farm iowa-farm
+
+  2. JSON data package mode (no runtime tree needed):
+       python row_crop_dashboard.py --json ../dashboard_data.json
 """
 
 import os
@@ -685,87 +688,111 @@ def create_app(data):
     return app
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Row Crop Intelligence Dashboard")
-    parser.add_argument("--grower", default="iowa-grower", help="Grower slug (default: iowa-grower)")
-    parser.add_argument("--farm", default="iowa-farm", help="Farm slug (default: iowa-farm)")
-    parser.add_argument("--port", type=int, default=8050, help="Dash server port (default: 8050)")
-    parser.add_argument("--export", help="Export dashboard HTML to this path instead of serving")
-    args = parser.parse_args()
+def load_data(args):
+    if args.json:
+        json_path = Path(args.json)
+        if not json_path.exists():
+            print(f"ERROR: JSON file not found: {json_path}")
+            sys.exit(1)
+        print(f"Loading data from JSON: {json_path}")
+        data = DashboardData.from_json(str(json_path))
+        kpis = data.get_kpis()
+        print(f"Loaded {kpis['total_fields']} fields, {kpis['total_acreage']:,.0f} acres")
+        return data, kpis
 
     data_root = os.environ.get("DATA_PIPELINE_DATA_ROOT")
     if not data_root:
-        print("ERROR: Set DATA_PIPELINE_DATA_ROOT to the runtime root (e.g., /home/coder/my-farm-advisor-runtime)")
+        print("ERROR: Set DATA_PIPELINE_DATA_ROOT or use --json <path>")
         sys.exit(1)
 
     print(f"Loading data for grower={args.grower}, farm={args.farm}...")
     print(f"Data root: {data_root}")
     data = DashboardData(data_root, args.grower, args.farm)
     kpis = data.get_kpis()
-    print(f"Loaded {kpis['total_fields']} fields, {kpis['total_acreage']:,} acres")
+    print(f"Loaded {kpis['total_fields']} fields, {kpis['total_acreage']:,.0f} acres")
+    return data, kpis
 
+
+def do_export(data, kpis, args):
+    export_path = Path(args.export)
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    import plotly.io as pio
+
+    def get_fig(fn):
+        result = fn(data)
+        if hasattr(result, "figure"):
+            return result.figure
+        if hasattr(result, "children") and len(result.children) > 0:
+            child = result.children[0]
+            if hasattr(child, "figure"):
+                return child.figure
+        return None
+
+    fig_sources = [
+        ("Soil pH by Field", create_soil_ph_chart),
+        ("NDVI Comparison by Field", create_ndvi_comparison_chart),
+        ("Geospatial Map", lambda d: create_geospatial_map(d).children[0]),
+        ("Weather & Climate", lambda d: create_weather_chart(d).children[0]),
+        ("Soil Health & Sustainability", lambda d: create_soil_health_chart(d).children[0]),
+        ("Correlation Matrix", create_correlation_chart),
+    ]
+    html_parts = [
+        "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
+        f"<title>Row Crop Intelligence Dashboard</title>",
+        "<script src='https://cdn.plot.ly/plotly-2.32.0.min.js'></script>",
+        "<style>body{font-family:-apple-system,sans-serif;max-width:1200px;margin:0 auto;padding:20px;background:#f8f9fa}"
+        "h1{color:#2c6e49}figure{margin:20px 0;background:white;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}"
+        ".header{text-align:center;padding:20px;background:white;border-radius:8px;margin-bottom:20px;border-left:4px solid #2c6e49}"
+        ".kpi{display:inline-block;margin:8px 16px;text-align:center}"
+        ".kpi-val{font-size:24px;font-weight:700;color:#2c6e49}.kpi-label{font-size:12px;color:#6c757d}</style>",
+        "</head><body>",
+        "<div class='header'><h1>Row Crop Intelligence Dashboard</h1>",
+        f"<p>Fields: {kpis['total_fields']} | Acres: {kpis['total_acreage']:,.0f}</p></div>",
+        "<div style='text-align:center;margin:20px 0'>",
+    ]
+    kpi_items = [
+        ("Fields", kpis["total_fields"]),
+        ("Acres", f"{kpis['total_acreage']:,.0f}"),
+        ("Avg NDVI", f"{kpis['avg_ndvi']}" if kpis.get("avg_ndvi") else "N/A"),
+        ("Rainfall", f"{kpis.get('avg_rainfall_mm', 'N/A')} mm"),
+        ("Soil Health", f"{kpis.get('avg_soil_health', 'N/A')}"),
+        ("Sustainability", f"{kpis.get('avg_sustainability', 'N/A')}"),
+    ]
+    for label, val in kpi_items:
+        html_parts.append(f"<div class='kpi'><div class='kpi-val'>{val}</div><div class='kpi-label'>{label}</div></div>")
+    html_parts.append("</div>")
+    count = 0
+    for _title, fn in fig_sources:
+        fig = get_fig(fn)
+        if fig is not None:
+            html_parts.append(pio.to_html(fig, include_plotlyjs=False, full_html=False))
+            count += 1
+    html_parts.append("</body></html>")
+    with open(str(export_path), "w") as f:
+        f.write("\n".join(html_parts))
+    print(f"Dashboard exported to {export_path} ({count} figures)")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Row Crop Intelligence Dashboard")
+    parser.add_argument("--grower", default="iowa-grower", help="Grower slug (default: iowa-grower)")
+    parser.add_argument("--farm", default="iowa-farm", help="Farm slug (default: iowa-farm)")
+    parser.add_argument("--port", type=int, default=8050, help="Dash server port (default: 8050)")
+    parser.add_argument("--host", default="127.0.0.1", help="Host to bind to (default: 127.0.0.1)")
+    parser.add_argument("--json", help="Load from dashboard_data.json instead of runtime tree")
+    parser.add_argument("--export", help="Export dashboard HTML to this path instead of serving")
+    args = parser.parse_args()
+
+    data, kpis = load_data(args)
     app = create_app(data)
 
     if args.export:
-        export_path = Path(args.export)
-        export_path.parent.mkdir(parents=True, exist_ok=True)
-        import plotly.io as pio
-        def get_fig(fn):
-            result = fn(data)
-            if hasattr(result, "figure"):
-                return result.figure
-            if hasattr(result, "children") and len(result.children) > 0:
-                child = result.children[0]
-                if hasattr(child, "figure"):
-                    return child.figure
-            return None
-        fig_sources = [
-            ("Soil pH by Field", create_soil_ph_chart),
-            ("NDVI Comparison by Field", create_ndvi_comparison_chart),
-            ("Geospatial Map - Soil Health", lambda d: create_geospatial_map(d).children[0]),
-            ("Weather & Climate", lambda d: create_weather_chart(d).children[0]),
-            ("Soil Health & Sustainability", lambda d: create_soil_health_chart(d).children[0]),
-            ("Correlation Matrix", create_correlation_chart),
-        ]
-        html_parts = [
-            "<!DOCTYPE html><html><head><meta charset='utf-8'/>",
-            f"<title>Row Crop Intelligence Dashboard - {args.grower}/{args.farm}</title>",
-            "<script src='https://cdn.plot.ly/plotly-2.32.0.min.js'></script>",
-            "<style>body{font-family:-apple-system,sans-serif;max-width:1200px;margin:0 auto;padding:20px;background:#f8f9fa}"
-            "h1{color:#2c6e49}figure{margin:20px 0;background:white;border-radius:8px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}"
-            ".header{text-align:center;padding:20px;background:white;border-radius:8px;margin-bottom:20px;border-left:4px solid #2c6e49}"
-            ".kpi{display:inline-block;margin:8px 16px;text-align:center}.kpi-val{font-size:24px;font-weight:700;color:#2c6e49}.kpi-label{font-size:12px;color:#6c757d}</style>",
-            "</head><body>",
-            "<div class='header'><h1>Row Crop Intelligence Dashboard</h1>",
-            f"<p>Grower: {args.grower} | Farm: {args.farm} | "
-            f"Fields: {kpis['total_fields']} | Acres: {kpis['total_acreage']:,.0f}</p></div>",
-            "<div style='text-align:center;margin:20px 0'>",
-        ]
-        kpi_items = [
-            ("Fields", kpis["total_fields"]),
-            ("Acres", f"{kpis['total_acreage']:,.0f}"),
-            ("Avg NDVI", f"{kpis['avg_ndvi']}" if kpis.get("avg_ndvi") else "N/A"),
-            ("Rainfall", f"{kpis.get('avg_rainfall_mm', 'N/A')} mm"),
-            ("Soil Health", f"{kpis.get('avg_soil_health', 'N/A')}"),
-            ("Sustainability", f"{kpis.get('avg_sustainability', 'N/A')}"),
-        ]
-        for label, val in kpi_items:
-            html_parts.append(f"<div class='kpi'><div class='kpi-val'>{val}</div><div class='kpi-label'>{label}</div></div>")
-        html_parts.append("</div>")
-        count = 0
-        for title, fn in fig_sources:
-            fig = get_fig(fn)
-            if fig is not None:
-                html_parts.append(pio.to_html(fig, include_plotlyjs=False, full_html=False))
-                count += 1
-        html_parts.append("</body></html>")
-        with open(str(export_path), "w") as f:
-            f.write("\n".join(html_parts))
-        print(f"Dashboard exported to {export_path} ({count} figures)")
+        do_export(data, kpis, args)
     else:
-        print(f"\nStarting dashboard at http://127.0.0.1:{args.port}")
+        addr = f"http://{args.host if args.host != '0.0.0.0' else '127.0.0.1'}:{args.port}"
+        print(f"\nStarting dashboard at {addr}")
         print("Press Ctrl+C to stop")
-        app.run(debug=False, port=args.port)
+        app.run(debug=False, host=args.host, port=args.port)
 
     return True
 

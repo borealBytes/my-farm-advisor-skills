@@ -8,42 +8,44 @@ This skill generates an interactive Plotly Dash-based Row Crop Intelligence Dash
 
 Edits should stay inside `dashboard/` unless the user explicitly asks for a broader change. Do not edit sibling skills or parent tree files from a dashboard task unless explicitly requested.
 
-## Quick start
+## Quick start (JSON mode - no runtime tree needed)
 
 ```bash
-export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
 cd dashboard/src
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" row_crop_dashboard.py
+pip install -r ../requirements.txt
+python row_crop_dashboard.py --json ../dashboard_data.json
 ```
 
-Open http://127.0.0.1:8050 in a browser.
+Open http://127.0.0.1:8050.
 
-## Custom grower or farm
+## Runtime tree mode
 
 ```bash
 export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
 cd dashboard/src
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" row_crop_dashboard.py \
-  --grower nebraska-grower --farm nebraska-farm --port 8050
+python row_crop_dashboard.py --grower iowa-grower --farm iowa-farm
+```
+
+## Custom host/port (for Docker/Cloudflare)
+
+```bash
+python row_crop_dashboard.py --json ../dashboard_data.json --host 0.0.0.0 --port 8050
 ```
 
 ## Export static HTML
 
 ```bash
-export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
-cd dashboard/src
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" row_crop_dashboard.py \
-  --grower iowa-grower --farm iowa-farm \
-  --export /tmp/row_crop_dashboard.html
+python row_crop_dashboard.py --json ../dashboard_data.json --export /tmp/dashboard.html
 ```
 
-## Runtime contract
+## Regenerate data package
 
-- `DATA_PIPELINE_DATA_ROOT` is required.
-- The script reads from the canonical farm data tree under `growers/<grower>/farms/<farm>/`.
-- The dashboard serves on the specified port (default 8050).
+```bash
+export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
+python src/export_data_package.py --grower iowa-grower --farm iowa-farm
+```
 
 ## Dependencies
 
-- plotly, dash, pandas, geopandas, numpy, rasterio
-- Install: `"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/pip" install plotly dash`
+- Required: plotly, dash, pandas, numpy (`pip install -r requirements.txt`)
+- Runtime tree mode only: geopandas, rasterio

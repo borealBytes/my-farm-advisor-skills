@@ -28,3 +28,4 @@ contextily>=1.6
 requests>=2.31
 beautifulsoup4>=4.12
 python-dotenv>=1.0
+Pillow>=10.0

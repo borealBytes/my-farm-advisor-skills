@@ -479,6 +479,10 @@ def shared_soybean_mg_average_csv_path(start_year: int, end_year: int) -> Path:
     return shared_soybean_maturity_tables_dir() / f"mg_by_fips_{start_year}_{end_year}_average.csv"
 
 
+def farm_dashboard_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_dashboards_dir(grower_slug, farm_slug) / f"{farm_slug}_dashboard.html"
+
+
 def ensure_parent(path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     return path

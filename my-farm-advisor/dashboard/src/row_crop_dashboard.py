@@ -458,8 +458,8 @@ def create_soil_health_chart(data):
         yaxis_title="Score (0-100)",
         barmode="group",
         template="simple_white",
-        height=550,
-        margin=dict(l=40, r=20, t=150, b=60),
+        height=650,
+        margin=dict(l=40, r=20, t=160, b=80),
         legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -492,7 +492,7 @@ def create_soil_health_chart(data):
     )
 
     return html.Div([
-        dcc.Graph(figure=fig, style={"height": "600px"}, config={"responsive": True, "displayModeBar": False}),
+        dcc.Graph(figure=fig),
         interpretation,
     ])
 
@@ -537,12 +537,12 @@ def create_correlation_chart(data):
     fig.update_layout(
         title="Correlation Matrix: Soil Properties & Crop Health",
         template="simple_white",
-        height=550,
-        margin=dict(l=40, r=20, t=60, b=120),
+        height=650,
+        margin=dict(l=40, r=20, t=60, b=140),
         xaxis=dict(side="bottom", tickangle=-45),
     )
 
-    return dcc.Graph(figure=fig, style={"height": "600px"}, config={"responsive": True, "displayModeBar": False})
+    return dcc.Graph(figure=fig)
 
 
 def create_app(data):
@@ -657,7 +657,7 @@ def create_app(data):
                         style={
                             "background": THEME["card_bg"], "border-radius": "8px",
                             "padding": "16px", "box-shadow": "0 1px 3px rgba(0,0,0,0.1)",
-                            "min-height": "640px", "overflow": "visible",
+                            "min-height": "680px", "overflow": "visible",
                         },
                         children=[create_soil_health_chart(data)],
                     ),
@@ -666,7 +666,7 @@ def create_app(data):
                         style={
                             "background": THEME["card_bg"], "border-radius": "8px",
                             "padding": "16px", "box-shadow": "0 1px 3px rgba(0,0,0,0.1)",
-                            "min-height": "640px", "overflow": "visible",
+                            "min-height": "680px", "overflow": "visible",
                         },
                         children=[create_correlation_chart(data)],
                     ),

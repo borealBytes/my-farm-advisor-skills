@@ -1,0 +1,51 @@
+============================================================
+FIELD-LEVEL EDA STATISTICAL SUMMARY
+Generated: 2026-07-20 03:37:54
+============================================================
+
+------------------------------------------------------------
+Category: A. Boundaries
+Test: Pearson + Spearman correlation
+Variables: Field area vs crop diversity
+
+  pearson_r: -0.3202
+  pearson_p: 0.0845
+  spearman_rho: -0.3182
+  spearman_p: 0.0866
+  ci_95: [-0.6711, 0.0307]
+  n: 30
+  r_squared: 0.1025
+
+------------------------------------------------------------
+Category: B. CDL
+Test: Linear regression
+Variables: Corn acreage vs Soybean acreage (2025)
+
+  pearson_r: 0.3754
+  pearson_p: 0.0490
+  slope: 0.2658
+  intercept: 56.2663
+  r_squared: 0.1409
+  slope_ci_95: [0.0135, 0.5182]
+  p_value: 0.0490
+  n: 28
+
+------------------------------------------------------------
+Category: C. Weather
+Test: One-way ANOVA
+Variables: GDD across States
+
+  f_statistic: 525.3465
+  p_value: 0.0000
+  eta_squared: 0.9749
+  n: 30
+
+------------------------------------------------------------
+Category: C. Weather
+Test: Kruskal-Wallis H-test
+Variables: Precipitation CV across States
+
+  h_statistic: 27.1091
+  p_value: 0.0000
+  epsilon_squared: 0.9348
+  n: 30

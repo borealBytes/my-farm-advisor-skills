@@ -121,10 +121,27 @@ def create_soil_ph_chart(data):
             showlegend=False,
         ))
 
-    fig.add_hline(y=6.0, line_dash="dash", line_color=THEME["ok"], opacity=0.5,
-                  annotation_text="Optimal min (6.0)")
-    fig.add_hline(y=7.0, line_dash="dash", line_color=THEME["ok"], opacity=0.5,
-                  annotation_text="Optimal max (7.0)")
+    fig.add_hline(y=6.0, line_dash="dash", line_color=THEME["ok"], opacity=0.5)
+    fig.add_hline(y=7.0, line_dash="dash", line_color=THEME["ok"], opacity=0.5)
+
+    fig.add_annotation(
+        xref="paper", x=1.0,
+        yref="paper", y=1.0,
+        text="Optimal max (7.0)",
+        showarrow=False,
+        xanchor="right",
+        yanchor="top",
+        font=dict(size=10, color=THEME["ok"]),
+    )
+    fig.add_annotation(
+        xref="paper", x=1.0,
+        yref="paper", y=0.95,
+        text="Optimal min (6.0)",
+        showarrow=False,
+        xanchor="right",
+        yanchor="top",
+        font=dict(size=10, color=THEME["ok"]),
+    )
 
     fig.update_layout(
         title="Soil pH by Field",

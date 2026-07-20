@@ -433,11 +433,12 @@ def create_soil_health_chart(data):
 
     df = metrics.copy()
     df["short_id"] = df["field_id"].str.replace("osm-", "")
+    df["display_name"] = df["short_id"].str[:5]
 
     fig = go.Figure()
     for _, row in df.iterrows():
         fig.add_trace(go.Bar(
-            name=row["short_id"],
+            name=row["display_name"],
             x=["Soil Health Score", "Sustainability Index"],
             y=[row.get("soil_health_score", 0), row.get("sustainability_index", 0)],
             hovertemplate=(
@@ -458,15 +459,15 @@ def create_soil_health_chart(data):
         yaxis_title="Score (0-100)",
         barmode="group",
         template="simple_white",
-        height=650,
-        margin=dict(l=40, r=20, t=160, b=80),
+        height=550,
+        margin=dict(l=40, r=20, t=145, b=60),
         legend=dict(
             orientation="h",
             yanchor="bottom",
-            y=1.0,
-            x=0.5,
-            xanchor="center",
-            font=dict(size=9),
+            y=1.08,
+            x=1.0,
+            xanchor="right",
+            font=dict(size=7),
             traceorder="normal",
         ),
         hovermode="x unified",

@@ -239,14 +239,13 @@ def create_geospatial_map(data):
 
     fig = go.Figure()
     for i in range(len(lats)):
-        fig.add_trace(go.Scattergeo(
+        fig.add_trace(go.Scattermap(
             lon=lons[i],
             lat=lats[i],
-            mode="lines+markers",
+            mode="lines",
             fill="toself",
-            fillcolor=f"rgba(0,0,0,0)",
+            fillcolor="rgba(0,0,0,0)",
             line=dict(width=2, color="white"),
-            marker=dict(size=0),
             name=gdf_web.iloc[i]["short_id"] if i < len(gdf_web) else f"Field {i}",
             hovertext=text[i] if i < len(text) else "",
             hoverinfo="text",
@@ -269,7 +268,7 @@ def create_geospatial_map(data):
             f"Soil Health: {shs if pd.notna(shs) else 'N/A'}"
         )
 
-    fig.add_trace(go.Scattergeo(
+    fig.add_trace(go.Scattermap(
         lon=scatter_lons,
         lat=scatter_lats,
         mode="markers",
@@ -281,7 +280,6 @@ def create_geospatial_map(data):
             cmax=100,
             colorbar=dict(title="Soil<br>Health<br>Score", thickness=15, len=0.5),
             line=dict(width=1, color="white"),
-            symbol="circle",
         ),
         text=scatter_text,
         hoverinfo="text",
@@ -292,28 +290,15 @@ def create_geospatial_map(data):
     center_lat = (bounds[1] + bounds[3]) / 2
     center_lon = (bounds[0] + bounds[2]) / 2
 
-    fig.update_geos(
-        projection_type="mercator",
-        lonaxis_range=[bounds[0] - 0.02, bounds[2] + 0.02],
-        lataxis_range=[bounds[1] - 0.02, bounds[3] + 0.02],
-        visible=False,
-        coastlinecolor="rgba(0,0,0,0)",
-        landcolor="rgba(0,0,0,0)",
-        showcountries=False,
-        showland=False,
-        showocean=False,
-        showsubunits=False,
-    )
-
     fig.update_layout(
         title="Field Boundaries by Soil Health Score",
-        geo=dict(
-            bgcolor="rgba(0,0,0,0)",
-            lakecolor="rgba(0,0,0,0)",
+        map=dict(
+            style="open-street-map",
+            center=dict(lat=center_lat, lon=center_lon),
+            zoom=13,
         ),
         height=500,
         margin=dict(l=0, r=0, t=50, b=0),
-        template="simple_white",
     )
 
     interpretation = html.Div(

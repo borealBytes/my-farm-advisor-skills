@@ -316,8 +316,8 @@ def create_geospatial_map(data):
         text=scatter_numbers,
         textposition="middle center",
         textfont=dict(size=12, color="white"),
-        hovertext=scatter_text,
-        hoverinfo="text",
+        customdata=scatter_text,
+        hovertemplate="%{customdata}<extra></extra>",
         showlegend=False,
     ))
 

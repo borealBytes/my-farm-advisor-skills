@@ -450,14 +450,22 @@ def create_soil_health_chart(data):
         ))
 
     fig.update_layout(
-        title="Soil Health Score & Sustainability Index by Field",
+        title=dict(
+            text="Soil Health Score & Sustainability Index by Field",
+            font=dict(size=14),
+        ),
         xaxis_title="Metric",
         yaxis_title="Score (0-100)",
         barmode="group",
         template="simple_white",
-        height=400,
-        margin=dict(l=40, r=20, t=50, b=60),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        height=350,
+        margin=dict(l=40, r=20, t=40, b=90),
+        legend=dict(
+            orientation="h",
+            yanchor="top",
+            y=-0.25,
+            font=dict(size=9),
+        ),
         hovermode="x unified",
     )
 

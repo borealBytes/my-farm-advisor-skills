@@ -142,8 +142,12 @@ def _field_slug_lookup(inventory_path: Path = _FIELD_INVENTORY) -> dict[str, str
     }
 
 
-def _cdl_csv_path() -> Path:
-    return _CDL_PRIMARY if _CDL_PRIMARY.exists() else _CDL_FALLBACK
+def _cdl_csv_path() -> Path | None:
+    if _CDL_PRIMARY.exists():
+        return _CDL_PRIMARY
+    if _CDL_FALLBACK.exists():
+        return _CDL_FALLBACK
+    return None
 
 
 def _canonical_field_root(field_slug: str | None) -> Path | None:
@@ -427,8 +431,12 @@ def _render_field_poster(
 
     fw = weather[weather["field_id"] == field_id].copy()
     fw["date"] = pd.to_datetime(fw["date"])
-    fc = cdl[cdl["field_id"] == field_id].copy()
-    crop_sum = summarize_crop_history(fc, window_years=5)
+    if not cdl.empty and "field_id" in cdl.columns:
+        fc = cdl[cdl["field_id"] == field_id].copy()
+        crop_sum = summarize_crop_history(fc, window_years=5)
+    else:
+        fc = pd.DataFrame()
+        crop_sum = pd.DataFrame()
     wx_row = None
     if not fw.empty:
         ws = summarize_weather_variability(fw)
@@ -564,7 +572,11 @@ def main() -> None:
         farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM), parse_dates=["date"]
     )
     cdl_path = _cdl_csv_path()
-    cdl = pd.read_csv(cdl_path)
+    if cdl_path is not None:
+        cdl = pd.read_csv(cdl_path)
+    else:
+        cdl = pd.DataFrame()
+        print("  Warning: CDL composition data not available; skipping crop history")
     field_slug_lookup = _field_slug_lookup()
 
     hl_rows = []
@@ -616,7 +628,7 @@ def main() -> None:
             config.field_boundary_path,
             str(farm_ssurgo_full_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
             str(farm_weather_path(_DEFAULT_GROWER, _DEFAULT_FARM)),
-            str(cdl_path.relative_to(_REPO)),
+            *([str(cdl_path.relative_to(_REPO))] if cdl_path is not None else []),
             *[str(path) for path in ndvi_asset_paths],
             *[str(path) for path in soil_map_asset_paths],
         ]

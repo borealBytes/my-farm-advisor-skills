@@ -65,6 +65,17 @@ flowchart LR
 | Strategy | [`strategy/INDEX.md`](my-farm-advisor/strategy/INDEX.md) | Crop strategy and maturity planning |
 | Weather | [`weather/INDEX.md`](my-farm-advisor/weather/INDEX.md) | NASA POWER weather and derived farm weather analysis |
 
+#### Custom EDA Subskill: Field Comparison
+
+A cross-field, cross-grower comparison subskill was added under the EDA area for multi-grower dataset review:
+
+- **Name**: `eda-field-comparison`
+- **Location**: [`my-farm-advisor/eda/eda-field-comparison/`](my-farm-advisor/eda/eda-field-comparison/)
+- **Entrypoint**: `scripts/run_field_comparison.py`
+- **What it does**: Compares field boundaries, CDL crop history, and NASA POWER weather across fields and growers. Produces static PNG plots and CSV summary tables.
+- **Outputs**: `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-comparison/plots/` and `tables/`
+- **Report**: A one-time self-contained HTML report can be assembled from these outputs (see [`GUIDE.md`](my-farm-advisor/eda/eda-field-comparison/GUIDE.md))
+
 ### 🌱 My Farm Breeding Trial Management
 
 `my-farm-breeding-trial-management` is the breeding operations skill. Use it when the work is about running a breeding program rather than analyzing genetics after the fact.

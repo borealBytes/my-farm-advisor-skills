@@ -179,6 +179,13 @@ def _download_cdl_if_missing(year: int, state_fips: str) -> Path:
             response.raise_for_status()
             candidate_path.write_bytes(response.content)
             return candidate_path
+        except requests.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else 0
+            if status == 503:
+                print(f"  Warning: CDL {candidate} {state_code} server temporarily unavailable; trying older year")
+                last_error = exc
+                continue
+            raise
         except Exception as exc:
             last_error = exc
             continue
@@ -197,37 +204,45 @@ def _top_crop_county_in_state(
     if state.empty:
         raise ValueError(f"No counties found for state_fips={state_fips}")
 
-    raster_path = _download_cdl_if_missing(year, state_fips)
-    with rasterio.open(raster_path) as src:
-        state_proj = state.to_crs(src.crs)
-        stats = zonal_stats(
-            state_proj.geometry,
-            str(raster_path),
-            categorical=True,
-            nodata=0,
-        )
-
-    code = CROP_CODE[crop]
-    ranked: list[tuple[int, str, str, str]] = []
-    for row, categorical in zip(state.itertuples(index=False), stats, strict=False):
-        category = categorical or {}
-        score = int(category.get(code, 0))
-        ranked.append(
-            (
-                score,
-                str(getattr(row, "fips")),
-                str(getattr(row, "state_fips")).zfill(2),
-                str(getattr(row, "county_name")),
+    try:
+        raster_path = _download_cdl_if_missing(year, state_fips)
+        with rasterio.open(raster_path) as src:
+            state_proj = state.to_crs(src.crs)
+            stats = zonal_stats(
+                state_proj.geometry,
+                str(raster_path),
+                categorical=True,
+                nodata=0,
             )
-        )
 
-    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
-    if not ranked or ranked[0][0] <= 0:
-        raise RuntimeError(
-            f"No county had crop code for {crop} in state_fips={state_fips}"
-        )
-    _, county_fips, state_code, county_name = ranked[0]
-    return {"fips": county_fips, "state_fips": state_code, "county_name": county_name}
+        code = CROP_CODE[crop]
+        ranked: list[tuple[int, str, str, str]] = []
+        for row, categorical in zip(state.itertuples(index=False), stats, strict=False):
+            category = categorical or {}
+            score = int(category.get(code, 0))
+            ranked.append(
+                (
+                    score,
+                    str(getattr(row, "fips")),
+                    str(getattr(row, "state_fips")).zfill(2),
+                    str(getattr(row, "county_name")),
+                )
+            )
+
+        ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+        if ranked and ranked[0][0] > 0:
+            _, county_fips, state_code, county_name = ranked[0]
+            return {"fips": county_fips, "state_fips": state_code, "county_name": county_name}
+        print(f"  Warning: CDL not available for crop scoring; falling back to first county")
+    except Exception as exc:
+        print(f"  Warning: CDL unavailable for {state_fips} ({exc}); falling back to first county")
+
+    first = state.sort_values("county_name").iloc[0]
+    return {
+        "fips": str(first.fips),
+        "state_fips": str(first.state_fips).zfill(2),
+        "county_name": str(first.county_name),
+    }
 
 
 def _resolve_counties_from_fips(

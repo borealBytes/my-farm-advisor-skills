@@ -279,7 +279,6 @@ def create_geospatial_map(data):
             cmin=40,
             cmax=100,
             colorbar=dict(title="Soil<br>Health<br>Score", thickness=15, len=0.5),
-            line=dict(width=1, color="white"),
         ),
         text=scatter_text,
         hoverinfo="text",

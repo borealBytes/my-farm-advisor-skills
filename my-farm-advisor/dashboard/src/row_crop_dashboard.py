@@ -222,6 +222,20 @@ def create_geospatial_map(data):
 
     gdf["short_id"] = gdf["field_id"].str.replace("osm-", "")
 
+    field_numbers = {
+        "osm-1219926116": 1,
+        "osm-1223974574": 2,
+        "osm-1330494009": 3,
+        "osm-1330494051": 4,
+        "osm-1330494053": 5,
+        "osm-1330494055": 6,
+        "osm-1330494071": 7,
+        "osm-1330494087": 8,
+        "osm-1330710265": 9,
+        "osm-922936689": 10,
+    }
+    gdf["field_number"] = gdf["field_id"].map(field_numbers).fillna(0).astype(int)
+
     gdf_web = gdf.to_crs("EPSG:4326")
 
     lats = []
@@ -273,6 +287,7 @@ def create_geospatial_map(data):
     scatter_lats = []
     scatter_colors = []
     scatter_text = []
+    scatter_numbers = []
     for i, row in gdf_web.iterrows():
         centroid = row.geometry.centroid
         scatter_lons.append(centroid.x)
@@ -284,11 +299,12 @@ def create_geospatial_map(data):
             f"<b>{short_id}</b><br>"
             f"Soil Health: {shs if pd.notna(shs) else 'N/A'}"
         )
+        scatter_numbers.append(str(row.get("field_number", "")))
 
     fig.add_trace(go.Scattermap(
         lon=scatter_lons,
         lat=scatter_lats,
-        mode="markers",
+        mode="markers+text",
         marker=dict(
             size=30,
             color=scatter_colors,
@@ -297,7 +313,10 @@ def create_geospatial_map(data):
             cmax=100,
             colorbar=dict(title="Soil<br>Health<br>Score", thickness=15, len=0.5),
         ),
-        text=scatter_text,
+        text=scatter_numbers,
+        textposition="middle center",
+        textfont=dict(size=12, color="white"),
+        hovertext=scatter_text,
         hoverinfo="text",
         showlegend=False,
     ))

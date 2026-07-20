@@ -458,12 +458,12 @@ def create_soil_health_chart(data):
         yaxis_title="Score (0-100)",
         barmode="group",
         template="simple_white",
-        height=350,
-        margin=dict(l=40, r=20, t=40, b=90),
+        height=480,
+        margin=dict(l=40, r=20, t=40, b=120),
         legend=dict(
             orientation="h",
             yanchor="top",
-            y=-0.25,
+            y=-0.35,
             font=dict(size=9),
         ),
         hovermode="x unified",
@@ -531,8 +531,8 @@ def create_correlation_chart(data):
     fig.update_layout(
         title="Correlation Matrix: Soil Properties & Crop Health",
         template="simple_white",
-        height=450,
-        margin=dict(l=40, r=20, t=50, b=80),
+        height=530,
+        margin=dict(l=40, r=20, t=50, b=100),
         xaxis=dict(side="bottom", tickangle=-45),
     )
 

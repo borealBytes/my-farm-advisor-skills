@@ -245,7 +245,7 @@ def create_geospatial_map(data):
             mode="lines",
             fill="toself",
             fillcolor="rgba(0,0,0,0)",
-            line=dict(width=2, color="white"),
+            line=dict(width=2, color="orange"),
             name=gdf_web.iloc[i]["short_id"] if i < len(gdf_web) else f"Field {i}",
             hovertext=text[i] if i < len(text) else "",
             hoverinfo="text",

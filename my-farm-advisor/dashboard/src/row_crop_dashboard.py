@@ -309,7 +309,7 @@ def create_geospatial_map(data):
     fig.update_layout(
         title="Field Boundaries by Soil Health Score",
         map=dict(
-            style="open-street-map",
+            style="satellite",
             center=dict(lat=center_lat, lon=center_lon),
             zoom=13,
         ),

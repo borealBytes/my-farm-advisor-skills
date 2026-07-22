@@ -9,7 +9,15 @@ dist/
 build/
 out/
 coverage/
+output/
 *.log
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+.venv/
 
 # Runtime geodata payloads
 countries.geojson

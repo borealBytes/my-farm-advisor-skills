@@ -8,3 +8,4 @@ Open these guides when analyzing agricultural datasets, comparing conditions, or
 - [Time Series Guide](eda-time-series/GUIDE.md) - seasonal and longitudinal views
 - [Visualize Guide](eda-visualize/GUIDE.md) - charts, plots, and dashboards
 - [Field Comparison Guide](eda-field-comparison/GUIDE.md) - compare boundaries, CDL, and weather across fields and growers
+- [Soil Variability Dashboard](soil-variability-dashboard/GUIDE.md) — standalone HTML dashboard for soil property analysis across all fields of a grower (SSURGO, NDVI, weather, soil health, decision support)

@@ -1,0 +1,16 @@
+version: "3.8"
+
+services:
+  rowcrop-dashboard:
+    build: .
+    container_name: rowcrop-intelligence-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./growers:/app/growers
+      - ./shared:/app/shared
+    environment:
+      - DATA_PIPELINE_DATA_ROOT=/app
+      - AG_WEATHER_START_YEAR=2021
+      - AG_WEATHER_END_YEAR=2025
+    restart: unless-stopped

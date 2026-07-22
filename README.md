@@ -12,7 +12,8 @@ The catalog is intentionally focused:
 
 | Skill | Start here | What it does | Best for |
 | --- | --- | --- | --- |
-| 🌾 `my-farm-advisor` | [`my-farm-advisor/SKILL.md`](my-farm-advisor/SKILL.md) | Routes farm advisory work into field, soil, weather, imagery, EDA, strategy, admin, and data-pipeline workflows | Farm data rebuilds, field reports, geospatial context, agronomic analysis |
+| 🌾 `my-farm-advisor` | [`my-farm-advisor/SKILL.md`](my-farm-advisor/SKILL.md) | Routes farm advisory work into field, soil, weather, imagery, EDA, strategy, admin, data-pipeline, and dashboard workflows | Farm data rebuilds, field reports, geospatial context, agronomic analysis |
+| 📊 `my-farm-advisor/rowcrop-dashboard` | [`my-farm-advisor/rowcrop-dashboard/SKILL.md`](my-farm-advisor/rowcrop-dashboard/SKILL.md) | Build interactive Streamlit dashboards for soil health, NDVI, weather, and sustainability analysis | Row crop intelligence dashboards, field comparisons, decision support |
 | 🌱 `my-farm-breeding-trial-management` | [`my-farm-breeding-trial-management/SKILL.md`](my-farm-breeding-trial-management/SKILL.md) | Routes breeding operations into design, fieldbook, germplasm, selection, crossing, and field-trial placement examples | Breeding program execution and operational planning |
 | 🧬 `my-farm-qtl-analysis` | [`my-farm-qtl-analysis/SKILL.md`](my-farm-qtl-analysis/SKILL.md) | Routes quantitative genetics work into mapping, QC, structure, prediction, and reporting examples | GWAS, eQTL, classical QTL, genomic prediction, and genetics reporting |
 
@@ -48,7 +49,16 @@ flowchart LR
     class advisorDocs,breedingDocs,qtlDocs docs
 ```
 
-## The Three Skills
+## The Skills
+
+### 📊 Row Crop Dashboard
+
+`rowcrop-dashboard` is the dashboard creation skill. It builds interactive Streamlit dashboards for precision agriculture analysis — soil health, NDVI, weather, sustainability, and field comparisons — from the My Farm Advisor data pipeline.
+
+| Area | Guide | Description |
+| --- | --- | --- |
+| Dashboard creation | [`rowcrop-dashboard/GUIDE.md`](my-farm-advisor/rowcrop-dashboard/GUIDE.md) | Step-by-step guide to building and deploying the dashboard |
+| Dashboard skill | [`rowcrop-dashboard/SKILL.md`](my-farm-advisor/rowcrop-dashboard/SKILL.md) | Skill routing and requirements |
 
 ### 🌾 My Farm Advisor
 
@@ -214,6 +224,10 @@ my-farm-advisor-skills/
 │   ├── INDEX.md
 │   ├── README.md
 │   ├── AGENTS.md
+│   ├── rowcrop-dashboard/          # Dashboard creation skill
+│   │   ├── SKILL.md
+│   │   ├── AGENTS.md
+│   │   └── GUIDE.md
 │   └── ...
 ├── my-farm-breeding-trial-management/
 │   ├── SKILL.md

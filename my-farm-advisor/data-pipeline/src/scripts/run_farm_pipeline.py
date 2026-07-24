@@ -234,6 +234,11 @@ def main() -> None:
     )
     parser.add_argument("--force", action="store_true", help="Force rerun all steps")
     parser.add_argument(
+        "--generate-dashboard",
+        action="store_true",
+        help="Generate an offline weather dashboard as a final pipeline step",
+    )
+    parser.add_argument(
         "--structure-test",
         action="store_true",
         help="Create and verify canonical data tree, then exit",
@@ -320,6 +325,11 @@ def main() -> None:
         ("reporting/generate_farm_html.py", "Self-contained HTML report", (), False),
         ("reporting/generate_farm_markdown.py", "Markdown report", (), False),
     ]
+
+    if args.generate_dashboard:
+        steps.append(
+            ("reporting/generate_weather_dashboard.py", "Weather Dashboard")
+        )
 
     all_ok = True
     extra_env = {

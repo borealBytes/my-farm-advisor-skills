@@ -341,6 +341,7 @@ def _run_pipeline_for_farm(
     farm_name: str,
     inventory_path: Path,
     force: bool,
+    generate_dashboard: bool = False,
 ) -> None:
     cmd = [
         sys.executable,
@@ -358,6 +359,8 @@ def _run_pipeline_for_farm(
     ]
     if force:
         cmd.append("--force")
+    if generate_dashboard:
+        cmd.append("--generate-dashboard")
     _run(cmd)
 
 
@@ -442,6 +445,7 @@ def create_command(args: argparse.Namespace) -> None:
         farm_name=farm_name,
         inventory_path=inventory,
         force=args.force,
+        generate_dashboard=args.generate_dashboard,
     )
 
     print(
@@ -517,6 +521,7 @@ def refresh_command(args: argparse.Namespace) -> None:
             farm_name=item["farm_name"],
             inventory_path=inventory,
             force=args.force,
+            generate_dashboard=args.generate_dashboard,
         )
 
     print(
@@ -531,6 +536,61 @@ def refresh_command(args: argparse.Namespace) -> None:
             indent=2,
         )
     )
+
+
+def dashboard_command(args: argparse.Namespace) -> None:
+    """Generate an offline weather dashboard for a farm."""
+    from reporting.generate_weather_dashboard import (
+        acquire_basemap,
+        build_dashboard_html,
+        ensure_plotly_bundle,
+        read_farm_data,
+        resolve_farm_dir,
+    )
+
+    farm_dir = resolve_farm_dir(
+        farm_dir=args.farm_dir,
+        growers_dir=args.growers_dir,
+    )
+    print(f"  Farm directory: {farm_dir}")
+
+    farm_meta, fields, weather_records = read_farm_data(farm_dir)
+    print(f"  Fields discovered: {len(fields)}")
+    print(f"  Weather-bearing field-year records: {len(weather_records)}")
+
+    plotly_js = ensure_plotly_bundle(force=args.force_plotly)
+
+    basemap_b64 = None
+    basemap_bounds = None
+    basemap_disabled = False
+    if not args.no_basemap:
+        print("  Acquiring satellite basemap...")
+        basemap_b64, basemap_bounds = acquire_basemap(fields)
+        if basemap_b64 is None:
+            print("  (tiles unavailable, using neutral background)")
+    else:
+        basemap_disabled = True
+        print("  Basemap disabled (--no-basemap)")
+
+    print("  Generating dashboard HTML...")
+    html_content = build_dashboard_html(
+        farm_meta, fields, weather_records, plotly_js, basemap_b64, basemap_bounds,
+        basemap_disabled=basemap_disabled,
+    )
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        farm_slug = farm_meta.get("farmId", farm_dir.name)
+        output_path = farm_dir / f"{farm_slug}_dashboard.html"
+
+    tmp = output_path.with_suffix(".html.tmp")
+    tmp.write_text(html_content, encoding="utf-8")
+    tmp.replace(output_path)
+
+    size_kb = output_path.stat().st_size / 1024.0
+    print(f"  Dashboard written: {output_path}")
+    print(f"  Size: {size_kb:.0f} KB")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -585,6 +645,11 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--cdl-latest-year", type=int, default=2025)
     create.add_argument("--cdl-window-years", type=int, default=5)
     create.add_argument("--force", action="store_true")
+    create.add_argument(
+        "--generate-dashboard",
+        action="store_true",
+        help="Also generate a weather dashboard as a final pipeline step",
+    )
     create.set_defaults(handler=create_command)
 
     refresh = sub.add_parser(
@@ -594,7 +659,47 @@ def build_parser() -> argparse.ArgumentParser:
     refresh.add_argument("--grower-slug", default=None)
     refresh.add_argument("--farm-slug", default=None)
     refresh.add_argument("--force", action="store_true")
+    refresh.add_argument(
+        "--generate-dashboard",
+        action="store_true",
+        help="Also generate a weather dashboard as a final pipeline step",
+    )
     refresh.set_defaults(handler=refresh_command)
+
+    dashboard = sub.add_parser(
+        "dashboard", help="Generate a weather dashboard for an existing farm"
+    )
+    dashboard_sub = dashboard.add_subparsers(dest="dashboard_command", required=True)
+
+    gen = dashboard_sub.add_parser(
+        "generate", help="Generate an offline weather dashboard"
+    )
+    gen.add_argument(
+        "--farm-dir",
+        default=None,
+        help="Explicit path to a farm output directory",
+    )
+    gen.add_argument(
+        "--growers-dir",
+        default=None,
+        help="Path to growers root (discover farms under it)",
+    )
+    gen.add_argument(
+        "--output",
+        default=None,
+        help="Explicit output path for the generated HTML",
+    )
+    gen.add_argument(
+        "--no-basemap",
+        action="store_true",
+        help="Skip satellite basemap acquisition",
+    )
+    gen.add_argument(
+        "--force-plotly",
+        action="store_true",
+        help="Force re-download of Plotly bundle",
+    )
+    gen.set_defaults(handler=dashboard_command)
 
     return parser
 

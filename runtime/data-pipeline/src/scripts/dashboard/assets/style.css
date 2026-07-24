@@ -1,0 +1,62 @@
+/* Row Crop Intelligence Dashboard - Custom Theme */
+/* Targets Streamlit's shadow DOM via data attributes */
+
+[data-testid="stAppViewContainer"] {
+    background: #f8fafc;
+}
+
+[data-testid="stHeader"] {
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+[data-testid="stSidebar"] {
+    background: #ffffff;
+    border-right: 1px solid #e2e8f0;
+}
+
+[data-testid="stMetric"] {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+.stTabs [data-baseweb="tab-list"] {
+    gap: 0.5rem;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    padding: 0.5rem 0.5rem 0;
+}
+
+.stTabs [data-baseweb="tab"] {
+    border-radius: 6px 6px 0 0;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3 {
+    color: #0f172a;
+    font-weight: 600;
+}
+
+[data-testid="stMarkdownContainer"] h2 {
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0.4rem;
+    margin-top: 0.75rem;
+}
+
+[data-testid="stDataFrame"] {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+div[data-testid="stMultiSelect"] > div {
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+}

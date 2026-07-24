@@ -1,0 +1,6 @@
+# Runtime data — keep out of git
+data-pipeline/growers/
+data-pipeline/shared/
+data-pipeline/.venv/
+data-pipeline/.install.lock
+data-pipeline/.my-farm-advisor-source.json

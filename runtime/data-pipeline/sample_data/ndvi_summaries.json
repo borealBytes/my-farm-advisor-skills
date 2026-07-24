@@ -1,0 +1,423 @@
+[
+  {
+    "field_id": "osm-1052414024",
+    "field_slug": "osm-1052414024",
+    "cards": {
+      "corn": {
+        "status": "available",
+        "title": "Corn average NDVI",
+        "crop_name": "Corn",
+        "years": [
+          2021,
+          2022,
+          2023,
+          2025
+        ],
+        "year_count": 4,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_corn.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_corn_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.4032973576982545
+      },
+      "soybean": {
+        "status": "available",
+        "title": "Soybean average NDVI",
+        "crop_name": "Soybeans",
+        "years": [
+          2024
+        ],
+        "year_count": 1,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_soybean.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_soybean_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.3640017512639637
+      },
+      "corn_peak_95": {
+        "status": "available",
+        "title": "Corn 95th %ile peak NDVI",
+        "crop_name": "Corn",
+        "doy_window": [
+          180,
+          240
+        ],
+        "scene_count": 13,
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_corn_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_corn_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8954139947891235
+      },
+      "soybean_peak_95": {
+        "status": "available",
+        "title": "Soybean 95th %ile peak NDVI",
+        "crop_name": "Soybeans",
+        "doy_window": [
+          190,
+          250
+        ],
+        "scene_count": 11,
+        "years": [
+          2021,
+          2023,
+          2024
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_soybean_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_soybean_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8646931052207947
+      },
+      "current_season_cumulative": {
+        "status": "available",
+        "title": "Cumulative NDVI by crop and year",
+        "scene_count": 44,
+        "crop_years": {
+          "corn": [
+            2021,
+            2022,
+            2023,
+            2025
+          ],
+          "soybean": [
+            2024
+          ]
+        },
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1052414024/derived/features/ndvi_current_season_cumulative.png",
+        "reason": null
+      }
+    }
+  },
+  {
+    "field_id": "osm-1360326432",
+    "field_slug": "osm-1360326432",
+    "cards": {
+      "corn": {
+        "status": "available",
+        "title": "Corn average NDVI",
+        "crop_name": "Corn",
+        "years": [
+          2022,
+          2024
+        ],
+        "year_count": 2,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_corn.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_corn_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.425505977516834
+      },
+      "soybean": {
+        "status": "available",
+        "title": "Soybean average NDVI",
+        "crop_name": "Soybeans",
+        "years": [
+          2021,
+          2023,
+          2025
+        ],
+        "year_count": 3,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_soybean.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_soybean_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.3951248141784076
+      },
+      "corn_peak_95": {
+        "status": "available",
+        "title": "Corn 95th %ile peak NDVI",
+        "crop_name": "Corn",
+        "doy_window": [
+          180,
+          240
+        ],
+        "scene_count": 11,
+        "years": [
+          2021,
+          2022,
+          2024,
+          2025
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_corn_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_corn_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8463276624679565
+      },
+      "soybean_peak_95": {
+        "status": "available",
+        "title": "Soybean 95th %ile peak NDVI",
+        "crop_name": "Soybeans",
+        "doy_window": [
+          190,
+          250
+        ],
+        "scene_count": 19,
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_soybean_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_soybean_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.9013513922691345
+      },
+      "current_season_cumulative": {
+        "status": "available",
+        "title": "Cumulative NDVI by crop and year",
+        "scene_count": 41,
+        "crop_years": {
+          "corn": [
+            2022,
+            2024
+          ],
+          "soybean": [
+            2021,
+            2023,
+            2025
+          ]
+        },
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360326432/derived/features/ndvi_current_season_cumulative.png",
+        "reason": null
+      }
+    }
+  },
+  {
+    "field_id": "osm-1360386537",
+    "field_slug": "osm-1360386537",
+    "cards": {
+      "corn": {
+        "status": "available",
+        "title": "Corn average NDVI",
+        "crop_name": "Corn",
+        "years": [
+          2022,
+          2024
+        ],
+        "year_count": 2,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_corn.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_corn_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.3652148059653062
+      },
+      "soybean": {
+        "status": "available",
+        "title": "Soybean average NDVI",
+        "crop_name": "Soybeans",
+        "years": [
+          2021,
+          2023,
+          2025
+        ],
+        "year_count": 3,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_soybean.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_soybean_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.3642029311728005
+      },
+      "corn_peak_95": {
+        "status": "available",
+        "title": "Corn 95th %ile peak NDVI",
+        "crop_name": "Corn",
+        "doy_window": [
+          180,
+          240
+        ],
+        "scene_count": 10,
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_corn_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_corn_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8449199199676514
+      },
+      "soybean_peak_95": {
+        "status": "available",
+        "title": "Soybean 95th %ile peak NDVI",
+        "crop_name": "Soybeans",
+        "doy_window": [
+          190,
+          250
+        ],
+        "scene_count": 17,
+        "years": [
+          2021,
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_soybean_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_soybean_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.911780059337616
+      },
+      "current_season_cumulative": {
+        "status": "available",
+        "title": "Cumulative NDVI by crop and year",
+        "scene_count": 44,
+        "crop_years": {
+          "corn": [
+            2022,
+            2024
+          ],
+          "soybean": [
+            2021,
+            2023,
+            2025
+          ]
+        },
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/features/ndvi_current_season_cumulative.png",
+        "reason": null
+      }
+    }
+  },
+  {
+    "field_id": "osm-1360394834",
+    "field_slug": "osm-1360394834",
+    "cards": {
+      "corn": {
+        "status": "available",
+        "title": "Corn average NDVI",
+        "crop_name": "Corn",
+        "years": [
+          2022,
+          2023,
+          2025
+        ],
+        "year_count": 3,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_corn.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_corn_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.342174573571651
+      },
+      "soybean": {
+        "status": "available",
+        "title": "Soybean average NDVI",
+        "crop_name": "Soybeans",
+        "years": [
+          2021,
+          2024
+        ],
+        "year_count": 2,
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_soybean.png",
+        "rollup_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_soybean_rollup.tif",
+        "reason": null,
+        "mean_ndvi": 0.3568897539981676
+      },
+      "corn_peak_95": {
+        "status": "available",
+        "title": "Corn 95th %ile peak NDVI",
+        "crop_name": "Corn",
+        "doy_window": [
+          180,
+          240
+        ],
+        "scene_count": 13,
+        "years": [
+          2022,
+          2023,
+          2024,
+          2025
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_corn_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_corn_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8331118226051331
+      },
+      "soybean_peak_95": {
+        "status": "available",
+        "title": "Soybean 95th %ile peak NDVI",
+        "crop_name": "Soybeans",
+        "doy_window": [
+          190,
+          250
+        ],
+        "scene_count": 12,
+        "years": [
+          2021,
+          2023,
+          2024
+        ],
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_soybean_peak_95.png",
+        "output_tif": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_soybean_peak_95.tif",
+        "reason": null,
+        "mean_ndvi": 0.8135251402854919
+      },
+      "current_season_cumulative": {
+        "status": "available",
+        "title": "Cumulative NDVI by crop and year",
+        "scene_count": 44,
+        "crop_years": {
+          "corn": [
+            2022,
+            2023,
+            2025
+          ],
+          "soybean": [
+            2021,
+            2024
+          ]
+        },
+        "sources": [
+          "landsat",
+          "sentinel"
+        ],
+        "output_png": "growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360394834/derived/features/ndvi_current_season_cumulative.png",
+        "reason": null
+      }
+    }
+  }
+]

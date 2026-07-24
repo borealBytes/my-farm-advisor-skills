@@ -1,0 +1,5 @@
+field_id,rotation_sequence,rotation_count,rotation_patterns,history_years,history_start_year,history_end_year,crop_diversity,corn_years,soybean_years,predicted_next_crop,predicted_following_crop,rotation_confidence,rotation_outlook
+osm-1052414024,Corn -> Corn -> Corn -> Soybeans -> Corn,4,Corn → Corn; Corn → Soybeans; Soybeans → Corn,5,2021,2025,2,4,1,Corn,Corn,high,"Heuristic outlook: Corn next, then Corn, based on the recent rotation pattern."
+osm-1360326432,Soybeans -> Corn -> Soybeans -> Corn -> Soybeans,4,Corn → Soybeans; Soybeans → Corn,5,2021,2025,2,2,3,Corn,Soybeans,high,"Heuristic outlook: Corn next, then Soybeans, based on the recent rotation pattern."
+osm-1360386537,Soybeans -> Corn -> Soybeans -> Corn -> Soybeans,4,Corn → Soybeans; Soybeans → Corn,5,2021,2025,2,2,3,Corn,Soybeans,high,"Heuristic outlook: Corn next, then Soybeans, based on the recent rotation pattern."
+osm-1360394834,Soybeans -> Corn -> Corn -> Soybeans -> Corn,4,Corn → Corn; Corn → Soybeans; Soybeans → Corn,5,2021,2025,2,3,2,Corn,Corn,medium,"Heuristic outlook: Corn next, then Corn, based on the recent rotation pattern."

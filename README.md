@@ -4,7 +4,8 @@ This repository is the My Farm Advisor skill catalog. It contains three in-repo 
 
 The catalog is intentionally focused:
 
-- `my-farm-advisor` for farm advisory, field data, weather, soil, imagery, reporting, and strategy workflows.
+- `my-farm-advisor` for farm advisory, field data, weather, soil, imagery, reporting, dashboard, and strategy workflows.
+- `my-farm-advisor/rowcrop-dashboard` for interactive Streamlit dashboards — soil health, NDVI, weather, sustainability analysis, and field comparisons.
 - `my-farm-breeding-trial-management` for breeding operations, trial design, fieldbooks, germplasm, selection, crossing, and placement workflows.
 - `my-farm-qtl-analysis` for QTL, GWAS, eQTL, quality control, population structure, genomic prediction, and reporting workflows.
 
@@ -55,10 +56,46 @@ flowchart LR
 
 `rowcrop-dashboard` is the dashboard creation skill. It builds interactive Streamlit dashboards for precision agriculture analysis — soil health, NDVI, weather, sustainability, and field comparisons — from the My Farm Advisor data pipeline.
 
+**How to run the dashboard:**
+
+```bash
+# Demo mode (no setup, uses bundled sample data):
+pip install streamlit plotly pandas geopandas numpy
+streamlit run streamlit_app.py
+
+# Full mode (with pipeline data):
+export DATA_PIPELINE_DATA_ROOT=/path/to/my-farm-advisor-runtime
+export AG_WEATHER_START_YEAR=2021
+export AG_WEATHER_END_YEAR=2025
+streamlit run runtime/data-pipeline/src/scripts/dashboard/build_rowcrop_dashboard.py
+
+# Streamlit Cloud (free hosted):
+# Deploy at https://share.streamlit.io — select streamlit_app.py
+```
+
+**Where to look in the runtime dataset:**
+
+| Mode | Data Location |
+|---|---|
+| Demo | `runtime/data-pipeline/sample_data/` (8 files, 228 KB) |
+| Full | `$DATA_PIPELINE_DATA_ROOT/data-pipeline/growers/<grower>/farms/<farm>/derived/` |
+
+Key files used by the dashboard:
+- `boundary/field_boundaries.geojson` — Field polygons
+- `derived/tables/*_ssurgo_summary.csv` — Soil health metrics
+- `derived/tables/*_fields_soil.csv` — Horizon-level soil data
+- `derived/tables/*_weather_*.csv` — Daily weather (NASA POWER)
+- `derived/tables/*_cdl_*_full_composition.csv` — Crop history
+- `derived/tables/*_crop_rotation.csv` — Rotation sequences
+- `fields/*/derived/summaries/ndvi_card_summary.json` — NDVI per field
+
+**Dependencies:** `streamlit`, `plotly`, `pandas`, `geopandas`, `numpy`
+
 | Area | Guide | Description |
 | --- | --- | --- |
 | Dashboard creation | [`rowcrop-dashboard/GUIDE.md`](my-farm-advisor/rowcrop-dashboard/GUIDE.md) | Step-by-step guide to building and deploying the dashboard |
 | Dashboard skill | [`rowcrop-dashboard/SKILL.md`](my-farm-advisor/rowcrop-dashboard/SKILL.md) | Skill routing and requirements |
+| Supplementary docs | [`runtime/data-pipeline/DASHBOARD_INFO.md`](../../runtime/data-pipeline/DASHBOARD_INFO.md) | Project overview, dataset description, analytical interpretation, AI usage |
 
 ### 🌾 My Farm Advisor
 

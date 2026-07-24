@@ -104,30 +104,42 @@ Or pass via environment variables (advanced — requires modifying the script to
 
 ## Deployment
 
+The dashboard supports two modes:
+- **Demo mode** (default): Uses bundled sample data in `runtime/data-pipeline/sample_data/` — no setup needed
+- **Full mode**: Reads from the actual runtime pipeline — set `DATA_PIPELINE_DATA_ROOT` environment variable
+
+### Streamlit Community Cloud (Free Hosting)
+
+1. Push this repo to GitHub
+2. Go to https://share.streamlit.io
+3. Click **"New app"** → select your repo → branch `main` → file `streamlit_app.py`
+4. Click **"Deploy"**
+5. Your dashboard will be live at `https://<app-name>.streamlit.app`
+
+The app auto-launches in **demo mode** with bundled sample data. Full pipeline data is not needed for the cloud demo.
+
 ### Local Server
 
 ```bash
-streamlit run src/scripts/dashboard/build_rowcrop_dashboard.py --server.port=8501
+# Demo mode (no env vars needed):
+streamlit run streamlit_app.py --server.port=8501
+
+# Or directly:
+streamlit run runtime/data-pipeline/src/scripts/dashboard/build_rowcrop_dashboard.py --server.port=8501
+
+# Full mode (with runtime data):
+export DATA_PIPELINE_DATA_ROOT=/path/to/your-runtime-root
+streamlit run runtime/data-pipeline/src/scripts/dashboard/build_rowcrop_dashboard.py --server.port=8501
 ```
 
-### Docker Deployment
+### Docker Deployment (VPS)
 
 ```bash
-# From the runtime/ directory in this repo:
 cd runtime/data-pipeline
 docker compose up -d
 ```
 
-Or copy the `Dockerfile` and `docker-compose.yml` to your runtime data pipeline:
-
-```bash
-cp runtime/data-pipeline/Dockerfile $DATA_PIPELINE_DATA_ROOT/data-pipeline/
-cp runtime/data-pipeline/docker-compose.yml $DATA_PIPELINE_DATA_ROOT/data-pipeline/
-cd $DATA_PIPELINE_DATA_ROOT/data-pipeline
-docker compose up -d
-```
-
-This serves the dashboard on port 8501. Data is mounted as a volume so pipeline updates are reflected on restart.
+Make sure `growers/` and `shared/` data directories exist or mount them as volumes.
 
 ### VPS Deployment (with nginx)
 

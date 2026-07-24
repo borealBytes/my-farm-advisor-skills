@@ -13,25 +13,30 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 _SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
+_RUNTIME_DIR = _SCRIPTS_DIR.parents[1]
+_SAMPLE_DIR = _RUNTIME_DIR / "sample_data"
 
-os.environ.setdefault("DATA_PIPELINE_DATA_ROOT", str(_SCRIPTS_DIR.parents[1]))
-os.environ.setdefault("AG_WEATHER_START_YEAR", "2021")
-os.environ.setdefault("AG_WEATHER_END_YEAR", "2025")
+data_root = os.environ.get("DATA_PIPELINE_DATA_ROOT")
+IS_DEMO = data_root is None
 
-from paths import (
-    farm_boundary_path,
-    farm_ssurgo_summary_path,
-    farm_soil_sample_path,
-    farm_weather_path,
-    farm_cdl_full_composition_path,
-    farm_cdl_rotation_path,
-    farm_table_path,
-    field_summary_path,
-    farm_dir,
-    farm_dashboard_path,
-    ensure_parent,
-)
+if not IS_DEMO:
+    os.environ.setdefault("DATA_PIPELINE_DATA_ROOT", str(_RUNTIME_DIR.parents[1]))
+    os.environ.setdefault("AG_WEATHER_START_YEAR", "2021")
+    os.environ.setdefault("AG_WEATHER_END_YEAR", "2025")
+    sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
+    from paths import (
+        farm_boundary_path,
+        farm_ssurgo_summary_path,
+        farm_soil_sample_path,
+        farm_weather_path,
+        farm_cdl_full_composition_path,
+        farm_cdl_rotation_path,
+        farm_table_path,
+        field_summary_path,
+        farm_dir,
+        farm_dashboard_path,
+        ensure_parent,
+    )
 
 st.set_page_config(page_title="Row Crop Intelligence Dashboard", layout="wide", page_icon="🌽")
 
@@ -60,8 +65,20 @@ DRAINAGE_ORDER = [
 ]
 
 
+def _sd(filename):
+    return _SAMPLE_DIR / filename
+
+
 @st.cache_data(ttl=3600)
 def load_field_boundaries(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("field_boundaries.geojson")
+        if not p.exists():
+            return None
+        gdf = gpd.read_file(p)
+        if gdf.crs is None:
+            gdf.set_crs("EPSG:4326", inplace=True)
+        return gdf
     p = farm_boundary_path(grower, farm)
     if not p.exists():
         return None
@@ -73,6 +90,9 @@ def load_field_boundaries(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_ssurgo_summary(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("ssurgo_summary.csv")
+        return pd.read_csv(p) if p.exists() else None
     p = farm_ssurgo_summary_path(grower, farm)
     if not p.exists():
         return None
@@ -81,6 +101,9 @@ def load_ssurgo_summary(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_fields_soil(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("fields_soil.csv")
+        return pd.read_csv(p) if p.exists() else None
     p = farm_soil_sample_path(grower, farm)
     if not p.exists():
         p = farm_table_path(grower, farm, "iowa_grower_iowa_fields_soil.csv")
@@ -91,6 +114,14 @@ def load_fields_soil(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_weather(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("weather_2024.csv")
+        if not p.exists():
+            return None
+        df = pd.read_csv(p, parse_dates=["date"])
+        df["year"] = df["date"].dt.year
+        df["month"] = df["date"].dt.month
+        return df
     p = farm_weather_path(grower, farm)
     if not p.exists():
         return None
@@ -102,6 +133,9 @@ def load_weather(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_cdl_composition(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("cdl_composition.csv")
+        return pd.read_csv(p) if p.exists() else None
     p = farm_cdl_full_composition_path(grower, farm)
     if not p.exists():
         return None
@@ -110,6 +144,9 @@ def load_cdl_composition(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_crop_rotation(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("crop_rotation.csv")
+        return pd.read_csv(p) if p.exists() else None
     p = farm_cdl_rotation_path(grower, farm)
     if not p.exists():
         return None
@@ -118,6 +155,25 @@ def load_crop_rotation(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_ndvi_summaries(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("ndvi_summaries.json")
+        if not p.exists():
+            return None
+        with open(p) as f:
+            records = json.load(f)
+        rows = []
+        for rec in records:
+            fid = rec.get("field_id", "unknown")
+            cards = rec.get("cards", {})
+            row = {"field_id": fid}
+            for key in ["corn", "soybean", "corn_peak_95", "soybean_peak_95"]:
+                card = cards.get(key, {})
+                if card.get("status") == "available" and "mean_ndvi" in card:
+                    row[f"ndvi_{key}"] = card["mean_ndvi"]
+                else:
+                    row[f"ndvi_{key}"] = None
+            rows.append(row)
+        return pd.DataFrame(rows) if rows else None
     farm_p = farm_dir(grower, farm)
     field_dirs = sorted(farm_p.glob("fields/*"))
     records = []
@@ -144,6 +200,9 @@ def load_ndvi_summaries(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
 
 @st.cache_data(ttl=3600)
 def load_field_inventory(grower=DEFAULT_GROWER, farm=DEFAULT_FARM):
+    if IS_DEMO:
+        p = _sd("field_inventory.csv")
+        return pd.read_csv(p) if p.exists() else None
     p = farm_table_path(grower, farm, "field-inventory.csv")
     alt = farm_dir(grower, farm) / "manifests" / "field-inventory.csv"
     if p.exists():
@@ -739,7 +798,10 @@ def render_recommendations_tab(ssurgo_df, ndvi_df, rotation_df, selected_fields)
 def main():
     st.markdown(get_css(), unsafe_allow_html=True)
     st.title("🌽 Row Crop Intelligence Dashboard")
-    st.caption(f"Iowa Corn Farm · {len(FIELD_NAMES)} fields · Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}")
+    if IS_DEMO:
+        st.info("🔷 **Demo Mode** — Using bundled sample data (2024 only). Set `DATA_PIPELINE_DATA_ROOT` for full pipeline data.")
+    else:
+        st.caption(f"Iowa Corn Farm · {len(FIELD_NAMES)} fields · Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}")
     with st.spinner("Loading farm data..."):
         ssurgo_df = load_ssurgo_summary()
         fields_soil = load_fields_soil()

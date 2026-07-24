@@ -22,4 +22,11 @@ Use this skill when the user wants to:
 
 - Python 3.10+
 - streamlit, plotly, pandas, geopandas, numpy
-- A populated My Farm Advisor runtime data pipeline for the target grower
+- A populated My Farm Advisor runtime data pipeline for the target grower (optional — demo mode works with bundled sample data)
+
+## Hosted Demo
+
+Try the live dashboard on Streamlit Community Cloud:
+1. Push this repo to GitHub
+2. Deploy at https://share.streamlit.io — point to `streamlit_app.py`
+3. Dashboard launches in demo mode instantly

@@ -1,28 +1,17 @@
-node_modules/
-.cache/
-data/
-.my-farm-advisor-runtime/
-.sisyphus/
+# Runtime data (keep out of git)
+runtime/data-pipeline/growers/
+runtime/data-pipeline/shared/
+runtime/data-pipeline/.venv/
+runtime/data-pipeline/.install.lock
+runtime/data-pipeline/.my-farm-advisor-source.json
 
-# Generated outputs
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
 dist/
 build/
-out/
-coverage/
-*.log
 
-# Runtime geodata payloads
-countries.geojson
-states_usa.geojson
-
-# Python cache
-__pycache__/
-*.pyc
-
-# IDE files
-.vscode/
-.idea/
-
-# OS files
-.DS_Store
-Thumbs.db
+# Streamlit
+.streamlit/

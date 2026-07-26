@@ -217,3 +217,52 @@ bash -lc 'export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runti
 
 This ensures every pipeline step (including geopandas/rasterio operations) uses
 the shared environment that lives alongside the replicated scripts.
+
+---
+
+## Assignment 3 — Field-Year NDVI + Weather Dashboard
+
+**Workflow:** `scripts/reporting/generate_field_year_dashboard.py`
+
+**Selected field-year:** Field `osm-1360386537`, Year `2022`, Crop `Corn` (CDL 97.42% coverage)
+
+### Inputs used from data-pipeline
+- `growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/weather/daily_weather.csv` — NASA POWER daily weather
+- `growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/satellite/sentinel/manifest.json` — Sentinel-2 scene catalog
+- `growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/tables/ndvi_year_crop_join.csv` — CDL crop-year lookup
+- `growers/iowa-grower/farms/iowa-grower-iowa/derived/tables/iowa_grower_iowa_2022_cdl.csv` — CDL field-year composition
+
+### Weather metrics calculated
+- Daily GDD (base 10 °C, cap 30 °C) and cumulative GDD
+- Cumulative precipitation
+- 7-day rolling mean temperature
+- Event detection: heavy rain (≥25 mm), heat stress (≥35 °C), cool snaps (3+ days <10 °C), dry spells (14+ days <1 mm)
+
+### Dashboard output paths
+Per-year aligned dashboards are generated under the field’s `derived/reports/`:
+```
+growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/reports/field_year_dashboard_2022.png  (Corn)
+growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/reports/field_year_dashboard_2021.png  (Soybeans)
+growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/reports/field_year_dashboard_2023.png  (Soybeans)
+growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/reports/field_year_dashboard_2024.png  (Corn)
+growers/iowa-grower/farms/iowa-grower-iowa/fields/osm-1360386537/derived/reports/field_year_dashboard_2025.png  (Soybeans)
+```
+
+### How to rerun
+```bash
+export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
+export AG_GROWER_SLUG=iowa-grower
+export AG_FARM_SLUG=iowa-grower-iowa
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/reporting/generate_field_year_dashboard.py \
+  --field-slug osm-1360386537 \
+  --year 2022 \
+  --force
+```
+
+### Known data limitations
+- Dashboard depends on Sentinel-2 scenes only; Landsat is not integrated.
+- NDVI mean is a single zonal-statistic per scene; sub-field spatial variation is not shown.
+- Event thresholds (rain ≥25 mm, heat ≥35 °C, etc.) are hardcoded for corn/soybean contexts.
+- Cloudy scenes (>20% cloud cover) are flagged but not excluded from the time-series.

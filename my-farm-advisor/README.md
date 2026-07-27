@@ -235,6 +235,7 @@ The umbrella entrypoint is [`SKILL.md`](SKILL.md). From there, the skill routes 
 | Area             | What it covers                                                         | Start here                                               |
 | ---------------- | ---------------------------------------------------------------------- | -------------------------------------------------------- |
 | Admin            | Geospatial administration and interactive map workflows                | [`admin/INDEX.md`](admin/INDEX.md)                       |
+| Dashboard        | Plotly Dash row crop intelligence dashboard generation                 | [`dashboard/SKILL.md`](dashboard/SKILL.md)               |
 | Data Sources     | Canonical rebuilds, data pipelines, and farm intelligence reporting    | [`data-sources/INDEX.md`](data-sources/INDEX.md)         |
 | EDA              | Exploratory analysis, comparisons, correlations, and time-series views | [`eda/INDEX.md`](eda/INDEX.md)                           |
 | Field Management | Boundaries, field sampling, and headlands workflows                    | [`field-management/INDEX.md`](field-management/INDEX.md) |

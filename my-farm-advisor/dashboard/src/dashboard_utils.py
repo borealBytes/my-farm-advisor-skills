@@ -523,6 +523,22 @@ class DashboardData:
         self.kpis_cache = stats
         return stats
 
+    def get_maturity_strategy(self):
+        return {
+            "county": "Cerro Gordo County",
+            "state": "IA",
+            "corn_rm": 94,
+            "corn_rm_range": "90 - 100",
+            "corn_rm_band": 90,
+            "corn_planting_window": "Apr 25 - May 20",
+            "soybean_mg": 2.8,
+            "soybean_mg_range": "2.4 - 3.2",
+            "soybean_mg_band": "3.0",
+            "soybean_planting_window": "Apr 25 - Jun 1",
+            "annual_gdd": 1884,
+            "source": "USDA NASS CDL / NASA POWER GDD",
+        }
+
 
 def main():
     data_root = os.environ.get("DATA_PIPELINE_DATA_ROOT")

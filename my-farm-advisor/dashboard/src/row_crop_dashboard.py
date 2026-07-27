@@ -798,6 +798,43 @@ def create_aligned_timeline(data):
     ])
 
 
+def create_strategy_guide(data):
+    s = data.get_maturity_strategy()
+    return html.Div(
+        style={
+            "background": THEME["card_bg"], "border-radius": "8px",
+            "padding": "16px", "box-shadow": "0 1px 3px rgba(0,0,0,0.1)",
+            "margin-bottom": "20px", "height": "100%",
+            "font-size": "13px", "line-height": "1.5",
+        },
+        children=[
+            html.H4(
+                f"Crop Strategy: {s['county']}, {s['state']}",
+                style={"color": THEME["primary"], "margin": "0 0 12px 0", "font-size": "16px",
+                       "border-bottom": f"2px solid {THEME['secondary']}", "padding-bottom": "6px"},
+            ),
+            html.Div([
+                html.Strong("\U0001f33d Corn", style={"color": "#d95f02"}),
+                html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
+                    html.Li(f"RM {s['corn_rm']} (range {s['corn_rm_range']})"),
+                    html.Li(f"Planting: {s['corn_planting_window']}"),
+                    html.Li(f"Annual GDD: {s['annual_gdd']} °C·d"),
+                ]),
+                html.Strong("\U0001f331 Soybean", style={"color": "#1b9e77"}),
+                html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
+                    html.Li(f"MG {s['soybean_mg']} (range {s['soybean_mg_range']})"),
+                    html.Li(f"Planting: {s['soybean_planting_window']}"),
+                ]),
+                html.Div(
+                    f"Source: {s['source']}. Planning heuristics, not prescriptive.",
+                    style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",
+                           "padding": "6px 8px", "background": "#f8f9fa", "border-radius": "4px"},
+                ),
+            ]),
+        ],
+    )
+
+
 def create_app(data):
     app = dash.Dash(__name__)
     app.title = "Row Crop Intelligence Dashboard"
@@ -926,7 +963,18 @@ def create_app(data):
                 ],
             ),
 
-            create_aligned_timeline(data),
+            html.Div(
+                style={
+                    "display": "grid",
+                    "grid-template-columns": "1fr 2fr",
+                    "gap": "16px",
+                    "margin-bottom": "20px",
+                },
+                children=[
+                    create_strategy_guide(data),
+                    create_aligned_timeline(data),
+                ],
+            ),
 
             html.Div(
                 style={

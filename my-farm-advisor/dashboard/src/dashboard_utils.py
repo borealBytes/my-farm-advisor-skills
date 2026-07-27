@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import warnings
 from pathlib import Path
@@ -8,11 +9,18 @@ import numpy as np
 import pandas as pd
 
 
+GDD_BASE_TEMP = 10
+GDD_CAP_TEMP = 30
+PLANTING_DOY = 121
+
+
 class DashboardData:
-    def __init__(self, data_root, grower_slug="iowa-grower", farm_slug="iowa-farm"):
+    def __init__(self, data_root, grower_slug="iowa-grower", farm_slug="iowa-farm",
+                 field_id=None):
         self.data_root = Path(data_root) / "data-pipeline"
         self.grower_slug = grower_slug
         self.farm_slug = farm_slug
+        self.field_id = field_id
         self.growers_root = self.data_root / "growers"
         self._resolve_farm_path()
         self._load_all()
@@ -26,6 +34,7 @@ class DashboardData:
         self.grower_slug = pkg["grower_slug"]
         self.farm_slug = pkg["farm_slug"]
         self.field_ids = pkg["field_ids"]
+        self.field_id = pkg.get("field_id")
         self.data_root = None
 
         bdy = pkg.get("field_boundaries", [])
@@ -56,15 +65,20 @@ class DashboardData:
                                   "avg_cec", "avg_clay_pct", "avg_sand_pct",
                                   "dominant_soil", "drainage_class", "erosion_risk"]].copy() if not self.metrics.empty else pd.DataFrame()
 
-        weather_records = pkg.get("weather_monthly", [])
-        if weather_records:
-            wdf = pd.DataFrame(weather_records)
-            wdf["date"] = pd.to_datetime(wdf["year"].astype(str) + "-" + wdf["month"].astype(str) + "-01")
-            self.weather = wdf.rename(columns={"precip": "prectotcorr", "temp": "t2m",
-                                                "tmin": "t2m_min", "tmax": "t2m_max"})
-            self.weather["field_id"] = self.field_ids[0] if self.field_ids else "unknown"
+        weather_daily = pkg.get("weather_daily", [])
+        if weather_daily:
+            wdf = pd.DataFrame(weather_daily)
+            wdf["date"] = pd.to_datetime(wdf["date"])
+            self.weather = wdf
         else:
-            self.weather = pd.DataFrame()
+            weather_records = pkg.get("weather_monthly", [])
+            if weather_records:
+                wdf = pd.DataFrame(weather_records)
+                wdf["date"] = pd.to_datetime(wdf["year"].astype(str) + "-" + wdf["month"].astype(str) + "-01")
+                self.weather = wdf.rename(columns={"precip": "prectotcorr", "temp": "t2m",
+                                                    "tmin": "t2m_min", "tmax": "t2m_max"})
+            else:
+                self.weather = pd.DataFrame()
 
         cdl = pkg.get("cdl_composition", [])
         self.cdl_composition = pd.DataFrame(cdl) if cdl else pd.DataFrame()
@@ -72,27 +86,30 @@ class DashboardData:
         rot = pkg.get("crop_rotation", [])
         self.crop_rotation = pd.DataFrame(rot) if rot else pd.DataFrame()
 
-        ndvi_records = pkg.get("ndvi_annual", [])
-        self.ndvi_list = ndvi_records
-        ndvi_df = pd.DataFrame(ndvi_records) if ndvi_records else pd.DataFrame()
-        if not ndvi_df.empty and "ndvi" in ndvi_df.columns:
-            ndvi_df = ndvi_df.dropna(subset=["ndvi"])
-        self.ndvi = ndvi_df
+        ndvi_records = pkg.get("ndvi_scenes", [])
+        if ndvi_records:
+            ndf = pd.DataFrame(ndvi_records)
+            if "date" in ndf.columns:
+                ndf["date"] = pd.to_datetime(ndf["date"])
+            self.ndvi_scenes = ndf
+        else:
+            ndvi_records = pkg.get("ndvi_annual", [])
+            self.ndvi_scenes = pd.DataFrame(ndvi_records) if ndvi_records else pd.DataFrame()
 
-        self._compute_from_json(pkg)
-        return self
+        gdd_records = pkg.get("gdd_daily", [])
+        if gdd_records:
+            gdf = pd.DataFrame(gdd_records)
+            if "date" in gdf.columns:
+                gdf["date"] = pd.to_datetime(gdf["date"])
+            self.gdd_daily = gdf
+        else:
+            self.gdd_daily = pd.DataFrame()
 
-    def _compute_from_json(self, pkg):
         self.kpis_cache = pkg.get("kpis", {})
         if not self.metrics.empty:
             self.metrics["soil_health_score"] = self.metrics.get("soil_health_score", None)
             self.metrics["sustainability_index"] = self.metrics.get("sustainability_index", None)
-            if "soil_health_score" not in self.metrics.columns or self.metrics["soil_health_score"].isna().all():
-                df = self.compute_soil_health_score(force=True)
-                self.metrics["soil_health_score"] = df["soil_health_score"]
-            if "sustainability_index" not in self.metrics.columns or self.metrics["sustainability_index"].isna().all():
-                df = self.compute_sustainability_index(force=True)
-                self.metrics["sustainability_index"] = df["sustainability_index"]
+        return self
 
     def _resolve_farm_path(self):
         import geopandas as gpd
@@ -108,17 +125,21 @@ class DashboardData:
             self.nested = True
         self.fields_root = self.farm_path / "fields"
         self.farm_tables = self.farm_path / "derived" / "tables"
-        self.farm_dashboards = self.farm_path / "derived" / "dashboards"
         self.farm_boundary_dir = self.farm_path / "boundary"
 
     def _load_all(self):
         self.field_ids = self._load_field_inventory()
+        if self.field_id and self.field_id in self.field_ids:
+            self.field_ids = [self.field_id]
+        elif self.field_id:
+            self.field_ids = self.field_ids[:1] if self.field_ids else []
         self.field_geojson = self._load_field_boundaries()
         self.soil = self._load_soil_summary()
         self.weather = self._load_weather()
         self.cdl_composition = self._load_cdl_composition()
         self.crop_rotation = self._load_crop_rotation()
-        self.ndvi = self._load_ndvi()
+        self.ndvi_scenes = self._load_ndvi_scenes()
+        self.gdd_daily = self._compute_gdd()
         self._compute_metrics()
 
     def _load_field_inventory(self):
@@ -150,6 +171,8 @@ class DashboardData:
         for path in [bdy_path]:
             if path.exists():
                 gdf = gpd.read_file(path)
+                if self.field_id:
+                    gdf = gdf[gdf["field_id"] == self.field_id].copy()
                 if "area_acres" not in gdf.columns:
                     gdf = gdf.to_crs("EPSG:5070")
                     gdf["area_acres"] = gdf.geometry.area * 0.000247105
@@ -175,10 +198,14 @@ class DashboardData:
             if p.exists():
                 df = pd.read_csv(p)
                 df.columns = [c.strip().lower() for c in df.columns]
+                if self.field_id:
+                    df = df[df["field_id"] == self.field_id].copy()
                 return df
         for f in self.farm_tables.glob("*ssurgo_summary*.csv"):
             df = pd.read_csv(f)
             df.columns = [c.strip().lower() for c in df.columns]
+            if self.field_id:
+                df = df[df["field_id"] == self.field_id].copy()
             return df
         return pd.DataFrame()
 
@@ -191,10 +218,14 @@ class DashboardData:
             if p.exists():
                 df = pd.read_csv(p, parse_dates=["date"])
                 df.columns = [c.strip().lower() for c in df.columns]
+                if self.field_id:
+                    df = df[df["field_id"] == self.field_id].copy()
                 return df
         for f in self.farm_tables.glob("*weather*.csv"):
             df = pd.read_csv(f, parse_dates=["date"])
             df.columns = [c.strip().lower() for c in df.columns]
+            if self.field_id:
+                df = df[df["field_id"] == self.field_id].copy()
             return df
         return pd.DataFrame()
 
@@ -205,9 +236,15 @@ class DashboardData:
         ]
         for p in patterns:
             if p.exists():
-                return pd.read_csv(p)
+                df = pd.read_csv(p)
+                if self.field_id:
+                    df = df[df["field_id"] == self.field_id].copy()
+                return df
         for f in self.farm_tables.glob("*cdl*composition*.csv"):
-            return pd.read_csv(f)
+            df = pd.read_csv(f)
+            if self.field_id:
+                df = df[df["field_id"] == self.field_id].copy()
+            return df
         return pd.DataFrame()
 
     def _load_crop_rotation(self):
@@ -217,21 +254,105 @@ class DashboardData:
         ]
         for p in patterns:
             if p.exists():
-                return pd.read_csv(p)
+                df = pd.read_csv(p)
+                if self.field_id:
+                    df = df[df["field_id"] == self.field_id].copy()
+                return df
         for f in self.farm_tables.glob("*crop_rotation*.csv"):
-            return pd.read_csv(f)
+            df = pd.read_csv(f)
+            if self.field_id:
+                df = df[df["field_id"] == self.field_id].copy()
+            return df
         return pd.DataFrame()
 
-    def _load_ndvi(self):
+    def _load_ndvi_scenes(self):
         records = []
         for fid in self.field_ids:
-            ndvi_csv = self._field_path(fid) / "derived" / "tables" / "ndvi_year_crop_join.csv"
-            if ndvi_csv.exists():
-                df = pd.read_csv(ndvi_csv)
-                records.append(df)
-        if records:
-            return pd.concat(records, ignore_index=True)
-        return pd.DataFrame()
+            scene_dir = self._field_path(fid) / "satellite" / "sentinel"
+            if not scene_dir.exists():
+                continue
+            for year_dir in sorted(scene_dir.iterdir()):
+                if not year_dir.is_dir() or not year_dir.name.isdigit():
+                    continue
+                year = int(year_dir.name)
+                for scene_dir2 in sorted(year_dir.iterdir()):
+                    ndvi_path = scene_dir2 / f"{scene_dir2.name}_ndvi.tif"
+                    if ndvi_path.exists():
+                        mean_val = self._read_tiff_mean(ndvi_path)
+                        scene_date_str = ndvi_path.name.replace("sentinel_", "").replace("_ndvi.tif", "")
+                        try:
+                            scene_date = pd.Timestamp(f"{year}{scene_date_str[:4]}")
+                        except Exception:
+                            scene_date = pd.Timestamp(f"{year}-01-01")
+                        records.append({
+                            "field_id": fid,
+                            "year": year,
+                            "date": scene_date,
+                            "ndvi": mean_val,
+                            "source": "sentinel",
+                            "scene": scene_dir2.name,
+                        })
+        df = pd.DataFrame(records) if records else pd.DataFrame()
+        if not df.empty:
+            df = df.sort_values("date").reset_index(drop=True)
+        return df
+
+    def _read_tiff_mean(self, tiff_path):
+        try:
+            import rasterio
+            with rasterio.open(str(tiff_path)) as src:
+                band = src.read(1).astype(np.float32)
+                if src.nodata is not None and not np.isnan(src.nodata):
+                    band[band == src.nodata] = np.nan
+                mean_val = float(np.nanmean(band))
+                if np.isnan(mean_val) or mean_val <= 0:
+                    return None
+                return round(mean_val, 4)
+        except Exception:
+            return None
+
+    def _compute_gdd(self):
+        if self.weather.empty:
+            return pd.DataFrame()
+        w = self.weather.copy()
+        required = ["t2m_max", "t2m_min", "date"]
+        if not all(c in w.columns for c in required):
+            return pd.DataFrame()
+        w["tmax_cap"] = w["t2m_max"].clip(upper=GDD_CAP_TEMP)
+        w["tmin_cap"] = w["t2m_min"].clip(lower=GDD_BASE_TEMP)
+        w["gdd"] = ((w["tmax_cap"] + w["tmin_cap"]) / 2) - GDD_BASE_TEMP
+        w["gdd"] = w["gdd"].clip(lower=0)
+        w["doy"] = w["date"].dt.dayofyear
+        w["season_gdd"] = 0.0
+        for yr in w["date"].dt.year.unique():
+            mask = (w["date"].dt.year == yr) & (w["doy"] >= PLANTING_DOY)
+            w.loc[mask, "season_gdd"] = w.loc[mask, "gdd"].cumsum()
+        return w[["date", "doy", "gdd", "season_gdd", "t2m_max", "t2m_min", "t2m", "prectotcorr"]]
+
+    def get_field_crop_year(self, field_id, year):
+        if self.cdl_composition.empty:
+            return None
+        sub = self.cdl_composition[
+            (self.cdl_composition["field_id"] == field_id) &
+            (self.cdl_composition["year"] == year)
+        ]
+        if sub.empty:
+            return None
+        sub = sub.sort_values("pct", ascending=False)
+        return sub.iloc[0].get("crop_name", "Unknown")
+
+    def get_field_crop_sequence(self, field_id):
+        if self.cdl_composition.empty:
+            return {}
+        sub = self.cdl_composition[self.cdl_composition["field_id"] == field_id]
+        if sub.empty:
+            return {}
+        result = {}
+        for _, row in sub.iterrows():
+            yr = int(row["year"])
+            if yr not in result or row.get("pct", 0) > result[yr].get("pct", 0):
+                result[yr] = {"crop_name": row["crop_name"], "pct": row.get("pct", 0)}
+        return result
 
     def _compute_ndvi_from_tiff(self, tiff_rel_path):
         try:
@@ -257,15 +378,15 @@ class DashboardData:
         field_metrics = []
         for fid in self.field_ids:
             m = {"field_id": fid}
-            ndvi_vals = []
-            field_ndvi = self.ndvi[self.ndvi["field_id"] == fid] if not self.ndvi.empty else pd.DataFrame()
-            if not field_ndvi.empty:
-                for _, row in field_ndvi.iterrows():
-                    val = self._compute_ndvi_from_tiff(row.get("composite_tif", ""))
-                    if val is not None:
-                        ndvi_vals.append(val)
-            m["avg_ndvi"] = round(float(np.mean(ndvi_vals)), 4) if ndvi_vals else None
-            m["max_ndvi"] = round(float(max(ndvi_vals)), 4) if ndvi_vals else None
+
+            scene_df = self.ndvi_scenes[self.ndvi_scenes["field_id"] == fid] if not self.ndvi_scenes.empty else pd.DataFrame()
+            if not scene_df.empty and "ndvi" in scene_df.columns:
+                vals = scene_df["ndvi"].dropna()
+                m["avg_ndvi"] = round(float(vals.mean()), 4) if len(vals) > 0 else None
+                m["max_ndvi"] = round(float(vals.max()), 4) if len(vals) > 0 else None
+            else:
+                m["avg_ndvi"] = None
+                m["max_ndvi"] = None
 
             soil_row = self.soil[self.soil["field_id"] == fid] if not self.soil.empty else pd.DataFrame()
             if not soil_row.empty:
@@ -390,24 +511,43 @@ class DashboardData:
         self.kpis_cache = stats
         return stats
 
+    def get_single_field_summary(self, field_id):
+        crop_seq = self.get_field_crop_sequence(field_id)
+        scene_df = self.ndvi_scenes[self.ndvi_scenes["field_id"] == field_id] if not self.ndvi_scenes.empty else pd.DataFrame()
+        ndvi_by_year = scene_df.groupby("year")["ndvi"].agg(["mean", "max", "count"]).to_dict("index") if not scene_df.empty else {}
+        weather_by_year = {}
+        if not self.weather.empty:
+            w = self.weather.copy()
+            w["year"] = w["date"].dt.year
+            weather_by_year = w.groupby("year").agg(
+                precip_total=("prectotcorr", "sum"),
+                temp_avg=("t2m", "mean"),
+                tmax_avg=("t2m_max", "mean"),
+                tmin_avg=("t2m_min", "mean"),
+            ).to_dict("index")
+        return {
+            "field_id": field_id,
+            "crop_sequence": {str(yr): info["crop_name"] for yr, info in sorted(crop_seq.items())},
+            "ndvi_by_year": {str(k): v for k, v in sorted(ndvi_by_year.items())},
+            "weather_by_year": {str(k): v for k, v in sorted(weather_by_year.items())},
+        }
+
 
 def main():
     data_root = os.environ.get("DATA_PIPELINE_DATA_ROOT")
     if not data_root:
         print("ERROR: Set DATA_PIPELINE_DATA_ROOT to the runtime root.")
         sys.exit(1)
-    data = DashboardData(data_root, "iowa-grower", "iowa-farm")
-    metrics = data.compute_sustainability_index()
-    print(f"Fields: {len(data.field_ids)}")
-    print(f"Soil: {list(data.soil.columns) if not data.soil.empty else 'empty'}")
-    print(f"Weather: {list(data.weather.columns) if not data.weather.empty else 'empty'}")
-    print(f"CDL: {list(data.cdl_composition.columns) if not data.cdl_composition.empty else 'empty'}")
-    print(f"NDVI records: {len(data.ndvi)}")
-    print(f"Metrics: {list(metrics.columns) if not metrics.empty else 'empty'}")
-    print("KPIs:", data.get_kpis())
-    if not metrics.empty:
-        print(metrics[["field_id", "avg_ndvi", "soil_health_score", "sustainability_index"]].to_string())
-    return data
+    data = DashboardData(data_root, "iowa-grower", "iowa-farm", field_id="osm-1219926116")
+    print(f"Fields: {data.field_ids}")
+    print(f"NDVI scenes: {len(data.ndvi_scenes)}")
+    if not data.ndvi_scenes.empty:
+        print(data.ndvi_scenes[["date", "ndvi", "source"]].to_string())
+    print(f"\nGDD records: {len(data.gdd_daily)}")
+    if not data.gdd_daily.empty:
+        print(data.gdd_daily[["date", "gdd", "season_gdd"]].tail(10).to_string())
+    print(f"\nCrop sequence: {data.get_field_crop_sequence('osm-1219926116')}")
+    print(f"KPIs: {data.get_kpis()}")
 
 
 if __name__ == "__main__":

@@ -621,6 +621,14 @@ def create_aligned_timeline(data):
                 ),
                 row=1, col=1,
             )
+            peak = yr_data.loc[yr_data["ndvi"].idxmax()]
+            fig.add_annotation(
+                x=peak["date"], y=peak["ndvi"],
+                text=f"Peak: {peak['ndvi']:.3f}",
+                showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1,
+                ax=30, ay=-30, font=dict(size=9, color=year_colors.get(int(yr), "#333")),
+                row=1, col=1,
+            )
         if not ndvi_f.empty:
             min_date = ndvi_f["date"].min()
             max_date = ndvi_f["date"].max()
@@ -675,6 +683,40 @@ def create_aligned_timeline(data):
                 ),
                 row=3, col=1,
             )
+            for yr in range(2021, 2026):
+                yr_w = w_f[w_f["date"].dt.year == yr].sort_values("date")
+                if yr_w.empty:
+                    continue
+                frost = yr_w[yr_w["t2m_min"] < 0]
+                if not frost.empty:
+                    last_spring = frost[frost["date"].dt.dayofyear <= 180]
+                    first_fall = frost[frost["date"].dt.dayofyear > 180]
+                    if not last_spring.empty:
+                        ld = last_spring.iloc[-1]["date"]
+                        fig.add_annotation(
+                            x=ld, y=yr_w["t2m_max"].max(),
+                            text=f"Last frost: {ld.strftime('%b %d')}",
+                            showarrow=True, arrowhead=2, ax=0, ay=-40,
+                            font=dict(size=8, color="#1f77b4"),
+                            row=3, col=1,
+                        )
+        for yr in range(2021, 2026):
+            planting = pd.Timestamp(f"{yr}-05-01")
+            for panel in [2, 4]:
+                fig.add_shape(
+                    type="line",
+                    x0=planting, y0=0, x1=planting, y1=1,
+                    line=dict(color="green", width=1, dash="dot"),
+                    row=panel, col=1,
+                )
+                fig.add_annotation(
+                    x=planting, y=0.98,
+                    text="Planting", showarrow=False,
+                    font=dict(size=8, color="green"),
+                    textangle=-90,
+                    xref="x", yref="paper",
+                    row=panel, col=1,
+                )
     else:
         fig.add_annotation(text="No daily weather data", xref="paper", yref="paper",
                            x=0.5, y=0.5, showarrow=False, row=2, col=1)
@@ -693,6 +735,14 @@ def create_aligned_timeline(data):
                     line=dict(color=year_colors.get(int(yr), "#333"), width=2),
                     hovertemplate="%{x|%b %d}<br>GDD: %{y:.0f} °C·day<extra></extra>",
                 ),
+                row=4, col=1,
+            )
+            final = yr_gdd.iloc[-1]
+            fig.add_annotation(
+                x=final["date"], y=final["cumulative_gdd"],
+                text=f"{final['cumulative_gdd']:.0f} °C·d",
+                showarrow=True, arrowhead=2, ax=30, ay=-20,
+                font=dict(size=9, color=year_colors.get(int(yr), "#333")),
                 row=4, col=1,
             )
 
@@ -714,9 +764,11 @@ def create_aligned_timeline(data):
     seq_str = " → ".join(f"{yr}: {crop}" for yr, crop in sorted(crop_seq.items()))
     caption = (
         f"Field osm-1219926116 (Field 1) crop sequence: {seq_str}. "
-        "NDVI from Landsat 8-9 surface reflectance composites. "
+        "NDVI from Sentinel-2 surface reflectance composites. "
         "Weather from NASA POWER (daily). "
-        "GDD base 10°C, cap 30°C, accumulated from Jan 1."
+        "GDD base 10°C, cap 30°C, accumulated from planting (May 1, DOY 121). "
+        "Vertical green dashed lines indicate planting date. "
+        "Frost annotations mark the last spring freeze (Tmin < 0°C)."
     )
 
     return html.Div([

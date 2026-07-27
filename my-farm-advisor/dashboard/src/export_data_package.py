@@ -122,39 +122,44 @@ def export_dashboard_data(data, output_path):
     ndvi_scenes = []
     for fid in data.field_ids:
         field_path = data._field_path(fid)
-        sat_dir = field_path / "satellite" / "landsat"
-        if not sat_dir.exists():
-            continue
-        for yr_dir in sorted(sat_dir.iterdir()):
-            if not yr_dir.is_dir():
+        sat_base = field_path / "satellite"
+        for src in ("sentinel", "landsat"):
+            sat_dir = sat_base / src
+            if not sat_dir.exists():
                 continue
-            for scene_dir in sorted(yr_dir.iterdir()):
-                if not scene_dir.is_dir():
+            for yr_dir in sorted(sat_dir.iterdir()):
+                if not yr_dir.is_dir():
                     continue
-                ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
-                if not ndvi_tif.exists():
-                    continue
-                try:
-                    import rasterio
-                    with rasterio.open(str(ndvi_tif)) as src:
-                        band = src.read(1)
-                        with warnings.catch_warnings():
-                            warnings.simplefilter("ignore")
-                            if src.nodata is not None and not np.isnan(src.nodata):
-                                band = band.astype(np.float32)
-                                band[band == src.nodata] = np.nan
-                            mean_val = float(np.nanmean(band))
-                        if np.isnan(mean_val) or mean_val <= 0:
-                            continue
-                    scene_date = scene_dir.name.split("_")[-1]
-                    ndvi_scenes.append({
-                        "field_id": fid,
-                        "year": int(yr_dir.name),
-                        "date": scene_date,
-                        "ndvi": round(mean_val, 4),
-                    })
-                except Exception:
-                    continue
+                for scene_dir in sorted(yr_dir.iterdir()):
+                    if not scene_dir.is_dir():
+                        continue
+                    ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
+                    if not ndvi_tif.exists():
+                        continue
+                    try:
+                        import rasterio
+                        with rasterio.open(str(ndvi_tif)) as src_rio:
+                            band = src_rio.read(1)
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                if src_rio.nodata is not None and not np.isnan(src_rio.nodata):
+                                    band = band.astype(np.float32)
+                                    band[band == src_rio.nodata] = np.nan
+                                mean_val = float(np.nanmean(band))
+                            if np.isnan(mean_val) or mean_val <= 0:
+                                continue
+                        scene_date = scene_dir.name.replace(f"{src}_", "")
+                        ndvi_scenes.append({
+                            "field_id": fid,
+                            "year": int(yr_dir.name),
+                            "date": scene_date,
+                            "ndvi": round(mean_val, 4),
+                            "source": src,
+                        })
+                    except Exception:
+                        continue
+            if any(r["field_id"] == fid for r in ndvi_scenes):
+                break
 
     gdd_daily = []
     if not data.weather.empty:
@@ -173,6 +178,7 @@ def export_dashboard_data(data, output_path):
             prev_yr = None
             for _, r in fw.iterrows():
                 yr = r["date"].year
+                doy = r["date"].timetuple().tm_yday
                 if prev_yr is not None and yr != prev_yr:
                     cum_gdd = 0.0
                 prev_yr = yr
@@ -182,7 +188,10 @@ def export_dashboard_data(data, output_path):
                 if pd.notna(tmax) and pd.notna(tmin):
                     avg = (tmax + tmin) / 2
                     gdd_val = max(0.0, min(avg, 30.0) - 10.0)
-                cum_gdd += gdd_val
+                if doy >= 121:
+                    cum_gdd += gdd_val
+                else:
+                    cum_gdd = 0.0
                 gdd_daily.append({
                     "field_id": fid,
                     "year": int(yr),

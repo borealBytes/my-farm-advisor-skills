@@ -290,39 +290,45 @@ class DashboardData:
         records = []
         for fid in self.field_ids:
             field_path = self._field_path(fid)
-            sat_dir = field_path / "satellite" / "landsat"
-            if not sat_dir.exists():
-                continue
-            for yr_dir in sorted(sat_dir.iterdir()):
-                if not yr_dir.is_dir():
+            sat_base = field_path / "satellite"
+            for src in ("sentinel", "landsat"):
+                sat_dir = sat_base / src
+                if not sat_dir.exists():
                     continue
-                for scene_dir in sorted(yr_dir.iterdir()):
-                    if not scene_dir.is_dir():
+                for yr_dir in sorted(sat_dir.iterdir()):
+                    if not yr_dir.is_dir():
                         continue
-                    ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
-                    if not ndvi_tif.exists():
-                        continue
-                    try:
-                        import rasterio
-                        with rasterio.open(str(ndvi_tif)) as src:
-                            band = src.read(1)
-                            with warnings.catch_warnings():
-                                warnings.simplefilter("ignore")
-                                if src.nodata is not None and not np.isnan(src.nodata):
-                                    band = band.astype(np.float32)
-                                    band[band == src.nodata] = np.nan
-                                mean_val = float(np.nanmean(band))
-                            if np.isnan(mean_val) or mean_val <= 0:
-                                continue
-                        scene_date = scene_dir.name.split("_")[-1]
-                        records.append({
-                            "field_id": fid,
-                            "year": int(yr_dir.name),
-                            "date": scene_date,
-                            "ndvi": round(mean_val, 4),
-                        })
-                    except Exception:
-                        continue
+                    for scene_dir in sorted(yr_dir.iterdir()):
+                        if not scene_dir.is_dir():
+                            continue
+                        ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
+                        if not ndvi_tif.exists():
+                            continue
+                        try:
+                            import rasterio
+                            with rasterio.open(str(ndvi_tif)) as src_rio:
+                                band = src_rio.read(1)
+                                with warnings.catch_warnings():
+                                    warnings.simplefilter("ignore")
+                                    if src_rio.nodata is not None and not np.isnan(src_rio.nodata):
+                                        band = band.astype(np.float32)
+                                        band[band == src_rio.nodata] = np.nan
+                                    mean_val = float(np.nanmean(band))
+                                if np.isnan(mean_val) or mean_val <= 0:
+                                    continue
+                            prefix = f"{src}_"
+                            scene_date = scene_dir.name.replace(prefix, "")
+                            records.append({
+                                "field_id": fid,
+                                "year": int(yr_dir.name),
+                                "date": scene_date,
+                                "ndvi": round(mean_val, 4),
+                                "source": src,
+                            })
+                        except Exception:
+                            continue
+                if any(r["field_id"] == fid for r in records):
+                    break
         return pd.DataFrame(records) if records else pd.DataFrame()
 
     def _load_weather_daily(self):
@@ -338,7 +344,7 @@ class DashboardData:
         avg = (tmax + tmin) / 2
         return max(0.0, min(avg, cap) - base)
 
-    def _compute_gdd_daily(self):
+    def _compute_gdd_daily(self, base=10, cap=30, planting_doy=121):
         if self.weather.empty:
             return pd.DataFrame()
         w = self.weather.copy()
@@ -355,16 +361,20 @@ class DashboardData:
             prev_yr = None
             for _, r in fw.iterrows():
                 yr = r["date"].year
+                doy = r["date"].timetuple().tm_yday
                 if prev_yr is not None and yr != prev_yr:
                     cum_gdd = 0.0
                 prev_yr = yr
-                gdd = self._gdd_value(r.get("t2m_max"), r.get("t2m_min"))
-                cum_gdd += gdd
+                gdd_val = self._gdd_value(r.get("t2m_max"), r.get("t2m_min"), base, cap)
+                if doy >= planting_doy:
+                    cum_gdd += gdd_val
+                else:
+                    cum_gdd = 0.0
                 rows.append({
                     "field_id": fid,
                     "date": r["date"],
                     "year": yr,
-                    "gdd": round(gdd, 2),
+                    "gdd": round(gdd_val, 2),
                     "cumulative_gdd": round(cum_gdd, 2),
                 })
         return pd.DataFrame(rows) if rows else pd.DataFrame()

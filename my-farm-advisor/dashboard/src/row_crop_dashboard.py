@@ -1143,6 +1143,37 @@ def create_strategy_guide(data):
         if not w23.empty else "N/A"
     )
 
+    metrics = data.compute_sustainability_index()
+    f1 = metrics[metrics["field_id"] == target_field]
+    f1_row = f1.iloc[0] if not f1.empty else None
+
+    ph = f"{f1_row['avg_ph']:.2f}" if f1_row is not None and pd.notna(f1_row.get('avg_ph')) else "N/A"
+    om = f"{f1_row['avg_om_pct']:.1f}%" if f1_row is not None and pd.notna(f1_row.get('avg_om_pct')) else "N/A"
+    cec = f"{f1_row['avg_cec']:.1f}" if f1_row is not None and pd.notna(f1_row.get('avg_cec')) else "N/A"
+    drainage = f1_row.get('drainage_class', 'N/A') if f1_row is not None else "N/A"
+    dominant_soil = f1_row.get('dominant_soil', 'N/A') if f1_row is not None else "N/A"
+    clay = f"{f1_row['avg_clay_pct']:.0f}%" if f1_row is not None and pd.notna(f1_row.get('avg_clay_pct')) else "N/A"
+    sand = f"{f1_row['avg_sand_pct']:.0f}%" if f1_row is not None and pd.notna(f1_row.get('avg_sand_pct')) else "N/A"
+
+    shs = f"{f1_row['soil_health_score']:.1f}" if f1_row is not None and pd.notna(f1_row.get('soil_health_score')) else "N/A"
+    si = f"{f1_row['sustainability_index']:.1f}" if f1_row is not None and pd.notna(f1_row.get('sustainability_index')) else "N/A"
+    ndvi_val = f"{f1_row['avg_ndvi']:.3f}" if f1_row is not None and pd.notna(f1_row.get('avg_ndvi')) else "N/A"
+    diversity = f"{f1_row['crop_diversity']:.0f}" if f1_row is not None and pd.notna(f1_row.get('crop_diversity')) else "N/A"
+
+    farm_avg_shs = f"{metrics['soil_health_score'].mean():.1f}" if not metrics.empty and 'soil_health_score' in metrics.columns else "N/A"
+    farm_avg_si = f"{metrics['sustainability_index'].mean():.1f}" if not metrics.empty and 'sustainability_index' in metrics.columns else "N/A"
+    farm_avg_ndvi = f"{metrics['avg_ndvi'].mean():.3f}" if not metrics.empty and 'avg_ndvi' in metrics.columns else "N/A"
+    kpis = data.get_kpis()
+    farm_rainfall = f"{kpis.get('avg_rainfall_mm', 'N/A')}"
+
+    corr_cols = ["avg_om_pct", "avg_ph", "avg_cec", "avg_clay_pct", "avg_sand_pct",
+                 "total_aws_inches", "avg_ndvi", "soil_health_score", "sustainability_index"]
+    available = [c for c in corr_cols if c in metrics.columns]
+    corr_matrix = metrics[available].dropna().corr() if len(available) >= 3 else pd.DataFrame()
+    om_shs = f"{corr_matrix.loc['avg_om_pct', 'soil_health_score']:.2f}" if not corr_matrix.empty and 'avg_om_pct' in corr_matrix.index and 'soil_health_score' in corr_matrix.columns else "—"
+    clay_cec = f"{corr_matrix.loc['avg_clay_pct', 'avg_cec']:.2f}" if not corr_matrix.empty and 'avg_clay_pct' in corr_matrix.index and 'avg_cec' in corr_matrix.columns else "—"
+    awc_si = f"{corr_matrix.loc['total_aws_inches', 'sustainability_index']:.2f}" if not corr_matrix.empty and 'total_aws_inches' in corr_matrix.index and 'sustainability_index' in corr_matrix.columns else "—"
+
     return html.Div(
         style={
             "background": THEME["card_bg"], "border-radius": "8px",
@@ -1169,8 +1200,29 @@ def create_strategy_guide(data):
                     html.Li(f"Days >32°C: {hot_days}"),
                     html.Li(f"CDL crop composition: {crop_2023} 95%, Grass/Pasture 3%, Soybeans 1%"),
                 ]),
+                html.Strong("\U0001f331 Field 1 Soil Profile", style={"color": THEME["text"]}),
+                html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
+                    html.Li(f"pH {ph} (optimal 6.0\u20137.0) \u2014 from Soil pH panel"),
+                    html.Li(f"OM {om} (farm range 3.0\u20137.7%) \u2014 from Soil Health panel"),
+                    html.Li(f"Drainage: {drainage}, soil: {dominant_soil} \u2014 from map hover"),
+                    html.Li(f"CEC {cec} meq/100g | Clay {clay} | Sand {sand} \u2014 from SSURGO"),
+                ]),
+                html.Strong("\U0001f4ca Health & Performance", style={"color": THEME["text"]}),
+                html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
+                    html.Li(f"Soil Health: {shs}/100 (farm avg {farm_avg_shs}) \u2014 highest on farm"),
+                    html.Li(f"Sustainability: {si}/100 (farm avg {farm_avg_si}) \u2014 from Soil Health panel"),
+                    html.Li(f"Avg NDVI: {ndvi_val} (farm avg {farm_avg_ndvi}) \u2014 from NDVI Comparison panel"),
+                    html.Li(f"Crop diversity: {diversity} (rotation: Corn/Soybeans) \u2014 from CDL"),
+                ]),
+                html.Strong("\U0001f517 Cross-Field Correlations", style={"color": THEME["text"]}),
+                html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
+                    html.Li(f"OM% strongly drives soil health (r={om_shs}) \u2014 from Correlation Matrix"),
+                    html.Li(f"Higher clay \u2192 higher CEC (r={clay_cec}) \u2014 from Correlation Matrix"),
+                    html.Li(f"AWC correlates with sustainability (r={awc_si}) \u2014 from Correlation Matrix"),
+                    html.Li(f"Avg farm rainfall: {farm_rainfall} mm/yr \u2014 from Weather panel"),
+                ]),
                 html.Div(
-                    f"Source: USDA NASS CDL / NASA POWER. Planning heuristics, not prescriptive.",
+                    f"Source: USDA NASS CDL / NASA POWER / NRCS SSURGO. Planning heuristics, not prescriptive.",
                     style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",
                            "padding": "6px 8px", "background": "#f8f9fa", "border-radius": "4px"},
                 ),

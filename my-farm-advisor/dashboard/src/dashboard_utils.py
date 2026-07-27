@@ -79,6 +79,36 @@ class DashboardData:
             ndvi_df = ndvi_df.dropna(subset=["ndvi"])
         self.ndvi = ndvi_df
 
+        wdaily = pkg.get("weather_daily", [])
+        if wdaily:
+            wdf = pd.DataFrame(wdaily)
+            wdf["date"] = pd.to_datetime(wdf["year"].astype(str) + "-"
+                                          + wdf["month"].astype(str).str.zfill(2) + "-"
+                                          + wdf["day"].astype(str).str.zfill(2))
+            wdf = wdf.rename(columns={"precip": "prectotcorr", "temp": "t2m",
+                                       "tmin": "t2m_min", "tmax": "t2m_max"})
+            self.weather_daily = wdf
+        else:
+            self.weather_daily = pd.DataFrame()
+
+        scenes = pkg.get("ndvi_scenes", [])
+        if scenes:
+            sdf = pd.DataFrame(scenes)
+            sdf["date"] = pd.to_datetime(sdf["date"], format="%Y%m%d", errors="coerce")
+            self.ndvi_scenes = sdf
+        else:
+            self.ndvi_scenes = pd.DataFrame()
+
+        gdd = pkg.get("gdd_daily", [])
+        if gdd:
+            gdf = pd.DataFrame(gdd)
+            gdf["date"] = pd.to_datetime(gdf["year"].astype(str) + "-"
+                                          + gdf["month"].astype(str).str.zfill(2) + "-"
+                                          + gdf["day"].astype(str).str.zfill(2))
+            self.gdd_daily = gdf
+        else:
+            self.gdd_daily = pd.DataFrame()
+
         self._compute_from_json(pkg)
         return self
 
@@ -119,6 +149,9 @@ class DashboardData:
         self.cdl_composition = self._load_cdl_composition()
         self.crop_rotation = self._load_crop_rotation()
         self.ndvi = self._load_ndvi()
+        self.ndvi_scenes = self._load_ndvi_scenes()
+        self.weather_daily = self._load_weather_daily()
+        self.gdd_daily = self._compute_gdd_daily()
         self._compute_metrics()
 
     def _load_field_inventory(self):
@@ -252,6 +285,96 @@ class DashboardData:
                 return round(mean_val, 4)
         except Exception:
             return None
+
+    def _load_ndvi_scenes(self):
+        records = []
+        for fid in self.field_ids:
+            field_path = self._field_path(fid)
+            sat_dir = field_path / "satellite" / "landsat"
+            if not sat_dir.exists():
+                continue
+            for yr_dir in sorted(sat_dir.iterdir()):
+                if not yr_dir.is_dir():
+                    continue
+                for scene_dir in sorted(yr_dir.iterdir()):
+                    if not scene_dir.is_dir():
+                        continue
+                    ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
+                    if not ndvi_tif.exists():
+                        continue
+                    try:
+                        import rasterio
+                        with rasterio.open(str(ndvi_tif)) as src:
+                            band = src.read(1)
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                if src.nodata is not None and not np.isnan(src.nodata):
+                                    band = band.astype(np.float32)
+                                    band[band == src.nodata] = np.nan
+                                mean_val = float(np.nanmean(band))
+                            if np.isnan(mean_val) or mean_val <= 0:
+                                continue
+                        scene_date = scene_dir.name.split("_")[-1]
+                        records.append({
+                            "field_id": fid,
+                            "year": int(yr_dir.name),
+                            "date": scene_date,
+                            "ndvi": round(mean_val, 4),
+                        })
+                    except Exception:
+                        continue
+        return pd.DataFrame(records) if records else pd.DataFrame()
+
+    def _load_weather_daily(self):
+        if self.weather.empty:
+            return pd.DataFrame()
+        if "date" in self.weather.columns and self.weather["date"].dtype == "object":
+            self.weather["date"] = pd.to_datetime(self.weather["date"])
+        return self.weather.copy()
+
+    def _gdd_value(self, tmax, tmin, base=10, cap=30):
+        if pd.isna(tmax) or pd.isna(tmin):
+            return 0.0
+        avg = (tmax + tmin) / 2
+        return max(0.0, min(avg, cap) - base)
+
+    def _compute_gdd_daily(self):
+        if self.weather.empty:
+            return pd.DataFrame()
+        w = self.weather.copy()
+        if "date" in w.columns and w["date"].dtype == "object":
+            w["date"] = pd.to_datetime(w["date"])
+        w = w.sort_values("date")
+        if "field_id" not in w.columns:
+            w["field_id"] = self.field_ids[0] if self.field_ids else "unknown"
+        rows = []
+        for fid in w["field_id"].unique():
+            fw = w[w["field_id"] == fid].copy()
+            fw = fw.sort_values("date")
+            cum_gdd = 0.0
+            prev_yr = None
+            for _, r in fw.iterrows():
+                yr = r["date"].year
+                if prev_yr is not None and yr != prev_yr:
+                    cum_gdd = 0.0
+                prev_yr = yr
+                gdd = self._gdd_value(r.get("t2m_max"), r.get("t2m_min"))
+                cum_gdd += gdd
+                rows.append({
+                    "field_id": fid,
+                    "date": r["date"],
+                    "year": yr,
+                    "gdd": round(gdd, 2),
+                    "cumulative_gdd": round(cum_gdd, 2),
+                })
+        return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+    def get_field_crop_sequence(self, field_id):
+        if not self.ndvi.empty:
+            nd = self.ndvi[self.ndvi["field_id"] == field_id].sort_values("year")
+            if not nd.empty:
+                return dict(zip(nd["year"].astype(int), nd["crop_name"]))
+        return {}
 
     def _compute_metrics(self):
         field_metrics = []

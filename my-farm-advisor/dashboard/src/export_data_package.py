@@ -18,6 +18,7 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from dashboard_utils import DashboardData
@@ -99,6 +100,98 @@ def export_dashboard_data(data, output_path):
                 "confidence": row.get("rotation_confidence", ""),
             })
 
+    weather_daily = []
+    if not data.weather.empty:
+        w = data.weather.copy()
+        if "date" in w.columns:
+            w["year"] = w["date"].dt.year
+            w["month"] = w["date"].dt.month
+            w["day"] = w["date"].dt.day
+            for _, row in w.iterrows():
+                weather_daily.append({
+                    "field_id": str(row.get("field_id", "")),
+                    "year": int(row["year"]),
+                    "month": int(row["month"]),
+                    "day": int(row["day"]),
+                    "precip": round(float(row["prectotcorr"]), 2) if pd.notna(row.get("prectotcorr")) else 0.0,
+                    "tmin": round(float(row["t2m_min"]), 2) if pd.notna(row.get("t2m_min")) else None,
+                    "tmax": round(float(row["t2m_max"]), 2) if pd.notna(row.get("t2m_max")) else None,
+                    "temp": round(float(row["t2m"]), 2) if pd.notna(row.get("t2m")) else None,
+                })
+
+    ndvi_scenes = []
+    for fid in data.field_ids:
+        field_path = data._field_path(fid)
+        sat_dir = field_path / "satellite" / "landsat"
+        if not sat_dir.exists():
+            continue
+        for yr_dir in sorted(sat_dir.iterdir()):
+            if not yr_dir.is_dir():
+                continue
+            for scene_dir in sorted(yr_dir.iterdir()):
+                if not scene_dir.is_dir():
+                    continue
+                ndvi_tif = scene_dir / f"{scene_dir.name}_ndvi.tif"
+                if not ndvi_tif.exists():
+                    continue
+                try:
+                    import rasterio
+                    with rasterio.open(str(ndvi_tif)) as src:
+                        band = src.read(1)
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            if src.nodata is not None and not np.isnan(src.nodata):
+                                band = band.astype(np.float32)
+                                band[band == src.nodata] = np.nan
+                            mean_val = float(np.nanmean(band))
+                        if np.isnan(mean_val) or mean_val <= 0:
+                            continue
+                    scene_date = scene_dir.name.split("_")[-1]
+                    ndvi_scenes.append({
+                        "field_id": fid,
+                        "year": int(yr_dir.name),
+                        "date": scene_date,
+                        "ndvi": round(mean_val, 4),
+                    })
+                except Exception:
+                    continue
+
+    gdd_daily = []
+    if not data.weather.empty:
+        w = data.weather.copy()
+        if "date" in w.columns and w["date"].dtype == "object":
+            w["date"] = pd.to_datetime(w["date"])
+        w = w.sort_values("date")
+        if "field_id" not in w.columns:
+            w["field_id"] = data.field_ids[0] if data.field_ids else "unknown"
+        for fid in data.field_ids:
+            fw = w[w["field_id"] == fid].copy() if "field_id" in w.columns else w.copy()
+            if fw.empty:
+                continue
+            fw = fw.sort_values("date")
+            cum_gdd = 0.0
+            prev_yr = None
+            for _, r in fw.iterrows():
+                yr = r["date"].year
+                if prev_yr is not None and yr != prev_yr:
+                    cum_gdd = 0.0
+                prev_yr = yr
+                tmax = r.get("t2m_max", None)
+                tmin = r.get("t2m_min", None)
+                gdd_val = 0.0
+                if pd.notna(tmax) and pd.notna(tmin):
+                    avg = (tmax + tmin) / 2
+                    gdd_val = max(0.0, min(avg, 30.0) - 10.0)
+                cum_gdd += gdd_val
+                gdd_daily.append({
+                    "field_id": fid,
+                    "year": int(yr),
+                    "month": int(r["date"].month),
+                    "day": int(r["date"].day),
+                    "gdd": round(gdd_val, 2),
+                    "cumulative_gdd": round(cum_gdd, 2),
+                })
+
     package = {
         "version": "1.0",
         "grower_slug": data.grower_slug,
@@ -111,7 +204,10 @@ def export_dashboard_data(data, output_path):
         "field_boundaries": field_boundaries,
         "field_metrics": field_metrics,
         "weather_monthly": weather_monthly,
+        "weather_daily": weather_daily,
         "ndvi_annual": ndvi_annual,
+        "ndvi_scenes": ndvi_scenes,
+        "gdd_daily": gdd_daily,
         "cdl_composition": cdl_data,
         "crop_rotation": rotation_data,
     }

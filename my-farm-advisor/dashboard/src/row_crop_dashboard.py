@@ -780,7 +780,7 @@ def create_aligned_timeline(data):
             },
             children=[
                 html.H3(
-                    f"Aligned Timeline: Field 1 (osm-1219926116)",
+                    f"Focused Field: Field 1 (osm-1219926116)                                Aligned Timeline:2021-2026",
                     style={"color": THEME["primary"], "margin": "0 0 8px 0", "font-size": "18px"},
                 ),
                 dcc.Graph(figure=fig),

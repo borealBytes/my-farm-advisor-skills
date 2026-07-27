@@ -563,234 +563,253 @@ def create_correlation_chart(data):
     return dcc.Graph(figure=fig)
 
 
-def create_aligned_timeline(data, field_id="osm-1219926116", year=2023):
-    crop_seq = data.get_field_crop_sequence(field_id)
-    crop = crop_seq.get(year, "Corn")
+def create_aligned_timeline(data):
+    target_field = "osm-1219926116"
+    crop_seq = data.get_field_crop_sequence(target_field)
+    year_colors = {2021: "#1b9e77", 2022: "#d95f02", 2023: "#7570b3", 2024: "#e7298a", 2025: "#66a61e"}
 
     scenes = data.ndvi_scenes
-    ndvi_f = scenes[scenes["field_id"] == field_id].copy() if not scenes.empty else pd.DataFrame()
+    ndvi_f = scenes[scenes["field_id"] == target_field].copy() if not scenes.empty else pd.DataFrame()
     if not ndvi_f.empty:
         ndvi_f["date"] = pd.to_datetime(ndvi_f["date"])
         ndvi_f = ndvi_f.sort_values("date")
-    ndvi_yr = ndvi_f[ndvi_f["date"].dt.year == year].copy() if not ndvi_f.empty else pd.DataFrame()
 
     w = data.weather_daily
-    w_f = w[w["field_id"] == field_id].copy() if not w.empty and "field_id" in w.columns else w.copy()
+    w_f = w[w["field_id"] == target_field].copy() if not w.empty and "field_id" in w.columns else w.copy()
     if not w_f.empty and "date" in w_f.columns:
         w_f["date"] = pd.to_datetime(w_f["date"])
         w_f = w_f.sort_values("date")
-    w_yr = w_f[w_f["date"].dt.year == year].copy() if not w_f.empty else pd.DataFrame()
 
     gdd = data.gdd_daily
-    gdd_f = gdd[gdd["field_id"] == field_id].copy() if not gdd.empty and "field_id" in gdd.columns else gdd.copy()
+    gdd_f = gdd[gdd["field_id"] == target_field].copy() if not gdd.empty and "field_id" in gdd.columns else gdd.copy()
     if not gdd_f.empty and "date" in gdd_f.columns:
         gdd_f["date"] = pd.to_datetime(gdd_f["date"])
         gdd_f = gdd_f.sort_values("date")
-    gdd_yr = gdd_f[gdd_f["date"].dt.year == year].copy() if not gdd_f.empty else pd.DataFrame()
 
-    has_data = not ndvi_yr.empty or not w_yr.empty or not gdd_yr.empty
+    has_data = not ndvi_f.empty or not w_f.empty or not gdd_f.empty
     if not has_data:
-        return html.Div("No data for selected field-year.", style={"color": THEME["muted"]})
+        fallback_ndvi = data.ndvi
+        fallback_w = data.weather
+        if fallback_ndvi.empty and fallback_w.empty:
+            return html.Div()
 
     fig = make_subplots(
-        rows=4, cols=1,
+        rows=5, cols=1,
         shared_xaxes=True,
-        vertical_spacing=0.05,
-        subplot_titles=("NDVI", "Daily Precipitation (mm)",
-                        "Temperature (°C)", "Cumulative GDD (°C·day)"),
-        row_heights=[0.25, 0.20, 0.25, 0.30],
+        vertical_spacing=0.04,
+        subplot_titles=("NDVI Accumulation", "Daily Precipitation (mm)",
+                        "Temperature Range (°C)", "Cumulative GDD (°C·day)",
+                        "SPI (Standardized Precipitation Index)"),
+        row_heights=[0.22, 0.19, 0.19, 0.20, 0.20],
     )
 
-    color = "#1b9e77"
+    max_date = None
+    min_date = None
 
-    if not ndvi_yr.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=ndvi_yr["date"], y=ndvi_yr["ndvi"],
-                mode="lines+markers",
-                name="NDVI",
-                line=dict(color=color, width=2),
-                marker=dict(size=8, color=color, symbol="circle"),
-                hovertemplate="%{x|%b %d}<br>NDVI: %{y:.3f}<extra></extra>",
-            ),
-            row=1, col=1,
-        )
-        fig.update_yaxes(title_text="NDVI", row=1, col=1, range=[0, 0.8])
-
-        peak = ndvi_yr.loc[ndvi_yr["ndvi"].idxmax()]
-        fig.add_annotation(
-            x=peak["date"], y=peak["ndvi"],
-            text=f"Peak NDVI {peak['ndvi']:.3f} on {peak['date'].strftime('%b %d')}",
-            showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1,
-            ax=40, ay=-40, font=dict(size=10, color=color),
-            row=1, col=1,
-        )
-
-        ndvi_yr = ndvi_yr.sort_values("date")
-        ndvi_yr["ndvi_diff"] = ndvi_yr["ndvi"].diff()
-        max_inc_idx = ndvi_yr["ndvi_diff"].idxmax()
-        max_inc_row = ndvi_yr.loc[max_inc_idx]
-        prev_row = ndvi_yr.loc[max_inc_idx - 1] if max_inc_idx > ndvi_yr.index[0] else None
-        if prev_row is not None:
-            fig.add_annotation(
-                x=max_inc_row["date"], y=max_inc_row["ndvi"],
-                text=f"Green-up: NDVI +{max_inc_row['ndvi_diff']:.2f} "
-                     f"({prev_row['date'].strftime('%b %d')} \u2192 {max_inc_row['date'].strftime('%b %d')})",
-                showarrow=True, arrowhead=2, ax=-50, ay=40,
-                font=dict(size=9, color=color),
+    if not ndvi_f.empty:
+        for yr in sorted(ndvi_f["year"].unique()):
+            yr_data = ndvi_f[ndvi_f["year"] == yr]
+            crop = crop_seq.get(int(yr), f"Year {yr}")
+            label = f"{yr} - {crop}"
+            fig.add_trace(
+                go.Scatter(
+                    x=yr_data["date"], y=yr_data["ndvi"],
+                    mode="lines+markers",
+                    name=label,
+                    line=dict(color=year_colors.get(int(yr), "#333"), width=1.5),
+                    marker=dict(size=6, color=year_colors.get(int(yr), "#333")),
+                    hovertemplate="%{x|%b %d}<br>NDVI: %{y:.3f}<br>" + label + "<extra></extra>",
+                ),
                 row=1, col=1,
             )
+            peak = yr_data.loc[yr_data["ndvi"].idxmax()]
+            fig.add_annotation(
+                x=peak["date"], y=peak["ndvi"],
+                text=f"Peak: {peak['ndvi']:.3f}",
+                showarrow=True, arrowhead=2, arrowsize=1, arrowwidth=1,
+                ax=30, ay=-30, font=dict(size=9, color=year_colors.get(int(yr), "#333")),
+                row=1, col=1,
+            )
+        if not ndvi_f.empty:
+            min_date = ndvi_f["date"].min()
+            max_date = ndvi_f["date"].max()
     else:
-        fig.add_annotation(text="No NDVI data", xref="paper", yref="paper",
+        fig.add_annotation(text="No per-scene NDVI data", xref="paper", yref="paper",
                            x=0.5, y=0.5, showarrow=False, row=1, col=1)
 
-    if not w_yr.empty:
+    if not w_f.empty:
         fig.add_trace(
             go.Bar(
-                x=w_yr["date"], y=w_yr["prectotcorr"],
+                x=w_f["date"], y=w_f["prectotcorr"],
                 name="Precipitation",
                 marker=dict(color="#4682b4", opacity=0.7),
-                hovertemplate="%{x|%b %d}<br>%{y:.1f} mm<extra></extra>",
+                hovertemplate="%{x|%b %d, %Y}<br>Precip: %{y:.1f} mm<extra></extra>",
             ),
             row=2, col=1,
         )
-        fig.update_yaxes(title_text="mm", row=2, col=1)
+        if min_date is None or w_f["date"].min() < min_date:
+            min_date = w_f["date"].min()
+        if max_date is None or w_f["date"].max() > max_date:
+            max_date = w_f["date"].max()
 
-        heavy = w_yr[w_yr["prectotcorr"] > 25].sort_values("date")
-        if not heavy.empty:
-            max_rain = heavy.loc[heavy["prectotcorr"].idxmax()]
-            fig.add_annotation(
-                x=max_rain["date"], y=max_rain["prectotcorr"],
-                text=f"{max_rain['prectotcorr']:.0f} mm\n{max_rain['date'].strftime('%b %d')}",
-                showarrow=True, arrowhead=2, ax=0, ay=-30,
-                font=dict(size=9, color="#1f77b4"),
-                row=2, col=1,
-            )
-
-        has_tmin = "t2m_min" in w_yr.columns
-        has_tmax = "t2m_max" in w_yr.columns
+        has_tmin = "t2m_min" in w_f.columns
+        has_tmax = "t2m_max" in w_f.columns
         if has_tmin and has_tmax:
             fig.add_trace(
                 go.Scatter(
-                    x=w_yr["date"], y=w_yr["t2m_max"],
+                    x=w_f["date"], y=w_f["t2m_max"],
                     mode="lines", name="Tmax",
                     line=dict(color="#d62728", width=1.5),
-                    hovertemplate="%{x|%b %d}<br>Tmax: %{y:.1f}°C<extra></extra>",
+                    hovertemplate="%{x|%b %d, %Y}<br>Tmax: %{y:.1f}°C<extra></extra>",
                 ),
                 row=3, col=1,
             )
             fig.add_trace(
                 go.Scatter(
-                    x=w_yr["date"], y=w_yr["t2m_min"],
+                    x=w_f["date"], y=w_f["t2m_min"],
                     mode="lines", name="Tmin",
                     line=dict(color="#1f77b4", width=1.5),
-                    hovertemplate="%{x|%b %d}<br>Tmin: %{y:.1f}°C<extra></extra>",
+                    hovertemplate="%{x|%b %d, %Y}<br>Tmin: %{y:.1f}°C<extra></extra>",
                 ),
                 row=3, col=1,
             )
             fig.add_trace(
                 go.Scatter(
-                    x=pd.concat([w_yr["date"], w_yr["date"][::-1]]),
-                    y=pd.concat([w_yr["t2m_max"], w_yr["t2m_min"][::-1]]),
-                    fill="toself", fillcolor="rgba(214,39,40,0.12)",
+                    x=pd.concat([w_f["date"], w_f["date"][::-1]]),
+                    y=pd.concat([w_f["t2m_max"], w_f["t2m_min"][::-1]]),
+                    fill="toself", fillcolor="rgba(214,39,40,0.15)",
                     line=dict(color="rgba(255,255,255,0)"),
                     name="Range", hoverinfo="skip",
                     showlegend=False,
                 ),
                 row=3, col=1,
             )
-            fig.update_yaxes(title_text="°C", row=3, col=1)
-
-            frost = w_yr[w_yr["t2m_min"] < 0].sort_values("date")
-            if not frost.empty:
-                last_spring = frost[frost["date"].dt.dayofyear <= 180]
-                if not last_spring.empty:
-                    ld = last_spring.iloc[-1]
-                    fig.add_annotation(
-                        x=ld["date"], y=w_yr["t2m_max"].max(),
-                        text=f"Last frost {ld['date'].strftime('%b %d')}",
-                        showarrow=True, arrowhead=2, ax=0, ay=-40,
-                        font=dict(size=8, color="#1f77b4"),
-                        row=3, col=1,
-                    )
-
-            hot = w_yr[w_yr["t2m_max"] > 32].sort_values("date")
-            if not hot.empty:
-                peak_hot = hot.loc[hot["t2m_max"].idxmax()]
-                fig.add_annotation(
-                    x=peak_hot["date"], y=peak_hot["t2m_max"],
-                    text=f"{peak_hot['t2m_max']:.1f}°C — {len(hot)} days >32°C",
-                    showarrow=True, arrowhead=2, ax=20, ay=-40,
-                    font=dict(size=9, color="#d62728"),
-                    row=3, col=1,
+            for yr in range(2021, 2026):
+                yr_w = w_f[w_f["date"].dt.year == yr].sort_values("date")
+                if yr_w.empty:
+                    continue
+                frost = yr_w[yr_w["t2m_min"] < 0]
+                if not frost.empty:
+                    last_spring = frost[frost["date"].dt.dayofyear <= 180]
+                    first_fall = frost[frost["date"].dt.dayofyear > 180]
+                    if not last_spring.empty:
+                        ld = last_spring.iloc[-1]["date"]
+                        fig.add_annotation(
+                            x=ld, y=yr_w["t2m_max"].max(),
+                            text=f"Last frost: {ld.strftime('%b %d')}",
+                            showarrow=True, arrowhead=2, ax=0, ay=-40,
+                            font=dict(size=8, color="#1f77b4"),
+                            row=3, col=1,
+                        )
+        for yr in range(2021, 2026):
+            planting = pd.Timestamp(f"{yr}-05-01")
+            for panel in [2, 4]:
+                fig.add_shape(
+                    type="line",
+                    x0=planting, y0=0, x1=planting, y1=1,
+                    line=dict(color="green", width=1, dash="dot"),
+                    row=panel, col=1,
                 )
-
-        planting = pd.Timestamp(f"{year}-05-01")
-        for panel in [2, 4]:
-            fig.add_shape(
-                type="line",
-                x0=planting, y0=0, x1=planting, y1=1,
-                line=dict(color="green", width=1, dash="dot"),
-                row=panel, col=1,
-            )
-            fig.add_annotation(
-                x=planting, y=0.98,
-                text="Planting", showarrow=False,
-                font=dict(size=8, color="green"),
-                textangle=-90,
-                xref="x", yref="paper",
-                row=panel, col=1,
-            )
+                fig.add_annotation(
+                    x=planting, y=0.98,
+                    text="Planting", showarrow=False,
+                    font=dict(size=8, color="green"),
+                    textangle=-90,
+                    xref="x", yref="paper",
+                    row=panel, col=1,
+                )
     else:
         fig.add_annotation(text="No daily weather data", xref="paper", yref="paper",
                            x=0.5, y=0.5, showarrow=False, row=2, col=1)
         fig.add_annotation(text="", xref="paper", yref="paper",
                            x=0.5, y=0.5, showarrow=False, row=3, col=1)
 
-    if not gdd_yr.empty:
-        fig.add_trace(
-            go.Scatter(
-                x=gdd_yr["date"], y=gdd_yr["cumulative_gdd"],
-                mode="lines",
-                name="GDD",
-                line=dict(color="#d95f02", width=2),
-                hovertemplate="%{x|%b %d}<br>GDD: %{y:.0f} °C·day<extra></extra>",
-            ),
-            row=4, col=1,
-        )
-        fig.update_yaxes(title_text="°C·day", row=4, col=1)
+    if not gdd_f.empty:
+        for yr in sorted(gdd_f["year"].unique()):
+            yr_gdd = gdd_f[gdd_f["year"] == yr]
+            crop = crop_seq.get(int(yr), f"Year {yr}")
+            fig.add_trace(
+                go.Scatter(
+                    x=yr_gdd["date"], y=yr_gdd["cumulative_gdd"],
+                    mode="lines",
+                    name=f"{yr} GDD ({crop})",
+                    line=dict(color=year_colors.get(int(yr), "#333"), width=2),
+                    hovertemplate="%{x|%b %d}<br>GDD: %{y:.0f} °C·day<extra></extra>",
+                ),
+                row=4, col=1,
+            )
+            final = yr_gdd.iloc[-1]
+            fig.add_annotation(
+                x=final["date"], y=final["cumulative_gdd"],
+                text=f"{final['cumulative_gdd']:.0f} °C·d",
+                showarrow=True, arrowhead=2, ax=30, ay=-20,
+                font=dict(size=9, color=year_colors.get(int(yr), "#333")),
+                row=4, col=1,
+            )
 
-        final = gdd_yr.iloc[-1]
-        fig.add_annotation(
-            x=final["date"], y=final["cumulative_gdd"],
-            text=f"{final['cumulative_gdd']:.0f} °C·d total",
-            showarrow=True, arrowhead=2, ax=30, ay=-20,
-            font=dict(size=10, color="#d95f02"),
-            row=4, col=1,
-        )
+    spi_f = data.get_spi_for_field(target_field)
+    if not spi_f.empty:
+        spi_f["date"] = pd.to_datetime(spi_f["year"].astype(str) + "-" + spi_f["month"].astype(str).str.zfill(2) + "-01")
+        spi_f = spi_f.sort_values("date")
+        for win, color, name in [(1, "#2c6e49", "SPI-1"), (3, "#d95f02", "SPI-3"),
+                                  (6, "#7570b3", "SPI-6"), (12, "#1b9e77", "SPI-12")]:
+            col = f"spi{win}"
+            if col in spi_f.columns:
+                fig.add_trace(
+                    go.Bar(
+                        x=spi_f["date"], y=spi_f[col],
+                        name=name, marker=dict(color=color, opacity=0.6),
+                        hovertemplate="%{x|%b %Y}<br>%{y:+.2f}<extra></extra>",
+                    ),
+                    row=5, col=1,
+                )
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=0,
+                      x1=spi_f["date"].max(), y1=0,
+                      line=dict(color="#333", width=1),
+                      row=5, col=1)
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=-1,
+                      x1=spi_f["date"].max(), y1=-1,
+                      line=dict(color="#d62728", width=1, dash="dash"),
+                      row=5, col=1)
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=1,
+                      x1=spi_f["date"].max(), y1=1,
+                      line=dict(color="#1f77b4", width=1, dash="dash"),
+                      row=5, col=1)
+        fig.add_annotation(x=spi_f["date"].max(), y=1.1, text="Wet",
+                           showarrow=False, font=dict(size=9, color="#1f77b4"),
+                           xref="x", yref="y", row=5, col=1)
+        fig.add_annotation(x=spi_f["date"].max(), y=-1.1, text="Dry",
+                           showarrow=False, font=dict(size=9, color="#d62728"),
+                           xref="x", yref="y", row=5, col=1)
 
     fig.update_layout(
         template="simple_white",
-        height=900,
+        height=1050,
         margin=dict(l=60, r=30, t=40, b=80),
         hovermode="x unified",
-        legend=dict(orientation="h", y=1.08, font=dict(size=10)),
+        legend=dict(orientation="h", y=1.12, font=dict(size=10)),
+        barmode="overlay",
     )
 
-    fig.update_xaxes(title_text="Date", row=4, col=1)
-    for r in range(1, 5):
+    fig.update_xaxes(title_text="", row=1, col=1)
+    fig.update_xaxes(title_text="", row=2, col=1)
+    fig.update_xaxes(title_text="", row=3, col=1)
+    fig.update_xaxes(title_text="", row=4, col=1)
+    fig.update_xaxes(title_text="Date", row=5, col=1)
+    fig.update_yaxes(title_text="SPI", row=5, col=1)
+    for r in range(1, 6):
         fig.update_yaxes(title_font=dict(size=11), row=r, col=1)
 
+    seq_str = " → ".join(f"{yr}: {crop}" for yr, crop in sorted(crop_seq.items()))
     caption = (
-        f"Field {field_id.replace('osm-', '')} — {year} {crop} season. "
-        f"NDVI from Sentinel-2 surface reflectance ({len(ndvi_yr)} scenes). "
-        f"Weather from NASA POWER (daily, {len(w_yr)} days). "
-        f"GDD base 10°C, cap 30°C, accumulated from planting (May 1). "
-        f"Seasonal precipitation: {w_yr['prectotcorr'].sum():.0f} mm. "
-        f"Key events: last frost Apr 26, rapid green-up accounting for most "
-        f"of the NDVI gain, heat wave peak 41.3°C on Aug 23 (25 days >32°C), "
-        f"and heaviest daily rain 35.5 mm on Sep 22. "
-        f"Final GDD: {gdd_yr['cumulative_gdd'].max():.0f} °C·d."
+        f"Field osm-1219926116 (Field 1) crop sequence: {seq_str}. "
+        "NDVI from Sentinel-2 surface reflectance composites. "
+        "Weather from NASA POWER (daily). "
+        "GDD base 10°C, cap 30°C, accumulated from planting (May 1, DOY 121). "
+        "SPI computed from NASA POWER daily precipitation using non-parametric standardization. "
+        "Dashed lines at SPI ±1 indicate moderate wet/dry thresholds. "
+        "Vertical green dashed lines indicate planting date. "
+        "Frost annotations mark the last spring freeze (Tmin < 0°C)."
     )
 
     return html.Div([
@@ -802,7 +821,7 @@ def create_aligned_timeline(data, field_id="osm-1219926116", year=2023):
             },
             children=[
                 html.H3(
-                    f"Field {field_id.replace('osm-', '')} — {year} {crop} Season",
+                    f"Focused Field: Field 1 (osm-1219926116)                                Aligned Timeline:2021-2026",
                     style={"color": THEME["primary"], "margin": "0 0 8px 0", "font-size": "18px"},
                 ),
                 dcc.Graph(figure=fig),
@@ -820,25 +839,33 @@ def create_aligned_timeline(data, field_id="osm-1219926116", year=2023):
     ])
 
 
-def create_strategy_guide(data):
-    s = data.get_maturity_strategy()
+def _spi_status_line(data):
     target_field = "osm-1219926116"
-    crop_seq = data.get_field_crop_sequence(target_field)
-    crop_2023 = crop_seq.get(2023, "Corn")
-
-    w = data.weather_daily
-    w_f = w[w["field_id"] == target_field].copy() if not w.empty and "field_id" in w.columns else w.copy()
-    if not w_f.empty and "date" in w_f.columns:
-        w_f["date"] = pd.to_datetime(w_f["date"])
-    w23 = w_f[w_f["date"].dt.year == 2023] if not w_f.empty else pd.DataFrame()
-
-    total_precip = f"{w23['prectotcorr'].sum():.0f}" if not w23.empty else "N/A"
-    hot_days = len(w23[w23["t2m_max"] > 32]) if not w23.empty else 0
-    growing_precip = (
-        f"{w23[(w23['date'].dt.month >= 5) & (w23['date'].dt.month <= 9)]['prectotcorr'].sum():.0f}"
-        if not w23.empty else "N/A"
+    spi_field = data.get_spi_for_field(target_field)
+    if spi_field.empty:
+        return html.Div()
+    latest = spi_field.iloc[-1]
+    spi3 = latest.get("spi3", None)
+    if spi3 is None or pd.isna(spi3):
+        return html.Div()
+    if spi3 > 1.5:
+        label, color = "Severely Wet", "#1f77b4"
+    elif spi3 > 1.0:
+        label, color = "Moderately Wet", "#4fa3d1"
+    elif spi3 > -1.0:
+        label, color = "Near Normal", "#6c757d"
+    elif spi3 > -1.5:
+        label, color = "Moderately Dry", "#d95f02"
+    else:
+        label, color = "Severely Dry", "#d62728"
+    return html.Div(
+        f"Drought Status (SPI-3): {spi3:+.2f} \u2014 {label}",
+        style={"font-size": "12px", "color": color, "padding": "4px 0"},
     )
 
+
+def create_strategy_guide(data):
+    s = data.get_maturity_strategy()
     return html.Div(
         style={
             "background": THEME["card_bg"], "border-radius": "8px",
@@ -848,27 +875,30 @@ def create_strategy_guide(data):
         },
         children=[
             html.H4(
-                f"Field 1 \u2014 2023 {crop_2023} Strategy",
+                f"Field 1 Crop Strategy: {s['county']}, {s['state']}",
                 style={"color": THEME["primary"], "margin": "0 0 12px 0", "font-size": "16px",
                        "border-bottom": f"2px solid {THEME['secondary']}", "padding-bottom": "6px"},
             ),
             html.Div([
-                html.Strong("\U0001f33d Corn (2023)", style={"color": "#d95f02"}),
+                html.Strong("\U0001f33d Corn", style={"color": "#d95f02"}),
                 html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
-                    html.Li(f"RM {s['corn_rm']} (range {s['corn_rm_range']}) \u2014 matches CDL designation"),
-                    html.Li(f"Planting window: {s['corn_planting_window']}"),
-                    html.Li(f"Seasonal GDD: {s['annual_gdd']} °C\u00b7d"),
+                    html.Li(f"RM {s['corn_rm']} (range {s['corn_rm_range']})"),
+                    html.Li(f"Planting: {s['corn_planting_window']}"),
+                    html.Li(f"Annual GDD: {s['annual_gdd']} °C·d"),
                 ]),
-                html.Strong("\U0001f4ca 2023 Season Summary", style={"color": THEME["text"]}),
+                html.Strong("\U0001f331 Soybean", style={"color": "#1b9e77"}),
                 html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
-                    html.Li(f"Total precipitation: {total_precip} mm ({growing_precip} mm May\u2013Sep)"),
-                    html.Li(f"Days >32°C: {hot_days}"),
-                    html.Li(f"CDL crop composition: {crop_2023} 95%, Grass/Pasture 3%, Soybeans 1%"),
+                    html.Li(f"MG {s['soybean_mg']} (range {s['soybean_mg_range']})"),
+                    html.Li(f"Planting: {s['soybean_planting_window']}"),
                 ]),
                 html.Div(
-                    f"Source: USDA NASS CDL / NASA POWER. Planning heuristics, not prescriptive.",
+                    f"Source: {s['source']}. Planning heuristics, not prescriptive.",
                     style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",
                            "padding": "6px 8px", "background": "#f8f9fa", "border-radius": "4px"},
+                ),
+                html.Div(
+                    children=[_spi_status_line(data)],
+                    style={"margin-top": "8px"},
                 ),
             ]),
         ],

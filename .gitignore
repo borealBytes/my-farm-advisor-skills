@@ -19,6 +19,10 @@ states_usa.geojson
 __pycache__/
 *.pyc
 
+# Virtual environments
+.venv/
+venv/
+
 # IDE files
 .vscode/
 .idea/

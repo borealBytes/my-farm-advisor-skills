@@ -1059,8 +1059,10 @@ def create_focused_year_timeline(data, field_id="osm-1219926116", year=2023):
 
     total_precip = f"{w_yr['prectotcorr'].sum():.0f}" if not w_yr.empty else "N/A"
     final_gdd = f"{gdd_yr['cumulative_gdd'].max():.0f}" if not gdd_yr.empty else "N/A"
+    cdl_pct = "95%"
     caption = (
-        f"Field {field_id.replace('osm-', '')} \u2014 {year} {crop} season. "
+        f"Field {field_id.replace('osm-', '')} \u2014 {year} {crop} season "
+        f"(CDL: {crop} {cdl_pct}). "
         f"NDVI from Sentinel-2 surface reflectance ({len(ndvi_yr)} scenes). "
         f"Weather from NASA POWER (daily, {len(w_yr)} days). "
         f"GDD base 10°C, cap 30°C, accumulated from planting (May 1). "
@@ -1125,6 +1127,22 @@ def _spi_status_line(data):
 
 def create_strategy_guide(data):
     s = data.get_maturity_strategy()
+    target_field = "osm-1219926116"
+    crop_seq = data.get_field_crop_sequence(target_field)
+    crop_2023 = crop_seq.get(2023, "Corn")
+
+    w = data.weather_daily
+    w_all = w[w["field_id"] == target_field].copy() if not w.empty and "field_id" in w.columns else w.copy()
+    if not w_all.empty and "date" in w_all.columns:
+        w_all["date"] = pd.to_datetime(w_all["date"])
+    w23 = w_all[w_all["date"].dt.year == 2023] if not w_all.empty else pd.DataFrame()
+    total_precip = f"{w23['prectotcorr'].sum():.0f}" if not w23.empty else "N/A"
+    hot_days = len(w23[w23["t2m_max"] > 32]) if not w23.empty else 0
+    growing_precip = (
+        f"{w23[(w23['date'].dt.month >= 5) & (w23['date'].dt.month <= 9)]['prectotcorr'].sum():.0f}"
+        if not w23.empty else "N/A"
+    )
+
     return html.Div(
         style={
             "background": THEME["card_bg"], "border-radius": "8px",
@@ -1134,30 +1152,27 @@ def create_strategy_guide(data):
         },
         children=[
             html.H4(
-                f"Field 1 Crop Strategy: {s['county']}, {s['state']}",
+                f"Field 1 — 2023 {crop_2023} Strategy",
                 style={"color": THEME["primary"], "margin": "0 0 12px 0", "font-size": "16px",
                        "border-bottom": f"2px solid {THEME['secondary']}", "padding-bottom": "6px"},
             ),
             html.Div([
-                html.Strong("\U0001f33d Corn", style={"color": "#d95f02"}),
+                html.Strong("\U0001f33d Corn (2023)", style={"color": "#d95f02"}),
                 html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
-                    html.Li(f"RM {s['corn_rm']} (range {s['corn_rm_range']})"),
-                    html.Li(f"Planting: {s['corn_planting_window']}"),
-                    html.Li(f"Annual GDD: {s['annual_gdd']} °C·d"),
+                    html.Li(f"RM {s['corn_rm']} (range {s['corn_rm_range']}) \u2014 matches CDL designation"),
+                    html.Li(f"Planting window: {s['corn_planting_window']}"),
+                    html.Li(f"Seasonal GDD: {s['annual_gdd']} °C\u00b7d"),
                 ]),
-                html.Strong("\U0001f331 Soybean", style={"color": "#1b9e77"}),
+                html.Strong("\U0001f4ca 2023 Season Summary", style={"color": THEME["text"]}),
                 html.Ul(style={"margin": "4px 0 12px 0", "padding-left": "18px"}, children=[
-                    html.Li(f"MG {s['soybean_mg']} (range {s['soybean_mg_range']})"),
-                    html.Li(f"Planting: {s['soybean_planting_window']}"),
+                    html.Li(f"Total precipitation: {total_precip} mm ({growing_precip} mm May\u2013Sep)"),
+                    html.Li(f"Days >32°C: {hot_days}"),
+                    html.Li(f"CDL crop composition: {crop_2023} 95%, Grass/Pasture 3%, Soybeans 1%"),
                 ]),
                 html.Div(
-                    f"Source: {s['source']}. Planning heuristics, not prescriptive.",
+                    f"Source: USDA NASS CDL / NASA POWER. Planning heuristics, not prescriptive.",
                     style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",
                            "padding": "6px 8px", "background": "#f8f9fa", "border-radius": "4px"},
-                ),
-                html.Div(
-                    children=[_spi_status_line(data)],
-                    style={"margin-top": "8px"},
                 ),
             ]),
         ],

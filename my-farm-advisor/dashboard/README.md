@@ -62,7 +62,7 @@ pip install -r ../requirements.txt
 python row_crop_dashboard.py --json ../dashboard_data.json
 ```
 
-Open http://127.0.0.1:8050. This uses the pre-computed `dashboard_data.json` (56 KB, included in the repo) and requires no runtime tree, no heavy dependencies (geopandas/rasterio not needed).
+Open http://127.0.0.1:8050. This uses the pre-computed `dashboard_data.json` (6.2 MB, included in the repo) and requires no runtime tree, no heavy dependencies (geopandas/rasterio not needed).
 
 ### Option B: Runtime tree mode (when you have the full data pipeline)
 
@@ -72,7 +72,7 @@ cd src
 python row_crop_dashboard.py --grower iowa-grower --farm iowa-farm
 ```
 
-This reads from the canonical runtime tree (SSURGO CSV, weather, NDVI TIFFs, etc.).
+This reads from the canonical runtime tree at `$DATA_PIPELINE_DATA_ROOT/data-pipeline/growers/{grower}/farms/{farm}/` (SSURGO CSV, weather, NDVI TIFFs, CDL tables, etc.).
 
 ## What It Does
 

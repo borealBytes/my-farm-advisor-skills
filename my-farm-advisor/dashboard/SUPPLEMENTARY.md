@@ -81,19 +81,44 @@ Grouped bar chart comparing Soil Health Score and Sustainability Index across fi
 
 ## AI Usage Documentation
 
-This dashboard and its supporting documentation were developed with assistance from AI coding tools:
+This dashboard and its supporting documentation were developed with assistance from AI coding tools. Below are specific examples of how AI was used and what human verification was applied.
 
-### Tools Used
-- **Code generation**: The dashboard script (`row_crop_dashboard.py`) and data utilities (`dashboard_utils.py`) were developed with AI assistance for boilerplate code, Plotly/Dash patterns, and data loading logic
-- **Documentation**: README, SKILL.md, AGENTS.md, and SUPPLEMENTARY.md were drafted with AI assistance
+### Debugging Python Errors
+- Fixed `'numpy.ndarray' object has no attribute 'values'` in SPI computation — `norm.ppf()` returns a numpy array, not a pandas Series; assigned directly instead of via `.values`. Verified by checking SPI output values against expected ranges.
+- Added `scipy` to `requirements.txt` after `ModuleNotFoundError` for `scipy.stats.norm`. Verified by reloading the dashboard end-to-end.
+- Corrected Plotly `Annotation` iteration that assumed `.get()` was available on annotation objects. Verified by confirming all annotation texts rendered in the final figure.
 
-### Human Oversight
-- All data loading and computation logic was reviewed for correctness
+### Improving Visualizations
+- Refined subplot row heights from equal splits to `[0.25, 0.20, 0.25, 0.30]` to give more visual weight to NDVI and cumulative GDD panels. Verified by checking the figure layout proportions.
+- Added `hovermode="x unified"` so readers can scan vertically across all four panels on the same date. Verified by hovering in the live dashboard.
+- Added the filled temperature range (Tmax/Tmin with `fill="toself"`) to visually communicate daily temperature spread. Verified against raw weather data.
+
+### Explaining Geospatial Workflows
+- Clarified CRS transformation from EPSG:5072 (projected Albers) to EPSG:4326 (lat/lon) required by Plotly `Scattermap`. Verified by checking centroid coordinates against known field locations.
+- Guided the color mapping from `soil_health_score` to the Greens colorscale with `cmin=40, cmax=100` for meaningful contrast. Verified by checking tooltip values against the colorbar.
+
+### Generating Alternative Analytical Ideas
+- Proposed and implemented the SPI drought index from NASA POWER daily precipitation using non-parametric Gringorten standardization. Human selected the 1/3/6/12 month windows and threshold lines at ±1.
+- Suggested the sustainability index formula (soil health 40% + crop diversity 30% + NDVI 30%). Human designed the specific weightings and verified the resulting scores against field rankings.
+- Recommended adding the focused 4-panel year view as a second timeline section for the assignment requirement. Human directed the panel order and event annotation content.
+
+### Improving Dashboard Layout Structure
+- Evolved from a single full-width timeline to a strategy-guide + timeline grid (1fr 2fr). Human validated that the card proportions worked on a 1400px viewport.
+- Added consistent card-based sections with a shared THEME dictionary for colors, shadows, and border-radius. Human selected the color palette and verified visual consistency.
+- Introduced interpretation callout boxes below key charts (geospatial map, weather, soil health) with a colored left border pattern. Human wrote each insight statement.
+
+### Writing Documentation
+- README and SUPPLEMENTARY.md were drafted with AI assistance. Human reviewed all technical claims against the actual data, corrected the file size (56 KB → 6.2 MB), and verified the analytics story matches the plotted evidence.
+- SKILL.md and AGENTS.md were structured with AI assistance. Human verified that routing instructions match the actual file layout.
+
+### Human Oversight Summary
+- All data loading and computation logic was reviewed for correctness against source CSV values
 - Dashboard layout and visualization choices were guided by agricultural domain knowledge
-- The interpretation text reflects real patterns in the underlying data
+- The interpretation text reflects real patterns in the underlying data, not AI-generated speculation
 - Metric formulas (soil health score, sustainability index) were designed by the human developer
+- Every annotation and caption was verified against the plotted data before committing
 
 ### Data Integrity
-- All source data comes from authoritative federal sources (USDA, NASA, USGS)
-- The dashboard reads directly from the canonical My Farm Advisor runtime tree
+- All source data comes from authoritative federal sources (USDA NRCS SSURGO, NASA POWER, USGS/ESA Sentinel-2, USDA NASS CDL)
+- The dashboard reads directly from the canonical My Farm Advisor runtime tree or from a pre-computed JSON package
 - No synthetic or fabricated data was used in any visualization

@@ -809,7 +809,7 @@ def create_strategy_guide(data):
         },
         children=[
             html.H4(
-                f"Crop Strategy: {s['county']}, {s['state']}",
+                f"Field 1 Crop Strategy: {s['county']}, {s['state']}",
                 style={"color": THEME["primary"], "margin": "0 0 12px 0", "font-size": "16px",
                        "border-bottom": f"2px solid {THEME['secondary']}", "padding-bottom": "6px"},
             ),

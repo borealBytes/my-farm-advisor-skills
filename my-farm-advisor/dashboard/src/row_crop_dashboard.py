@@ -1221,6 +1221,19 @@ def create_strategy_guide(data):
                     html.Li(f"AWC correlates with sustainability (r={awc_si}) \u2014 from Correlation Matrix"),
                     html.Li(f"Avg farm rainfall: {farm_rainfall} mm/yr \u2014 from Weather panel"),
                 ]),
+                html.Strong("\U0001f4f0 Story", style={"color": THEME["text"], "margin-top": "12px"}),
+                html.P(
+                    "The focused year timeline tracks Field 1 through the 2023 growing season. "
+                    "NDVI rose from 0.110 (May 4) to a peak of 0.602 (Jul 10), driven by adequate "
+                    "June rainfall and warm temperatures. A heat wave in late July\u2013August brought "
+                    "25 days above 32\u00b0C (peak 41.3\u00b0C on Aug 23) but did not suppress NDVI, which "
+                    "held above 0.5 through late August. Seasonal precipitation totaled 634 mm, "
+                    "with 314 mm falling during the May\u2013September growing window. The season "
+                    "accumulated 1,860 \u00b0C\u00b7d GDD, consistent with the Corn RM 94 maturity target "
+                    "for Cerro Gordo County, IA.",
+                    style={"font-size": "13px", "color": THEME["text"], "line-height": "1.6",
+                           "margin": "6px 0 12px 0", "padding": "0 2px"},
+                ),
                 html.Div(
                     f"Source: USDA NASS CDL / NASA POWER / NRCS SSURGO. Planning heuristics, not prescriptive.",
                     style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",

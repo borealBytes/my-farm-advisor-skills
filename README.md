@@ -90,6 +90,18 @@ flowchart LR
 | Prediction | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | Genomic prediction, BLUP, Bayesian GP, elastic net, cross-validation |
 | Reporting | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | Ideograms, analysis reports, real-dataset packaging |
 
+### 🌽 Row Crop Intelligence Dashboard
+
+A four-panel aligned timeline dashboard for **Field osm-1219926116 (Field 1) — 2023 Corn** season, built with Plotly Dash.
+
+```bash
+cd my-farm-advisor/dashboard
+pip install -r requirements.txt
+python src/row_crop_dashboard.py --json dashboard_data.json
+```
+
+Open http://127.0.0.1:8050. See [`dashboard/README.md`](my-farm-advisor/dashboard/README.md) for full documentation, selected field-year details, and event annotations.
+
 ## Agent Discovery Flow
 
 This is how an agent should move through the repo. The top-level router stays small; the detailed instructions live close to the workflow they control.

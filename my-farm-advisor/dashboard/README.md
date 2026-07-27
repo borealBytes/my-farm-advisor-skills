@@ -2,6 +2,31 @@
 
 A Plotly Dash application that combines exploratory analysis, geospatial mapping, weather/climate insights, and soil health/sustainability metrics into a single interactive agricultural intelligence dashboard.
 
+## Getting Started
+
+### From a fresh clone (local machine)
+
+```bash
+git clone https://github.com/nbmorr/my-farm-advisor-skills.git
+cd my-farm-advisor-skills
+git checkout final-assignment
+cd my-farm-advisor/dashboard
+pip install -r requirements.txt
+python src/row_crop_dashboard.py --json dashboard_data.json
+```
+
+Open http://127.0.0.1:8050. No runtime tree or heavy dependencies needed.
+
+### From an existing repo clone
+
+```bash
+cd my-farm-advisor/dashboard
+pip install -r requirements.txt
+python src/row_crop_dashboard.py --json dashboard_data.json
+```
+
+Open http://127.0.0.1:8050.
+
 ## Two Ways to Run
 
 ### Option A: JSON data package (no runtime tree needed, recommended for local machines)

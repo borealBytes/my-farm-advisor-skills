@@ -221,6 +221,20 @@ def export_dashboard_data(data, output_path):
         "crop_rotation": rotation_data,
     }
 
+    spi_monthly = []
+    if hasattr(data, "spi") and not data.spi.empty:
+        for _, row in data.spi.iterrows():
+            spi_monthly.append({
+                "field_id": row["field_id"],
+                "year": int(row["year"]),
+                "month": int(row["month"]),
+                "spi1": round(float(row["spi1"]), 3) if pd.notna(row.get("spi1")) else None,
+                "spi3": round(float(row["spi3"]), 3) if pd.notna(row.get("spi3")) else None,
+                "spi6": round(float(row["spi6"]), 3) if pd.notna(row.get("spi6")) else None,
+                "spi12": round(float(row["spi12"]), 3) if pd.notna(row.get("spi12")) else None,
+            })
+    package["spi_monthly"] = spi_monthly
+
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w") as f:

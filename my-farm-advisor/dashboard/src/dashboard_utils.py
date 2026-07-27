@@ -6,6 +6,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 
 class DashboardData:
@@ -109,6 +110,12 @@ class DashboardData:
         else:
             self.gdd_daily = pd.DataFrame()
 
+        spi_records = pkg.get("spi_monthly", [])
+        if spi_records:
+            self.spi = pd.DataFrame(spi_records)
+        else:
+            self.spi = pd.DataFrame()
+
         self._compute_from_json(pkg)
         return self
 
@@ -152,6 +159,7 @@ class DashboardData:
         self.ndvi_scenes = self._load_ndvi_scenes()
         self.weather_daily = self._load_weather_daily()
         self.gdd_daily = self._compute_gdd_daily()
+        self.spi = self._compute_spi()
         self._compute_metrics()
 
     def _load_field_inventory(self):
@@ -385,6 +393,46 @@ class DashboardData:
             if not nd.empty:
                 return dict(zip(nd["year"].astype(int), nd["crop_name"]))
         return {}
+
+    def _compute_spi(self, windows=(1, 3, 6, 12)):
+        w = self.weather_daily if not self.weather_daily.empty else self.weather
+        if w.empty:
+            return pd.DataFrame()
+        if "field_id" not in w.columns:
+            w["field_id"] = self.field_ids[0] if self.field_ids else "unknown"
+        if "date" in w.columns and w["date"].dtype == "object":
+            w["date"] = pd.to_datetime(w["date"])
+        w["year"] = w["date"].dt.year
+        w["month"] = w["date"].dt.month
+        precip_col = "prectotcorr"
+        monthly = w.groupby(["field_id", "year", "month"], as_index=False)[precip_col].sum()
+        monthly = monthly.sort_values(["field_id", "year", "month"])
+        all_spi = []
+        for fid in monthly["field_id"].unique():
+            fw = monthly[monthly["field_id"] == fid].copy()
+            for win in windows:
+                col = f"precip_{win}m"
+                fw[col] = fw[precip_col].rolling(win, min_periods=1).sum()
+            spi_df = fw[["field_id", "year", "month"]].copy()
+            for win in windows:
+                col = f"precip_{win}m"
+                vals = fw[col].dropna()
+                if len(vals) < 3:
+                    spi_df[f"spi{win}"] = None
+                    continue
+                ranks = vals.rank(method="average")
+                n = len(vals)
+                prob = (ranks - 0.44) / (n + 1 - 2 * 0.44)
+                prob = prob.clip(0.001, 0.999)
+                spi_series = norm.ppf(prob)
+                spi_df[f"spi{win}"] = spi_series
+            all_spi.append(spi_df)
+        return pd.concat(all_spi, ignore_index=True) if all_spi else pd.DataFrame()
+
+    def get_spi_for_field(self, field_id):
+        if self.spi.empty:
+            return pd.DataFrame()
+        return self.spi[self.spi["field_id"] == field_id].sort_values(["year", "month"])
 
     def _compute_metrics(self):
         field_metrics = []

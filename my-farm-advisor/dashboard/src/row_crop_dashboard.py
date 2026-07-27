@@ -594,12 +594,13 @@ def create_aligned_timeline(data):
             return html.Div()
 
     fig = make_subplots(
-        rows=4, cols=1,
+        rows=5, cols=1,
         shared_xaxes=True,
         vertical_spacing=0.04,
         subplot_titles=("NDVI Accumulation", "Daily Precipitation (mm)",
-                        "Temperature Range (°C)", "Cumulative GDD (°C·day)"),
-        row_heights=[0.28, 0.24, 0.24, 0.24],
+                        "Temperature Range (°C)", "Cumulative GDD (°C·day)",
+                        "SPI (Standardized Precipitation Index)"),
+        row_heights=[0.22, 0.19, 0.19, 0.20, 0.20],
     )
 
     max_date = None
@@ -746,19 +747,57 @@ def create_aligned_timeline(data):
                 row=4, col=1,
             )
 
+    spi_f = data.get_spi_for_field(target_field)
+    if not spi_f.empty:
+        spi_f["date"] = pd.to_datetime(spi_f["year"].astype(str) + "-" + spi_f["month"].astype(str).str.zfill(2) + "-01")
+        spi_f = spi_f.sort_values("date")
+        for win, color, name in [(1, "#2c6e49", "SPI-1"), (3, "#d95f02", "SPI-3"),
+                                  (6, "#7570b3", "SPI-6"), (12, "#1b9e77", "SPI-12")]:
+            col = f"spi{win}"
+            if col in spi_f.columns:
+                fig.add_trace(
+                    go.Bar(
+                        x=spi_f["date"], y=spi_f[col],
+                        name=name, marker=dict(color=color, opacity=0.6),
+                        hovertemplate="%{x|%b %Y}<br>%{y:+.2f}<extra></extra>",
+                    ),
+                    row=5, col=1,
+                )
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=0,
+                      x1=spi_f["date"].max(), y1=0,
+                      line=dict(color="#333", width=1),
+                      row=5, col=1)
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=-1,
+                      x1=spi_f["date"].max(), y1=-1,
+                      line=dict(color="#d62728", width=1, dash="dash"),
+                      row=5, col=1)
+        fig.add_shape(type="line", x0=spi_f["date"].min(), y0=1,
+                      x1=spi_f["date"].max(), y1=1,
+                      line=dict(color="#1f77b4", width=1, dash="dash"),
+                      row=5, col=1)
+        fig.add_annotation(x=spi_f["date"].max(), y=1.1, text="Wet",
+                           showarrow=False, font=dict(size=9, color="#1f77b4"),
+                           xref="x", yref="y", row=5, col=1)
+        fig.add_annotation(x=spi_f["date"].max(), y=-1.1, text="Dry",
+                           showarrow=False, font=dict(size=9, color="#d62728"),
+                           xref="x", yref="y", row=5, col=1)
+
     fig.update_layout(
         template="simple_white",
-        height=900,
+        height=1050,
         margin=dict(l=60, r=30, t=40, b=80),
         hovermode="x unified",
         legend=dict(orientation="h", y=1.12, font=dict(size=10)),
+        barmode="overlay",
     )
 
     fig.update_xaxes(title_text="", row=1, col=1)
     fig.update_xaxes(title_text="", row=2, col=1)
     fig.update_xaxes(title_text="", row=3, col=1)
-    fig.update_xaxes(title_text="Date", row=4, col=1)
-    for r in range(1, 5):
+    fig.update_xaxes(title_text="", row=4, col=1)
+    fig.update_xaxes(title_text="Date", row=5, col=1)
+    fig.update_yaxes(title_text="SPI", row=5, col=1)
+    for r in range(1, 6):
         fig.update_yaxes(title_font=dict(size=11), row=r, col=1)
 
     seq_str = " → ".join(f"{yr}: {crop}" for yr, crop in sorted(crop_seq.items()))
@@ -767,6 +806,8 @@ def create_aligned_timeline(data):
         "NDVI from Sentinel-2 surface reflectance composites. "
         "Weather from NASA POWER (daily). "
         "GDD base 10°C, cap 30°C, accumulated from planting (May 1, DOY 121). "
+        "SPI computed from NASA POWER daily precipitation using non-parametric standardization. "
+        "Dashed lines at SPI ±1 indicate moderate wet/dry thresholds. "
         "Vertical green dashed lines indicate planting date. "
         "Frost annotations mark the last spring freeze (Tmin < 0°C)."
     )
@@ -796,6 +837,31 @@ def create_aligned_timeline(data):
             ],
         ),
     ])
+
+
+def _spi_status_line(data):
+    target_field = "osm-1219926116"
+    spi_field = data.get_spi_for_field(target_field)
+    if spi_field.empty:
+        return html.Div()
+    latest = spi_field.iloc[-1]
+    spi3 = latest.get("spi3", None)
+    if spi3 is None or pd.isna(spi3):
+        return html.Div()
+    if spi3 > 1.5:
+        label, color = "Severely Wet", "#1f77b4"
+    elif spi3 > 1.0:
+        label, color = "Moderately Wet", "#4fa3d1"
+    elif spi3 > -1.0:
+        label, color = "Near Normal", "#6c757d"
+    elif spi3 > -1.5:
+        label, color = "Moderately Dry", "#d95f02"
+    else:
+        label, color = "Severely Dry", "#d62728"
+    return html.Div(
+        f"Drought Status (SPI-3): {spi3:+.2f} \u2014 {label}",
+        style={"font-size": "12px", "color": color, "padding": "4px 0"},
+    )
 
 
 def create_strategy_guide(data):
@@ -829,6 +895,10 @@ def create_strategy_guide(data):
                     f"Source: {s['source']}. Planning heuristics, not prescriptive.",
                     style={"font-size": "11px", "color": THEME["muted"], "margin-top": "8px",
                            "padding": "6px 8px", "background": "#f8f9fa", "border-radius": "4px"},
+                ),
+                html.Div(
+                    children=[_spi_status_line(data)],
+                    style={"margin-top": "8px"},
                 ),
             ]),
         ],

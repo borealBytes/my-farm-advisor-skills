@@ -19,16 +19,38 @@ from typing import List
 
 import matplotlib
 import matplotlib.pyplot as plt
+from matplotlib.patches import FancyBboxPatch
 import numpy as np
 import pandas as pd
 
 matplotlib.use("Agg")
+
+# Font configuration — modern sans-serif with fallbacks
+plt.rcParams["font.family"] = "sans-serif"
+plt.rcParams["font.sans-serif"] = [
+    "Source Sans Pro",
+    "Helvetica",
+    "Arial",
+    "DejaVu Sans",
+]
+plt.rcParams["axes.unicode_minus"] = False
 
 # Add lib/ to path for align_field_year
 _SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_SCRIPT_DIR / "lib"))
 
 from align_field_year import load_aligned_field_year, AlignedFieldYear, Event
+
+
+# ---------------------------------------------------------------------------
+# Panel colour palette (infographic style)
+# ---------------------------------------------------------------------------
+_PANEL_COLORS = {
+    1: "#4E9A72",  # Forest Green — NDVI
+    2: "#5A8DEE",  # Royal Blue — Precipitation
+    3: "#F4A261",  # Soft Orange — Temperature
+    4: "#63A35C",  # Dark Green — GDD
+}
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +62,184 @@ class SciAnnotation:
     doy: int
     title: str
     subtitle: str = ""
-    doy_range: str = ""  # e.g. "DOY 189–210"
+    doy_range: str = ""  # e.g. "DOY 189–214"
+
+
+# ---------------------------------------------------------------------------
+# Helpers: size estimation (data ↔ display)
+# ---------------------------------------------------------------------------
+
+def _line_height_data(ax, font_size_pt: float = 10.5) -> float:
+    """Approximate height of one text line in data coordinates."""
+    y_min, y_max = ax.get_ylim()
+    fig = ax.get_figure()
+    bbox = ax.get_position()
+    ax_height_in = bbox.height * fig.get_figheight()
+    line_height_in = font_size_pt / 72.0 * 1.25  # 1.25× for comfortable leading
+    return line_height_in / ax_height_in * (y_max - y_min)
+
+
+def _text_width_data(ax, n_chars: int, font_size_pt: float = 10.5) -> float:
+    """Approximate width of a text string in data coordinates."""
+    x_min, x_max = ax.get_xlim()
+    fig = ax.get_figure()
+    bbox = ax.get_position()
+    ax_width_in = bbox.width * fig.get_figwidth()
+    char_width_in = font_size_pt / 72.0 * 0.52  # ~0.52 em for sans-serif
+    text_width_in = n_chars * char_width_in
+    return text_width_in / ax_width_in * (x_max - x_min)
+
+
+# ---------------------------------------------------------------------------
+# Infographic-style annotation renderer
+# ---------------------------------------------------------------------------
+
+def _draw_infographic_annotation(
+    ax,
+    anno: SciAnnotation,
+    panel_color: str,
+    box_x: float,
+    box_top: float,
+    target_x: float,
+    target_y: float,
+):
+    """Draw a single publication-quality annotation with L-shaped leader."""
+
+    line_h = _line_height_data(ax, 10.5)
+    n_lines = 2 + (1 if anno.doy_range else 0)
+    internal_pad = line_h * 0.35
+    box_bottom = box_top - line_h * n_lines - internal_pad * 2
+    box_height = box_top - box_bottom
+
+    # Width: max of estimated text width + padding, or a minimum fraction
+    x_min, x_max = ax.get_xlim()
+    x_range = x_max - x_min
+    title_w = _text_width_data(ax, len(anno.title), 10.5)
+    sub_w = _text_width_data(ax, len(anno.subtitle), 8.5)
+    doy_w = _text_width_data(ax, len(anno.doy_range), 8.5) if anno.doy_range else 0
+    content_w = max(title_w, sub_w, doy_w)
+    box_width = max(content_w + line_h * 1.2, x_range * 0.14)
+
+    # Draw rounded rectangle background
+    rect = FancyBboxPatch(
+        (box_x - box_width / 2, box_bottom),
+        box_width,
+        box_height,
+        boxstyle="round,pad=0.005,rounding_size=0.015",
+        facecolor="white",
+        edgecolor=panel_color,
+        linewidth=1.0,
+        alpha=0.95,
+        zorder=15,
+        clip_on=False,
+        transform=ax.transData,
+    )
+    ax.add_patch(rect)
+
+    # Draw multi-line text
+    title_y = box_top - internal_pad - line_h * 0.25
+    sub_y = title_y - line_h * 1.15
+    doy_y = sub_y - line_h * 1.15 if anno.doy_range else None
+
+    ax.text(
+        box_x,
+        title_y,
+        anno.title,
+        size=10.5,
+        weight="semibold",
+        color="#303030",
+        ha="center",
+        va="top",
+        zorder=16,
+        clip_on=False,
+        family="sans-serif",
+    )
+    ax.text(
+        box_x,
+        sub_y,
+        anno.subtitle,
+        size=8.5,
+        color="#5F5F5F",
+        ha="center",
+        va="top",
+        zorder=16,
+        clip_on=False,
+        family="sans-serif",
+    )
+    if doy_y is not None:
+        ax.text(
+            box_x,
+            doy_y,
+            anno.doy_range,
+            size=8.5,
+            color="#5F5F5F",
+            ha="center",
+            va="top",
+            zorder=16,
+            clip_on=False,
+            family="sans-serif",
+        )
+
+    # L-shaped leader: horizontal from box bottom-centre to target x,
+    # then vertical down to target y
+    leader_y = box_bottom
+    ax.plot(
+        [box_x, target_x, target_x],
+        [leader_y, leader_y, target_y],
+        color=panel_color,
+        linewidth=0.8,
+        alpha=0.45,
+        solid_capstyle="butt",
+        zorder=14,
+        clip_on=False,
+    )
+
+
+def _place_annotations(
+    ax,
+    annotations: List[SciAnnotation],
+    panel_color: str,
+    data_df: pd.DataFrame,
+    value_col: str,
+    max_count: int = 5,
+):
+    """Evenly distribute annotations across panel width with aligned top edges."""
+    if not annotations:
+        return
+
+    annotations = annotations[:max_count]
+    y_min, y_max = ax.get_ylim()
+    y_range = y_max - y_min
+    x_min, x_max = ax.get_xlim()
+    x_range = x_max - x_min
+
+    # All boxes share the same top edge
+    box_top = y_max - 0.04 * y_range
+
+    n = len(annotations)
+    slot_width = x_range / n
+
+    for i, anno in enumerate(annotations):
+        # Target data value at event DOY
+        target_x = float(anno.doy)
+        rows = data_df[data_df["doy"] == anno.doy]
+        if not rows.empty:
+            target_y = float(rows.iloc[0][value_col])
+        else:
+            idx = (data_df["doy"] - anno.doy).abs().idxmin()
+            target_y = float(data_df.loc[idx, value_col])
+
+        # Box x: centre of slot, nudged toward DOY if DOY is near slot centre
+        slot_centre = x_min + (i + 0.5) * slot_width
+        # Clamp so box stays well inside its slot
+        margin = slot_width * 0.12
+        box_x = max(x_min + i * slot_width + margin,
+                    min(slot_centre, target_x + slot_width * 0.25))
+        box_x = min(box_x, x_min + (i + 1) * slot_width - margin)
+
+        _draw_infographic_annotation(
+            ax, anno, panel_color, box_x, box_top, target_x, target_y
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -48,7 +247,6 @@ class SciAnnotation:
 # ---------------------------------------------------------------------------
 
 def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
-    """Derive phenological phases from actual NDVI curve."""
     annos: List[SciAnnotation] = []
     if ndvi_df.empty or len(ndvi_df) < 3:
         return annos
@@ -58,14 +256,13 @@ def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
     peak_idx = int(df["mean_ndvi"].idxmax())
     peak_doy = int(df.iloc[peak_idx]["doy"])
 
-    # 1. Green-up Initiation: first scene with NDVI > 0.20 and DOY > 100
+    # 1. Green-up Initiation
     greenup = df[(df["mean_ndvi"] > 0.20) & (df["doy"] > 100)]
     if not greenup.empty:
-        idx = int(greenup.index[0])
-        doy = int(df.iloc[idx]["doy"])
+        doy = int(df.iloc[int(greenup.index[0])]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Green-up Initiation", subtitle="NDVI rise begins"))
 
-    # 2. Rapid Canopy Development: steepest sustained rise (≥2 consecutive positive slopes)
+    # 2. Rapid Canopy Development
     df["delta"] = df["mean_ndvi"].diff()
     rapid_start = None
     rapid_end = None
@@ -87,7 +284,7 @@ def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
             )
         )
 
-    # 3. Peak Canopy Greenness: around maximum NDVI
+    # 3. Peak Canopy Greenness
     if len(df) > 1:
         start_doy = int(df.iloc[max(0, peak_idx - 1)]["doy"])
         end_doy = int(df.iloc[min(len(df) - 1, peak_idx + 1)]["doy"])
@@ -100,7 +297,7 @@ def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
             )
         )
 
-    # 4. Onset of Senescence: first drop > 0.10 from peak
+    # 4. Onset of Senescence
     post_peak = df.iloc[peak_idx + 1 :].copy()
     senescence = post_peak[post_peak["mean_ndvi"] < (peak_ndvi - 0.10)]
     if not senescence.empty:
@@ -108,7 +305,7 @@ def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
         doy = int(df.iloc[idx]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Onset of Senescence", subtitle="Declining canopy greenness"))
 
-    # 5. Late-Season Senescence: first scene below 50% of peak after peak
+    # 5. Late-Season Senescence
     late = post_peak[post_peak["mean_ndvi"] < (peak_ndvi * 0.50)]
     if not late.empty:
         idx = int(late.index[0])
@@ -119,7 +316,6 @@ def _build_ndvi_phase_annotations(ndvi_df: pd.DataFrame) -> List[SciAnnotation]:
 
 
 def _build_precip_annotations(weather_df: pd.DataFrame, events: List[Event]) -> List[SciAnnotation]:
-    """Format heavy rain events with scientific wording."""
     annos: List[SciAnnotation] = []
     heavy_rains = [e for e in events if e.event_type == "heavy_rain"]
     for ev in heavy_rains[:5]:
@@ -136,7 +332,6 @@ def _build_precip_annotations(weather_df: pd.DataFrame, events: List[Event]) -> 
 
 
 def _build_temp_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotation]:
-    """Derive seasonal temperature phases from full growing season data."""
     annos: List[SciAnnotation] = []
     if weather_df.empty:
         return annos
@@ -144,30 +339,30 @@ def _build_temp_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotatio
     df = weather_df.copy().sort_values("doy").reset_index(drop=True)
     median_t = float(df["T2M"].median())
 
-    # 1. Seasonal Warming: first sustained rise above median (7-day window)
+    # Seasonal Warming
     df["t7"] = df["T2M"].rolling(window=7, min_periods=1).mean()
     warming = df[(df["t7"] > median_t) & (df["doy"] > 60)]
     if not warming.empty:
         doy = int(warming.iloc[0]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Seasonal Warming", subtitle="Sustained temperature increase"))
 
-    # 2. Warm Period: DOY of maximum 7-day rolling mean
+    # Warm Period
     max_t7_idx = int(df["t7"].idxmax())
     warm_doy = int(df.iloc[max_t7_idx]["doy"])
     annos.append(SciAnnotation(doy=warm_doy, title="Warm Period", subtitle="Elevated seasonal temperatures"))
 
-    # 3. Peak Seasonal Temperature: DOY of absolute max T2M_MAX
+    # Peak Seasonal Temperature
     max_idx = int(df["T2M_MAX"].idxmax())
     peak_doy = int(df.iloc[max_idx]["doy"])
     annos.append(SciAnnotation(doy=peak_doy, title="Peak Seasonal Temperature", subtitle="Maximum seasonal heat"))
 
-    # 4. Cooling Trend: first sustained drop below median
+    # Cooling Trend
     cooling = df[(df["t7"] < median_t) & (df["doy"] > warm_doy)]
     if not cooling.empty:
         doy = int(cooling.iloc[0]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Cooling Trend", subtitle="Declining temperatures"))
 
-    # 5. Autumn Temperature Decline: last day with T2M_MAX < 15°C in late season
+    # Autumn Temperature Decline
     late = df[(df["doy"] > 270) & (df["T2M_MAX"] < 15.0)]
     if not late.empty:
         doy = int(late.iloc[-1]["doy"])
@@ -177,7 +372,6 @@ def _build_temp_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotatio
 
 
 def _build_gdd_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotation]:
-    """Derive thermal accumulation phases from cumulative GDD."""
     annos: List[SciAnnotation] = []
     if weather_df.empty:
         return annos
@@ -187,25 +381,21 @@ def _build_gdd_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotation
     if max_gdd <= 0:
         return annos
 
-    # 1. Thermal Accumulation Initiated: GDD > 200
     init = df[df["gdd_cum"] > 200]
     if not init.empty:
         doy = int(init.iloc[0]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Thermal Accumulation Initiated", subtitle="Early-season heat accumulation"))
 
-    # 2. Accelerated Heat Accumulation: GDD > 50% of max
     half = df[df["gdd_cum"] > (max_gdd * 0.50)]
     if not half.empty:
         doy = int(half.iloc[0]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Accelerated Heat Accumulation", subtitle="Rapid GDD increase"))
 
-    # 3. Continued GDD Accumulation: GDD > 75% of max
-    three_quarter = df[df["gdd_cum"] > (max_gdd * 0.75)]
-    if not three_quarter.empty:
-        doy = int(three_quarter.iloc[0]["doy"])
+    three_q = df[df["gdd_cum"] > (max_gdd * 0.75)]
+    if not three_q.empty:
+        doy = int(three_q.iloc[0]["doy"])
         annos.append(SciAnnotation(doy=doy, title="Continued GDD Accumulation", subtitle="Sustained thermal accumulation"))
 
-    # 4. Thermal Accumulation Plateau: daily GDD < 5 for ≥5 consecutive days
     df["low_gdd"] = df["gdd_daily"] < 5.0
     streak = 0
     plateau_doy = None
@@ -220,73 +410,6 @@ def _build_gdd_phase_annotations(weather_df: pd.DataFrame) -> List[SciAnnotation
         annos.append(SciAnnotation(doy=plateau_doy, title="Thermal Accumulation Plateau", subtitle="Seasonal accumulation peak"))
 
     return annos[:5]
-
-
-# ---------------------------------------------------------------------------
-# Scientific annotation renderer (publication-quality)
-# ---------------------------------------------------------------------------
-
-def _wrap_annotation_text(anno: SciAnnotation) -> str:
-    """Build multi-line annotation text with wrapping."""
-    lines = [f"{anno.title}"]
-    if anno.subtitle:
-        lines.append(f"{anno.subtitle}")
-    if anno.doy_range:
-        lines.append(f"{anno.doy_range}")
-    return "\n".join(lines)
-
-
-def _scientific_annotate(ax, annotations: List[SciAnnotation], panel_color: str, max_count: int = 5):
-    """Draw publication-quality scientific annotation boxes."""
-    if not annotations:
-        return
-
-    annotations = annotations[:max_count]
-    y_min, y_max = ax.get_ylim()
-    y_range = y_max - y_min
-    placed_doys: List[int] = []
-
-    for i, anno in enumerate(annotations):
-        doy = anno.doy
-        text = _wrap_annotation_text(anno)
-
-        # Stagger y positions to avoid overlap
-        base_offset = 0.06
-        y_pos = y_max - (base_offset + i * 0.07) * y_range
-        for p in placed_doys:
-            if abs(p - doy) < 20:
-                y_pos -= 0.05 * y_range
-        placed_doys.append(doy)
-
-        # Ensure we stay within plot bounds
-        if y_pos < y_min + 0.1 * y_range:
-            y_pos = y_min + 0.1 * y_range
-
-        ax.annotate(
-            text,
-            xy=(doy, y_pos),
-            xytext=(doy + 8, y_pos + 0.04 * y_range),
-            fontsize=7.5,
-            fontweight="normal",
-            color="#1e293b",
-            ha="left",
-            va="bottom",
-            bbox=dict(
-                boxstyle="round,pad=0.3,rounding_size=0.2",
-                facecolor="white",
-                edgecolor=panel_color,
-                linewidth=0.8,
-                alpha=0.92,
-            ),
-            arrowprops=dict(
-                arrowstyle="-",
-                color=panel_color,
-                lw=0.6,
-                ls="--",
-                connectionstyle="arc3,rad=0.1",
-            ),
-            zorder=10,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -336,7 +459,7 @@ def _generate_caption(aligned: AlignedFieldYear) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Dashboard plotter (PRESERVE ALL PLOTS, AXES, COLORS, LAYOUT EXACTLY)
+# Dashboard plotter — ALL PLOT CODE PRESERVED EXACTLY
 # ---------------------------------------------------------------------------
 
 def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
@@ -405,9 +528,8 @@ def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
         else:
             ax1.legend(loc="upper left", fontsize=8)
 
-        # SCIENTIFIC ANNOTATIONS: NDVI phases
         ndvi_annos = _build_ndvi_phase_annotations(ndf)
-        _scientific_annotate(ax1, ndvi_annos, panel_color="#166534", max_count=5)
+        _place_annotations(ax1, ndvi_annos, _PANEL_COLORS[1], ndf, "mean_ndvi", max_count=5)
     else:
         ax1.text(0.5, 0.5, "No NDVI data", ha="center", va="center", transform=ax1.transAxes)
     ax1.set_title(
@@ -451,9 +573,8 @@ def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
         ax2.legend(loc="upper left", fontsize=8)
         ax2_twin.legend(loc="upper right", fontsize=8)
 
-        # SCIENTIFIC ANNOTATIONS: Major rainfall events
         precip_annos = _build_precip_annotations(wdf, aligned.events_weather)
-        _scientific_annotate(ax2, precip_annos, panel_color="#3b82f6", max_count=5)
+        _place_annotations(ax2, precip_annos, _PANEL_COLORS[2], wdf, "PRECTOTCORR", max_count=5)
     else:
         ax2.text(0.5, 0.5, "No weather data", ha="center", va="center", transform=ax2.transAxes)
     ax2.set_title(
@@ -490,9 +611,8 @@ def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
         )
         ax3.legend(loc="upper right", fontsize=8)
 
-        # SCIENTIFIC ANNOTATIONS: Seasonal temperature phases (no rainfall)
         temp_annos = _build_temp_phase_annotations(wdf)
-        _scientific_annotate(ax3, temp_annos, panel_color="#f97316", max_count=5)
+        _place_annotations(ax3, temp_annos, _PANEL_COLORS[3], wdf, "T2M", max_count=5)
     else:
         ax3.text(0.5, 0.5, "No weather data", ha="center", va="center", transform=ax3.transAxes)
     ax3.set_title(
@@ -541,9 +661,8 @@ def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
         ax4.set_xlabel("Day of Year", fontsize=11)
         ax4.legend(loc="upper left", fontsize=8)
 
-        # SCIENTIFIC ANNOTATIONS: GDD accumulation phases (no NDVI/rainfall refs)
         gdd_annos = _build_gdd_phase_annotations(wdf)
-        _scientific_annotate(ax4, gdd_annos, panel_color="#15803d", max_count=5)
+        _place_annotations(ax4, gdd_annos, _PANEL_COLORS[4], wdf, "gdd_cum", max_count=5)
     else:
         ax4.text(0.5, 0.5, "No weather data", ha="center", va="center", transform=ax4.transAxes)
     ax4.set_title(

@@ -840,8 +840,9 @@ def main():
     parser.add_argument("--all-years", action="store_true")
     args = parser.parse_args()
 
-    out_dir = _SCRIPT_DIR / "output"
-    out_dir.mkdir(exist_ok=True)
+    # Default output to data-pipeline/dashboard for Assignment 3
+    out_dir = Path("/home/coder/my-farm-advisor-runtime/data-pipeline/dashboard")
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     years = [2021, 2022, 2023, 2024, 2025] if args.all_years else [args.year]
 

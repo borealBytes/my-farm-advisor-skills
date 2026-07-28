@@ -105,9 +105,9 @@ python field_year_dashboard.py --year 2022 --output ./my_dashboard.png
 
 ### Outputs
 
-Dashboard PNGs are written to `output/` next to the script:
-- `output/osm-1499460321_2022_dashboard.png`
-- `output/osm-1499460321_2021_dashboard.png` … through `2025` when using `--all-years`
+Dashboard PNGs are written to `my-farm-advisor-runtime/data-pipeline/dashboard/`:
+- `dashboard/osm-1499460321_2022_dashboard.png`
+- `dashboard/osm-1499460321_2021_dashboard.png` … through `2025` when using `--all-years`
 
 ### Rerun / review
 
@@ -118,3 +118,50 @@ The script is reusable for any field in the runtime pipeline. Override defaults 
 - `--year <year>`
 
 All parameters (event thresholds, season window, GDD base) are exposed as kwargs in `lib/align_field_year.py` for customization.
+
+---
+
+## Assignment 3 — Field-Year Aligned Dashboard
+
+### Skill / workflow
+`field_year_dashboard.py` — generates a 4-panel scientific figure aligning per-scene NDVI, daily weather, CDL crop confirmation, and cumulative GDD for a single field-year.
+
+### Input files used from data-pipeline
+| File | Path relative to `my-farm-advisor-runtime/data-pipeline/` |
+|------|-----------------------------------------------------------|
+| Field boundary | `growers/il-grower/farms/il-grower-illinois/fields/osm-1499460321/boundary/field_boundary.geojson` |
+| Daily weather | `growers/il-grower/farms/il-grower-illinois/fields/osm-1499460321/weather/daily_weather.csv` |
+| CDL crop table | `growers/il-grower/farms/il-grower-illinois/derived/tables/il_grower_illinois_2022_cdl.csv` |
+| Per-scene NDVI | `growers/il-grower/farms/il-grower-illinois/fields/osm-1499460321/satellite/sentinel/2022/*_ndvi.tif` (+ Landsat fallback) |
+| NDVI year-crop join | `growers/il-grower/farms/il-grower-illinois/fields/osm-1499460321/derived/tables/ndvi_year_crop_join.csv` |
+
+### Weather metrics calculated
+- **Daily GDD:** `max(0, (T2M_MAX + T2M_MIN)/2 − 10.0)`
+- **Cumulative GDD:** seasonal running sum
+- **Cumulative precipitation:** running sum of `PRECTOTCORR`
+- **Temperature range:** `T2M_MAX − T2M_MIN`
+
+### Dashboard image path in data-pipeline
+Relative to `my-farm-advisor-runtime/data-pipeline/`:
+- `dashboard/osm-1499460321_2022_dashboard.png` (prototype year)
+- `dashboard/osm-1499460321_{2021..2025}_dashboard.png` (all years)
+
+### How to rerun
+```bash
+cd my-farm-advisor/imagery/sentinel2-imagery/examples
+
+# Single year (prototype)
+python field_year_dashboard.py --year 2022
+
+# All years for this field
+python field_year_dashboard.py --all-years
+
+# Custom output path (overrides default)
+python field_year_dashboard.py --year 2022 --output /path/to/custom.png
+```
+
+### Known data limitations
+- NDVI per-scene TIFFs are stored as GeoTIFFs; mean NDVI values are extracted at runtime via `rasterio.mask` against the field boundary. No pre-computed CSV of per-scene zonal statistics exists.
+- Weather data spans 2021–2025 (1,826 daily rows). Dashboards for years outside this range will fail gracefully with "No weather data" panels.
+- The `ndvi_year_crop_join.csv` confirms crop type per year, but only 2 of the 10 Iowa sample fields in the skills repo have CDL history. The runtime pipeline (`il-grower-illinois`) provides aligned CDL + NDVI + weather for all its fields.
+- Callout box text uses matplotlib's font renderer; if `Source Sans Pro` or `Helvetica` are unavailable, `DejaVu Sans` is substituted automatically.

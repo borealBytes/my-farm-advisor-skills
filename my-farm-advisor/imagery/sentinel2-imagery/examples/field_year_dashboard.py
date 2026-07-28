@@ -13,13 +13,14 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
+from matplotlib.text import Text
 import numpy as np
 import pandas as pd
 
@@ -71,26 +72,22 @@ class SciAnnotation:
 
 
 # ---------------------------------------------------------------------------
-# Size-estimation helpers (data ↔ display)
+# Exact text measurement via matplotlib renderer
 # ---------------------------------------------------------------------------
 
-def _line_height_data(ax, font_size_pt: float = 10.5) -> float:
-    y_min, y_max = ax.get_ylim()
+def _measure_text(ax, text: str, size: float, weight: str = "normal") -> Tuple[float, float]:
+    """Return (width, height) of a text string in data coordinates."""
     fig = ax.get_figure()
-    bbox = ax.get_position()
-    ax_height_in = bbox.height * fig.get_figheight()
-    line_height_in = font_size_pt / 72.0 * 1.30
-    return line_height_in / ax_height_in * (y_max - y_min)
-
-
-def _text_width_data(ax, n_chars: int, font_size_pt: float = 10.5) -> float:
-    x_min, x_max = ax.get_xlim()
-    fig = ax.get_figure()
-    bbox = ax.get_position()
-    ax_width_in = bbox.width * fig.get_figwidth()
-    char_width_in = font_size_pt / 72.0 * 0.55
-    text_width_in = n_chars * char_width_in
-    return text_width_in / ax_width_in * (x_max - x_min)
+    renderer = fig.canvas.get_renderer()
+    t = Text(0, 0, text, size=size, weight=weight, family="sans-serif")
+    t.set_figure(fig)
+    t.set_transform(ax.transData)
+    bbox = t.get_window_extent(renderer=renderer)
+    inv = ax.transData.inverted()
+    pts = inv.transform([[bbox.xmin, bbox.ymin], [bbox.xmax, bbox.ymax]])
+    width = abs(pts[1][0] - pts[0][0])
+    height = abs(pts[1][1] - pts[0][1])
+    return width, height
 
 
 # ---------------------------------------------------------------------------
@@ -100,7 +97,7 @@ def _text_width_data(ax, n_chars: int, font_size_pt: float = 10.5) -> float:
 def _draw_infographic_annotation(
     ax,
     anno: SciAnnotation,
-    box_x: float,
+    box_left: float,
     box_top: float,
     target_x: float,
     target_y: float,
@@ -108,51 +105,48 @@ def _draw_infographic_annotation(
     border = anno.border_color or "#374151"
     fill = anno.fill_color or "#ffffff"
 
-    line_h = _line_height_data(ax, 10.5)
-    n_lines = 2 + (1 if anno.doy_range else 0)
-    internal_pad = line_h * 0.40
-    box_bottom = box_top - line_h * n_lines - internal_pad * 2
-    box_height = box_top - box_bottom
+    # Measure each line exactly
+    title_w, title_h = _measure_text(ax, anno.title, 10.5, "semibold")
+    sub_w, sub_h = _measure_text(ax, anno.subtitle, 8.5, "normal")
+    doy_w, doy_h = (0.0, 0.0)
+    if anno.doy_range:
+        doy_w, doy_h = _measure_text(ax, anno.doy_range, 8.5, "normal")
 
-    x_min, x_max = ax.get_xlim()
-    x_range = x_max - x_min
-    title_w = _text_width_data(ax, len(anno.title), 10.5)
-    sub_w = _text_width_data(ax, len(anno.subtitle), 8.5)
-    doy_w = _text_width_data(ax, len(anno.doy_range), 8.5) if anno.doy_range else 0
     content_w = max(title_w, sub_w, doy_w)
-    box_width = max(content_w + line_h * 1.4, x_range * 0.13)
+    content_h = title_h + sub_h + doy_h
 
-    # Clamp horizontal position to stay inside axes
-    half_w = box_width / 2
-    if box_x - half_w < x_min + x_range * 0.015:
-        box_x = x_min + x_range * 0.015 + half_w
-    if box_x + half_w > x_max - x_range * 0.015:
-        box_x = x_max - x_range * 0.015 - half_w
+    # Padding proportional to font size (in data coords)
+    pad_x = content_w * 0.10 + _measure_text(ax, "M", 10.5)[0] * 0.3
+    pad_y = title_h * 0.35
+
+    box_width = content_w + pad_x * 2
+    box_height = content_h + pad_y * 2
+
+    box_bottom = box_top - box_height
 
     # Draw rounded rectangle
     rect = FancyBboxPatch(
-        (box_x - half_w, box_bottom),
+        (box_left, box_bottom),
         box_width,
         box_height,
-        boxstyle="round,pad=0.005,rounding_size=0.018",
+        boxstyle="round,pad=0.003,rounding_size=0.012",
         facecolor=fill,
         edgecolor=border,
         linewidth=1.0,
-        alpha=0.95,
+        alpha=0.92,
         zorder=15,
         clip_on=False,
         transform=ax.transData,
     )
     ax.add_patch(rect)
 
-    # Multi-line text
-    title_y = box_top - internal_pad - line_h * 0.20
-    sub_y = title_y - line_h * 1.20
-    doy_y = sub_y - line_h * 1.20 if anno.doy_range else None
+    # Text placement
+    text_x = box_left + box_width / 2
+    y_cursor = box_top - pad_y
 
     ax.text(
-        box_x,
-        title_y,
+        text_x,
+        y_cursor,
         anno.title,
         size=10.5,
         weight="semibold",
@@ -163,9 +157,11 @@ def _draw_infographic_annotation(
         clip_on=False,
         family="sans-serif",
     )
+    y_cursor -= title_h * 1.25
+
     ax.text(
-        box_x,
-        sub_y,
+        text_x,
+        y_cursor,
         anno.subtitle,
         size=8.5,
         color="#5F5F5F",
@@ -175,10 +171,12 @@ def _draw_infographic_annotation(
         clip_on=False,
         family="sans-serif",
     )
-    if doy_y is not None:
+    y_cursor -= sub_h * 1.25
+
+    if anno.doy_range:
         ax.text(
-            box_x,
-            doy_y,
+            text_x,
+            y_cursor,
             anno.doy_range,
             size=8.5,
             color="#5F5F5F",
@@ -190,18 +188,23 @@ def _draw_infographic_annotation(
         )
 
     # L-shaped leader
-    leader_y = box_bottom
+    box_mid_x = box_left + box_width / 2
+    box_mid_y = box_bottom
     ax.plot(
-        [box_x, target_x, target_x],
-        [leader_y, leader_y, target_y],
+        [box_mid_x, target_x, target_x],
+        [box_mid_y, box_mid_y, target_y],
         color=border,
         linewidth=0.8,
-        alpha=0.45,
+        alpha=0.35,
         solid_capstyle="butt",
         zorder=14,
         clip_on=False,
     )
 
+
+# ---------------------------------------------------------------------------
+# Smart placement with greedy non-overlap and vertical stagger
+# ---------------------------------------------------------------------------
 
 def _place_annotations(
     ax,
@@ -217,15 +220,28 @@ def _place_annotations(
     y_min, y_max = ax.get_ylim()
     y_range = y_max - y_min
     x_min, x_max = ax.get_xlim()
-    x_range = x_max - x_min
 
-    # Shared top edge for all boxes in this panel
-    box_top = y_max - 0.035 * y_range
+    # Measure all boxes first
+    measured = []
+    for anno in annotations:
+        title_w, title_h = _measure_text(ax, anno.title, 10.5, "semibold")
+        sub_w, sub_h = _measure_text(ax, anno.subtitle, 8.5, "normal")
+        doy_w, doy_h = (0.0, 0.0)
+        if anno.doy_range:
+            doy_w, doy_h = _measure_text(ax, anno.doy_range, 8.5, "normal")
+        content_w = max(title_w, sub_w, doy_w)
+        content_h = title_h + sub_h + doy_h
+        pad_x = content_w * 0.10 + _measure_text(ax, "M", 10.5)[0] * 0.3
+        pad_y = title_h * 0.35
+        box_w = content_w + pad_x * 2
+        box_h = content_h + pad_y * 2
+        measured.append((anno, box_w, box_h, title_h, sub_h, doy_h))
 
-    n = len(annotations)
-    slot_width = x_range / n
+    # Greedy placement: sort by DOY, place left-to-right with overlap resolution
+    placed = []  # list of (left, right, top, bottom)
 
-    for i, anno in enumerate(annotations):
+    for i, (anno, bw, bh, th, sh, dh) in enumerate(measured):
+        # Target DOY data point
         target_x = float(anno.doy)
         rows = data_df[data_df["doy"] == anno.doy]
         if not rows.empty:
@@ -234,16 +250,58 @@ def _place_annotations(
             idx = (data_df["doy"] - anno.doy).abs().idxmin()
             target_y = float(data_df.loc[idx, value_col])
 
-        # Centre of slot, nudged toward the DOY
-        slot_centre = x_min + (i + 0.5) * slot_width
-        margin = slot_width * 0.10
-        box_x = max(x_min + i * slot_width + margin,
-                    min(slot_centre, target_x + slot_width * 0.20))
-        box_x = min(box_x, x_min + (i + 1) * slot_width - margin)
+        # Default top: stagger vertically to avoid the "one line" look
+        # Alternate between two top levels for visual variety
+        if i % 2 == 0:
+            base_top = y_max - 0.04 * y_range
+        else:
+            base_top = y_max - 0.09 * y_range
 
-        _draw_infographic_annotation(
-            ax, anno, box_x, box_top, target_x, target_y
-        )
+        # Ensure box bottom stays above data and axis clutter
+        min_bottom = y_min + y_range * 0.08
+        if base_top - bh < min_bottom:
+            base_top = min_bottom + bh + y_range * 0.02
+
+        # Preferred x: centred on DOY
+        preferred_left = target_x - bw / 2
+
+        # Clamp to axis bounds
+        left = max(x_min + (x_max - x_min) * 0.012, preferred_left)
+        if left + bw > x_max - (x_max - x_min) * 0.012:
+            left = x_max - (x_max - x_min) * 0.012 - bw
+
+        right = left + bw
+        top = base_top
+        bottom = top - bh
+
+        # Resolve horizontal overlaps by shifting right
+        min_gap = (x_max - x_min) * 0.015
+        for (pl, pr, pt, pb) in placed:
+            if left < pr + min_gap and right > pl - min_gap:
+                # Overlap detected — shift right
+                if pr + min_gap + bw <= x_max - (x_max - x_min) * 0.012:
+                    left = pr + min_gap
+                    right = left + bw
+                else:
+                    # Can't shift right; try shifting left
+                    if pl - min_gap - bw >= x_min + (x_max - x_min) * 0.012:
+                        left = pl - min_gap - bw
+                        right = left + bw
+                    else:
+                        # Still overlapping — nudge upward
+                        top = pt + bh + y_range * 0.02
+                        bottom = top - bh
+                        # Re-check vertical bounds
+                        if bottom < min_bottom:
+                            top = min_bottom + bh + y_range * 0.02
+                            bottom = min_bottom
+
+        placed.append((left, right, top, bottom))
+
+        # Adjust leader target so it's visible but not buried in data
+        # For NDVI/precip: leader should point to data point directly
+        # For GDD/temp: same
+        _draw_infographic_annotation(ax, anno, left, top, target_x, target_y)
 
 
 # ---------------------------------------------------------------------------
@@ -367,7 +425,6 @@ def _build_precip_annotations(weather_df: pd.DataFrame, events: List[Event]) -> 
 
 
 def _build_temp_rain_annotations(weather_df: pd.DataFrame, events: List[Event]) -> List[SciAnnotation]:
-    """Panel 3: same heavy-rain DOYs as precipitation panel."""
     annos: List[SciAnnotation] = []
     heavy_rains = [e for e in events if e.event_type == "heavy_rain"]
     for ev in heavy_rains[:4]:
@@ -476,7 +533,6 @@ def _generate_structured_caption(aligned: AlignedFieldYear) -> str:
         lines.append(f"NDVI peak: DOY {peak_doy} (NDVI = {peak_ndvi:.2f})")
 
     if not wdf.empty:
-        # Warmest period: top 10% of 7-day rolling mean T2M
         df = wdf.copy().sort_values("doy").reset_index(drop=True)
         df["t7"] = df["T2M"].rolling(window=7, min_periods=1).mean()
         threshold = float(df["t7"].quantile(0.90))
@@ -488,11 +544,9 @@ def _generate_structured_caption(aligned: AlignedFieldYear) -> str:
             tmax = float(warm["T2M"].max())
             lines.append(f"Warmest Period: DOY {warm_start}–{warm_end} (Mean Temp = {tmin:.0f}–{tmax:.0f}°C)")
 
-        # Major rain events list
         heavy = [e for e in aligned.events_weather if e.event_type == "heavy_rain"]
         if heavy:
             doys = sorted([e.doy for e in heavy])
-            # Compact consecutive DOYs
             compact = []
             start = doys[0]
             prev = doys[0]
@@ -506,7 +560,6 @@ def _generate_structured_caption(aligned: AlignedFieldYear) -> str:
             compact.append(f"{start}–{prev}" if prev > start else f"{start}")
             lines.append(f"Major rain events: DOY {', '.join(compact)}")
 
-        # Peak cumulative GDD
         max_gdd = float(df["gdd_cum"].max())
         gdd_peak_row = df[df["gdd_cum"] == max_gdd]
         if not gdd_peak_row.empty:
@@ -532,7 +585,7 @@ def _month_ticks(start_doy: int, end_doy: int) -> Tuple[List[int], List[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Dashboard plotter — PLOTS PRESERVED EXACTLY, ONLY TITLES/LEGENDS/ANNOTATIONS CHANGED
+# Dashboard plotter
 # ---------------------------------------------------------------------------
 
 def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
@@ -757,7 +810,6 @@ def plot_dashboard(aligned: AlignedFieldYear, output_path: Path) -> None:
     ax4_month.spines["top"].set_color("#cbd5e1")
     ax4_month.spines["top"].set_linewidth(0.5)
 
-    # Structured key-observations box
     caption = _generate_structured_caption(aligned)
     if caption:
         fig.text(

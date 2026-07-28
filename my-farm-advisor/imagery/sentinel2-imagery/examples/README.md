@@ -65,3 +65,56 @@ print(stats[['field_id', 'acquisition_date', 'mean_ndvi', 'crop_name']])
 - Use the main guide for complete download instructions
 - Field IDs correspond to the field-boundaries skill examples
 - The AOI geometry covers ~2km x 2km around field 271623002471299 in Minnesota
+
+## Field-Year Dashboard
+
+### Selected field, year, and CDL crop
+
+- **Field:** `osm-1499460321`
+- **Prototype year:** `2022`
+- **CDL crop:** **Corn** (98.48% purity, 325 of 330 pixels)
+- **Location:** Iroquois County, Illinois (~40.57°N, 87.81°W)
+- **Data source:** `my-farm-advisor-runtime/data-pipeline` (previously run farm pipeline)
+
+### Run the dashboard
+
+```bash
+cd my-farm-advisor/imagery/sentinel2-imagery/examples
+
+# Single year (prototype)
+python field_year_dashboard.py --year 2022
+
+# All years for this field
+python field_year_dashboard.py --all-years
+
+# Custom output path
+python field_year_dashboard.py --year 2022 --output ./my_dashboard.png
+```
+
+### What it does
+
+1. Loads the field boundary, CDL crop table, daily weather CSV, and per-scene Sentinel NDVI TIFFs from the runtime data-pipeline.
+2. Aligns NDVI and weather on a shared Day-of-Year axis (DOY 60–320).
+3. Computes cumulative GDD (base 10 °C), cumulative precipitation, and daily temperature bands.
+4. Detects notable events: heavy rain, hot days, cool periods, dry spells, NDVI rapid increases, and NDVI dips.
+5. Generates a 4-panel PNG dashboard:
+   - NDVI time series with scene-level std
+   - Temperature band (min/mean/max) with extremes annotated
+   - Daily precipitation + cumulative precip
+   - Cumulative GDD with Corn growth-stage reference bands (V6, V12, VT, R2)
+
+### Outputs
+
+Dashboard PNGs are written to `output/` next to the script:
+- `output/osm-1499460321_2022_dashboard.png`
+- `output/osm-1499460321_2021_dashboard.png` … through `2025` when using `--all-years`
+
+### Rerun / review
+
+The script is reusable for any field in the runtime pipeline. Override defaults with:
+- `--field-slug <slug>`
+- `--farm <farm-slug>`
+- `--grower <grower-slug>`
+- `--year <year>`
+
+All parameters (event thresholds, season window, GDD base) are exposed as kwargs in `lib/align_field_year.py` for customization.

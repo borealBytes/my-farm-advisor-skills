@@ -10,6 +10,7 @@ build/
 out/
 coverage/
 *.log
+output/
 
 # Runtime geodata payloads
 countries.geojson

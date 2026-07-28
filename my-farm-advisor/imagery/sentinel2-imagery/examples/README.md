@@ -103,11 +103,13 @@ python field_year_dashboard.py --year 2022 --output ./my_dashboard.png
    - Daily precipitation + cumulative precip
    - Cumulative GDD with Corn growth-stage reference bands (V6, V12, VT, R2)
 
-### Outputs
+### Source files and outputs
 
-Dashboard PNGs are written to `my-farm-advisor-runtime/data-pipeline/dashboard/`:
-- `dashboard/osm-1499460321_2022_dashboard.png`
-- `dashboard/osm-1499460321_2021_dashboard.png` … through `2025` when using `--all-years`
+Both the workflow script and generated dashboards are consolidated in `my-farm-advisor-runtime/data-pipeline/dashboard/`:
+- `field_year_dashboard.py` — main runner / plotter
+- `lib/align_field_year.py` — reusable alignment logic (NDVI + weather + CDL)
+- `osm-1499460321_2022_dashboard.png` — prototype year
+- `osm-1499460321_{2021..2025}_dashboard.png` — all years
 
 ### Rerun / review
 

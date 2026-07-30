@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-import base64
 import json
 import os
+import urllib.request
 import warnings
-from datetime import date, datetime, timedelta
-from io import BytesIO
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-warnings.filterwarnings("ignore", category=UserWarning, module="matplotlib")
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.io as pio
 warnings.filterwarnings("ignore", category=UserWarning, module="rasterio")
 warnings.filterwarnings("ignore", category=RuntimeWarning, module="numpy")
+
+pio.templates.default = "none"
 
 try:
     import geopandas as gpd
@@ -58,7 +57,7 @@ except ImportError:
 
 _PANEL_HEIGHTS = [1.0, 0.7, 0.7, 0.7]
 _FIG_WIDTH = 10
-_FIG_HEIGHT = 8.0
+_FIG_HEIGHT = 800
 _DOY_MIN = 60
 _DOY_MAX = 335
 _COLORS = {
@@ -132,7 +131,7 @@ def _check_data_quality(
     if len(ndvi_scenes) < 2:
         warnings_list.append({
             "level": "warning",
-            "message": f"Only {len(ndvi_scenes)} Sentinel scene(s) available for {year}. "
+            "message": f"Only {len(ndvi_scenes)} satellite scene(s) available for {year}. "
             "NDVI time series will be limited.",
         })
     cloud_excluded = sum(1 for s in ndvi_scenes if s.get("excluded", False))
@@ -173,12 +172,13 @@ def _check_data_quality(
             "message": f"CDL crop join table not found at {join_csv}.",
         })
 
-    manifest = field_root / "satellite" / "sentinel" / "manifest.json"
-    if not manifest.exists():
-        warnings_list.append({
-            "level": "error",
-            "message": "Sentinel manifest.json not found.",
-        })
+    for sensor in ("sentinel", "landsat"):
+        manifest = field_root / "satellite" / sensor / "manifest.json"
+        if not manifest.exists():
+            warnings_list.append({
+                "level": "error",
+                "message": f"{sensor.capitalize()} manifest.json not found.",
+            })
 
     boundary = field_root / "boundary" / "field_boundary.geojson"
     if not boundary.exists():
@@ -190,18 +190,16 @@ def _check_data_quality(
     return warnings_list
 
 
-def _collect_sentinel_scenes(
-    field_root: Path, year: int, data_root: Path
+def _collect_sensor_scenes(
+    field_root: Path, year: int, data_root: Path, sensor: str
 ) -> list[dict[str, Any]]:
-    manifest = field_root / "satellite" / "sentinel" / "manifest.json"
+    manifest = field_root / "satellite" / sensor / "manifest.json"
     if not manifest.exists():
         return []
-
     try:
         data = json.loads(manifest.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return []
-
     year_entry = None
     for entry in data.get("years", []):
         if int(entry.get("year", 0)) == year:
@@ -209,14 +207,11 @@ def _collect_sentinel_scenes(
             break
     if not year_entry:
         return []
-
     scenes: list[dict[str, Any]] = []
     boundary = _read_boundary(field_root)
     if boundary is None:
         return []
-
     boundary_proj_cache: dict[str, Any] = {}
-
     for scene in year_entry.get("scenes", []):
         ndvi_rel = scene.get("ndvi_tif")
         if not ndvi_rel:
@@ -235,9 +230,22 @@ def _collect_sentinel_scenes(
             "cloud_cover": cloud_cover,
             "mean_ndvi": mean_ndvi,
             "excluded": excluded,
+            "source": sensor,
             "ndvi_path": str(ndvi_path),
         })
     return scenes
+
+
+def _collect_all_scenes(field_root: Path, year: int, data_root: Path) -> list[dict[str, Any]]:
+    scenes = _collect_sensor_scenes(field_root, year, data_root, "sentinel")
+    scenes.extend(_collect_sensor_scenes(field_root, year, data_root, "landsat"))
+    return scenes
+
+
+def _collect_sentinel_scenes(
+    field_root: Path, year: int, data_root: Path
+) -> list[dict[str, Any]]:
+    return _collect_sensor_scenes(field_root, year, data_root, "sentinel")
 
 
 def _compute_scene_mean_ndvi(
@@ -391,6 +399,16 @@ def _detect_ndvi_events(ndvi_df: pd.DataFrame) -> list[dict[str, Any]]:
     return events
 
 
+def _fig_subtitle(fig: go.Figure, year: int, crop_name: str, field_slug: str) -> None:
+    fig.add_annotation(
+        x=0.5, y=1.0, xref="paper", yref="paper",
+        text=f"{year} {crop_name} - {field_slug}",
+        font=dict(size=15, color="#0f172a", family=_FONT),
+        showarrow=False, xanchor="center", yanchor="bottom",
+        yshift=8,
+    )
+
+
 def _render_figure(
     ndvi_df: pd.DataFrame,
     weather_df: pd.DataFrame | None,
@@ -400,319 +418,399 @@ def _render_figure(
     year: int,
     field_slug: str,
     boundary: gpd.GeoDataFrame | None,
-) -> bytes:
-    fig, axes = plt.subplots(
-        4, 1,
-        figsize=(_FIG_WIDTH, _FIG_HEIGHT),
-        sharex=True,
-        gridspec_kw={"height_ratios": _PANEL_HEIGHTS},
+) -> go.Figure:
+    fig = make_subplots(
+        rows=4, cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.06,
+        row_heights=_PANEL_HEIGHTS,
     )
-    fig.patch.set_facecolor("#fafaf9")
-
-    ax_ndvi, ax_precip, ax_temp, ax_gdd = axes
-
-    _plot_ndvi(ax_ndvi, ndvi_df, events, crop_name)
-    _plot_precipitation(ax_precip, weather_df, events)
-    _plot_temperature(ax_temp, weather_df, events, year)
-    _plot_gdd(ax_gdd, gdd_series, weather_df, crop_name, year)
-    _format_xaxis(ax_gdd, year)
-
-    for ev in events:
-        ev_dt = ev["date"] if isinstance(ev["date"], datetime) else pd.Timestamp(ev["date"])
-        ev_color = ev.get("color", "#94a3b8")
-        for ax in axes:
-            ax.axvline(x=ev_dt, color=ev_color, linewidth=0.8, linestyle="--", alpha=0.3, zorder=1)
-
-    fig.text(
-        0.5, 0.96,
-        f"{year} {crop_name} \u00b7 {field_slug}",
-        fontsize=15, fontweight="bold", color="#0f172a",
-        ha="center", va="top", fontfamily=_FONT,
+    fig.update_layout(
+        paper_bgcolor="#fafaf9",
+        plot_bgcolor="#ffffff",
+        height=_FIG_HEIGHT,
+        margin=dict(l=50, r=30, t=50, b=30),
+        font=dict(family=_FONT, size=10, color="#475569"),
+        hovermode="x unified",
     )
 
-    buf = BytesIO()
-    fig.subplots_adjust(hspace=0.30, left=0.08, right=0.94, top=0.94, bottom=0.08)
-    fig.savefig(buf, dpi=150, facecolor=fig.get_facecolor(),
-                edgecolor="none", format="png")
-    plt.close(fig)
-    buf.seek(0)
-    return buf.getvalue()
+    _plot_gdd(fig, gdd_series, weather_df, crop_name, year)
+    _plot_temperature(fig, weather_df, events, year)
+    _plot_precipitation(fig, weather_df, events, year)
+    _plot_ndvi(fig, ndvi_df, events, crop_name, year)
+    _fig_subtitle(fig, year, crop_name, field_slug)
 
-
-def _format_xaxis(ax: plt.Axes, year: int) -> None:
-    start = datetime(year, 3, 1)
-    end = datetime(year, 11, 30)
-    ax.set_xlim(start, end)
-    ax.xaxis.set_major_locator(mdates.MonthLocator())
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%b"))
-    ax.tick_params(labelsize=9)
-    ax.set_xlabel("Date", fontsize=10, color="#475569")
-
-
-def _stagger_annotations(events: list[dict[str, Any]], doy_key: str = "doy", min_gap: int = 30) -> dict[int, tuple[int, int]]:
-    sorted_idx = sorted(range(len(events)), key=lambda i: events[i].get(doy_key, 0))
-    offsets: dict[int, tuple[int, int]] = {i: (0, 0) for i in range(len(events))}
-    for a in range(len(sorted_idx)):
-        for b in range(a + 1, len(sorted_idx)):
-            ia, ib = sorted_idx[a], sorted_idx[b]
-            gap = abs(events[ib].get(doy_key, 0) - events[ia].get(doy_key, 0))
-            if gap <= min_gap:
-                if (a % 2) == 0:
-                    offsets[ib] = (-50, 0)
-                else:
-                    offsets[ib] = (50, 0)
-    return offsets
+    return fig
 
 
 def _plot_ndvi(
-    ax: plt.Axes,
+    fig: go.Figure,
     ndvi_df: pd.DataFrame,
     events: list[dict[str, Any]],
     crop_name: str,
+    year: int,
 ) -> None:
-    ax.set_facecolor("#ffffff")
-    ax.set_ylabel("NDVI", fontsize=10, color="#475569")
-    ax.tick_params(axis="y", labelsize=9)
-    ax.set_ylim(-0.1, 1.05)
-    ax.grid(True, alpha=0.15)
-
     if ndvi_df.empty:
-        ax.text(0.5, 0.5, "No Sentinel NDVI scenes available",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=11, color="#94a3b8", fontstyle="italic")
+        fig.add_annotation(xref="paper", yref="paper", x=0.5, y=0.5,
+                           text="No satellite NDVI scenes available",
+                           showarrow=False, font=dict(size=11, color="#94a3b8"), row=1, col=1)
         return
 
     valid = ndvi_df[ndvi_df["mean_ndvi"].notna()].sort_values("date")
     if valid.empty:
-        ax.text(0.5, 0.5, "All scenes excluded (cloud cover or missing data)",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=11, color="#94a3b8", fontstyle="italic")
+        fig.add_annotation(xref="paper", yref="paper", x=0.5, y=0.5,
+                           text="All scenes excluded (cloud cover or missing data)",
+                           showarrow=False, font=dict(size=11, color="#94a3b8"), row=1, col=1)
         return
 
-    ax.scatter(
-        valid["date"], valid["mean_ndvi"],
-        color=_COLORS["ndvi_marker"], s=45, zorder=5, edgecolors="#166534", linewidth=0.5,
-    )
-    if len(valid) >= 2:
-        ax.plot(
-            valid["date"], valid["mean_ndvi"],
-            color=_COLORS["ndvi_line"], linewidth=1.5, alpha=0.7, zorder=3,
-        )
+    for src, ln_color, mk_color, symbol, label in [
+        ("sentinel", _COLORS["ndvi_line"], _COLORS["ndvi_marker"], "circle", "Sentinel-2"),
+        ("landsat", "#d97706", "#f97316", "triangle-up", "Landsat 8/9"),
+    ]:
+        subset = valid[valid["source"] == src].sort_values("date")
+        if subset.empty:
+            continue
+        fig.add_trace(go.Scatter(
+            x=subset["date"], y=subset["mean_ndvi"],
+            mode="lines+markers",
+            line=dict(color=ln_color, width=1.5),
+            marker=dict(color=mk_color, size=6, symbol=symbol, line=dict(color="white", width=0.5)),
+            opacity=0.85,
+            name=label,
+            hovertemplate="%{x|%b %d}<br>NDVI: %{y:.3f}<br>Source: " + src.capitalize() + "<extra></extra>",
+        ), row=1, col=1)
 
-    ax.set_title(
-        "Sentinel-2 NDVI",
-        fontsize=11, fontweight="bold", color="#0f172a", loc="left", pad=14,
-    )
+    ndvi_evts = [e for e in events if e.get("type") in ("dip", "surge")]
+    if ndvi_evts:
+        fig.add_trace(go.Scatter(
+            x=[e["date"] for e in ndvi_evts],
+            y=[e["value"] for e in ndvi_evts],
+            mode="markers", marker=dict(opacity=0, size=14),
+            showlegend=False,
+            hovertext=[f'⚠️ <b>Key event!</b><br>{e["detail"]}' for e in ndvi_evts],
+            hoverinfo="text",
+            hoverlabel=dict(bgcolor="#fef3c7", bordercolor="#d97706"),
+        ), row=1, col=1)
 
-    ndvi_events = [e for e in events if e.get("type") in ("dip", "surge")]
-    ndvi_offsets = _stagger_annotations(ndvi_events)
-    for ei, ev in enumerate(ndvi_events):
-        dt = ev["date"] if isinstance(ev["date"], datetime) else pd.Timestamp(ev["date"])
-        y = ev["value"]
-        xoff, yoff = ndvi_offsets.get(ei, (0, 0))
-        xoff = max(xoff, 6)
-        color = _COLORS["ndvi_dip"] if ev["type"] == "dip" else _COLORS["ndvi_surge"]
-        bg = "#fef2f2" if ev["type"] == "dip" else "#f5f3ff"
-        ax.annotate(
-            f"{'\u2193' if ev['type'] == 'dip' else '\u2191'} {ev['detail']}",
-            xy=(dt, y), xytext=(xoff, 14 + yoff),
-            textcoords="offset points", fontsize=7.5,
-            color=color, fontweight="bold",
-            ha="left", va="bottom",
-            bbox=dict(boxstyle="round,pad=0.15", facecolor=bg, edgecolor=color, lw=0.5),
-        )
+    fig.update_yaxes(title_text="NDVI", range=[-0.1, 1.05], row=1, col=1)
+    fig.update_xaxes(title_text="", row=1, col=1)
 
 
 def _plot_precipitation(
-    ax: plt.Axes,
-    weather_df: pd.DataFrame | None,
-    events: list[dict[str, Any]],
-) -> None:
-    ax.set_facecolor("#ffffff")
-    ax.set_ylabel("Precip (mm)", fontsize=10, color="#475569")
-    ax.tick_params(axis="y", labelsize=9)
-    ax.grid(True, alpha=0.15)
-
-    if weather_df is None or weather_df.empty:
-        ax.text(0.5, 0.5, "No weather data", ha="center", va="center",
-                transform=ax.transAxes, fontsize=11, color="#94a3b8", fontstyle="italic")
-        return
-
-    ax.set_title("Precipitation", fontsize=11, fontweight="bold", color="#0f172a", loc="left", pad=14)
-    mar_nov_p = weather_df[(weather_df["date"].dt.month >= 3) & (weather_df["date"].dt.month <= 11)]
-    mean_precip = float(mar_nov_p["PRECTOTCORR"].mean())
-    ax.bar(
-        weather_df["date"], weather_df["PRECTOTCORR"],
-        width=0.8, color=_COLORS["precip"], alpha=0.7, edgecolor="none",
-    )
-    ax.axhline(y=mean_precip, color="#64748b", linewidth=0.8, linestyle="--", alpha=0.7)
-    ax.text(weather_df["date"].iloc[0], mean_precip, f"  Mean {mean_precip:.1f} mm",
-            fontsize=7.5, color="#64748b", va="bottom")
-    heavy = weather_df[weather_df["PRECTOTCORR"] >= HEAVY_RAIN_THRESHOLD_MM]
-    if not heavy.empty:
-        ax.bar(
-            heavy["date"], heavy["PRECTOTCORR"],
-            width=0.8, color=_COLORS["precip_heavy"], alpha=0.9, edgecolor="none",
-        )
-
-    max_precip = float(weather_df["PRECTOTCORR"].max())
-    if max_precip > 0:
-        ax.set_ylim(0, max(max_precip * 1.25, 10))
-    else:
-        ax.set_ylim(0, 10)
-
-    rain_events = [e for e in events if e["label"] == "Heavy Rain"]
-    rain_offsets = _stagger_annotations(rain_events)
-    for ei, ev in enumerate(rain_events):
-        dt = ev["date"] if isinstance(ev["date"], datetime) else pd.Timestamp(ev["date"])
-        xoff, yoff = rain_offsets.get(ei, (0, 0))
-        xoff = max(xoff, 6)
-        ax.annotate(
-            f"\u26a1{ev['detail']}",
-            xy=(dt, ev["value"]), xytext=(xoff, 12 + yoff),
-            textcoords="offset points", fontsize=7.5,
-            color=_COLORS["precip_heavy"], fontweight="bold",
-            ha="left", va="bottom",
-            arrowprops=dict(arrowstyle="->", color=_COLORS["precip_heavy"], lw=0.8),
-            bbox=dict(boxstyle="round,pad=0.15", facecolor="#eff6ff", edgecolor=_COLORS["precip_heavy"], lw=0.5),
-        )
-
-
-def _plot_temperature(
-    ax: plt.Axes,
+    fig: go.Figure,
     weather_df: pd.DataFrame | None,
     events: list[dict[str, Any]],
     year: int,
 ) -> None:
-    ax.set_facecolor("#ffffff")
-    ax.set_ylabel("Temp (\u00b0C)", fontsize=10, color="#475569")
-    ax.tick_params(axis="y", labelsize=9)
-    ax.grid(True, alpha=0.15)
-
     if weather_df is None or weather_df.empty:
-        ax.text(0.5, 0.5, "No weather data", ha="center", va="center",
-                transform=ax.transAxes, fontsize=11, color="#94a3b8", fontstyle="italic")
+        fig.add_annotation(xref="paper", yref="paper", x=0.5, y=0.5,
+                           text="No weather data", showarrow=False,
+                           font=dict(size=11, color="#94a3b8"), row=2, col=1)
         return
 
-    ax.set_title("Temperature", fontsize=11, fontweight="bold", color="#0f172a", loc="left", pad=14)
+    mar_nov = weather_df[(weather_df["date"].dt.month >= 3) & (weather_df["date"].dt.month <= 11)]
+    mean_precip = float(mar_nov["PRECTOTCORR"].mean())
 
-    _gdd_base = 10.0
-    _gdd_cap = 30.0
-    _gdd_label_dt = datetime(year, 3, 1)
-    ax.axhline(y=_gdd_base, color="#f59e0b", linewidth=0.8, linestyle=":", alpha=0.5)
-    ax.text(_gdd_label_dt, _gdd_base, f"  GDD base {_gdd_base:.0f}\u00b0C",
-            fontsize=7.5, color="#f59e0b", va="bottom")
-    ax.axhline(y=_gdd_cap, color="#ef4444", linewidth=0.8, linestyle=":", alpha=0.5)
-    ax.text(_gdd_label_dt, _gdd_cap, f"  GDD cap {_gdd_cap:.0f}\u00b0C",
-            fontsize=7.5, color="#ef4444", va="bottom")
+    fig.add_trace(go.Bar(
+        x=weather_df["date"], y=weather_df["PRECTOTCORR"],
+        marker=dict(color=_COLORS["precip"], opacity=0.7),
+        name="Precipitation",
+        hovertemplate="%{x|%b %d}<br>%{y:.1f} mm<extra></extra>",
+    ), row=2, col=1)
 
-    ax.fill_between(
-        weather_df["date"], weather_df["T2M_MIN"], weather_df["T2M_MAX"],
-        color=_COLORS["temp_ribbon"], alpha=0.5, linewidth=0,
-    )
-    ax.plot(
-        weather_df["date"], weather_df["T2M_MAX"],
-        color=_COLORS["temp_max"], linewidth=1.0, alpha=0.8, label="Max",
-    )
-    ax.plot(
-        weather_df["date"], weather_df["T2M_MIN"],
-        color=_COLORS["temp_min"], linewidth=1.0, alpha=0.8, label="Min",
-    )
-    ax.plot(
-        weather_df["date"], weather_df["T2M"],
-        color=_COLORS["temp_mean"], linewidth=0.8, alpha=0.5, label="Mean",
-    )
+    fig.add_hline(y=mean_precip, line=dict(color="#64748b", width=0.8, dash="dash"), opacity=0.7, row=2, col=1)
+
+    heavy = weather_df[weather_df["PRECTOTCORR"] >= HEAVY_RAIN_THRESHOLD_MM]
+    if not heavy.empty:
+        fig.add_trace(go.Bar(
+            x=heavy["date"], y=heavy["PRECTOTCORR"],
+            marker=dict(color=_COLORS["precip_heavy"]),
+            name="Heavy Rain",
+            hovertemplate="%{x|%b %d}<br>%{y:.1f} mm<extra></extra>",
+            showlegend=False,
+        ), row=2, col=1)
+
+    rain_evts = [e for e in events if e["label"] == "Heavy Rain"]
+    if rain_evts:
+        fig.add_trace(go.Scatter(
+            x=[e["date"] for e in rain_evts],
+            y=[e["value"] for e in rain_evts],
+            mode="markers", marker=dict(opacity=0, size=14),
+            showlegend=False,
+            hovertext=[f'⚠️ <b>Key event!</b><br>{e["detail"]}' for e in rain_evts],
+            hoverinfo="text",
+            hoverlabel=dict(bgcolor="#fef3c7", bordercolor="#d97706"),
+        ), row=2, col=1)
+
+    max_p = float(weather_df["PRECTOTCORR"].max())
+    fig.update_yaxes(title_text="Precip (mm)", range=[0, max(max_p * 1.3, 10)], row=2, col=1)
+
+
+def _plot_temperature(
+    fig: go.Figure,
+    weather_df: pd.DataFrame | None,
+    events: list[dict[str, Any]],
+    year: int,
+) -> None:
+    if weather_df is None or weather_df.empty:
+        fig.add_annotation(xref="paper", yref="paper", x=0.5, y=0.5,
+                           text="No weather data", showarrow=False,
+                           font=dict(size=11, color="#94a3b8"), row=3, col=1)
+        return
+
+    fig.add_trace(go.Scatter(
+        x=weather_df["date"], y=weather_df["T2M_MAX"],
+        mode="lines",
+        line=dict(color=_COLORS["temp_max"], width=1),
+        name="T2M_MAX",
+        hovertemplate="%{x|%b %d}<br>Max: %{y:.1f}°C<extra></extra>",
+    ), row=3, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=weather_df["date"], y=weather_df["T2M"],
+        mode="lines",
+        line=dict(color=_COLORS["temp_mean"], width=0.8, dash="dot"),
+        name="T2M",
+        hovertemplate="%{x|%b %d}<br>Mean: %{y:.1f}°C<extra></extra>",
+    ), row=3, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=weather_df["date"], y=weather_df["T2M_MIN"],
+        mode="lines",
+        line=dict(color=_COLORS["temp_min"], width=1),
+        fill="tonexty", fillcolor="rgba(226,232,240,0.4)",
+        name="T2M_MIN",
+        hovertemplate="%{x|%b %d}<br>Min: %{y:.1f}°C<extra></extra>",
+    ), row=3, col=1)
 
     all_temps = pd.concat([weather_df["T2M_MAX"], weather_df["T2M_MIN"]])
     t_min, t_max = float(all_temps.min()), float(all_temps.max())
     margin = max(5, (t_max - t_min) * 0.1)
-    ax.set_ylim(t_min - margin, t_max + margin)
+    fig.update_yaxes(title_text="Temp (°C)", range=[t_min - margin, t_max + margin], row=3, col=1)
 
-    ax.legend(fontsize=7, loc="upper right", ncol=3)
-
-    hot_events = [e for e in events if e["label"] == "Hot Day"]
-    hot_offsets = _stagger_annotations(hot_events)
-    for ei, ev in enumerate(hot_events):
-        dt = ev["date"] if isinstance(ev["date"], datetime) else pd.Timestamp(ev["date"])
-        xoff, yoff = hot_offsets.get(ei, (0, 0))
-        xoff = max(xoff, 6)
-        ax.annotate(
-            f"\u2600{ev['detail']}",
-            xy=(dt, ev["value"]), xytext=(xoff, 12 + yoff),
-            textcoords="offset points", fontsize=7.5,
-            color=_COLORS["temp_max"], fontweight="bold",
-            ha="left", va="bottom",
-            arrowprops=dict(arrowstyle="->", color=_COLORS["temp_max"], lw=0.8),
-            bbox=dict(boxstyle="round,pad=0.15", facecolor="#fef2f2", edgecolor=_COLORS["temp_max"], lw=0.5),
-        )
-
-    cool_events = [e for e in events if e["label"] == "Cool Period"]
-    cool_offsets = _stagger_annotations(cool_events)
-    for ei, ev in enumerate(cool_events):
-        dt = ev["date"] if isinstance(ev["date"], datetime) else pd.Timestamp(ev["date"])
-        end_dt = ev.get("end_date", dt)
-        if isinstance(end_dt, (pd.Timestamp, datetime)):
-            ax.axvspan(dt, end_dt, alpha=0.12, color=_COLORS["temp_min"], zorder=0)
-            mid = dt + (end_dt - dt) / 2
-            _, yoff = cool_offsets.get(ei, (0, 0))
-            ax.annotate(
-                f"\u2744 {ev['detail']}",
-                xy=(mid, 0.92), xytext=(0, -12 + yoff),
-                textcoords=("data", "axes fraction"),
-                fontsize=7.5, color=_COLORS["temp_min"], fontweight="bold",
-                ha="center", va="top",
-            )
+    hot_evts = [e for e in events if e["label"] == "Hot Day"]
+    if hot_evts:
+        fig.add_trace(go.Scatter(
+            x=[e["date"] for e in hot_evts],
+            y=[e["value"] for e in hot_evts],
+            mode="markers", marker=dict(opacity=0, size=14),
+            showlegend=False,
+            hovertext=[f'⚠️ <b>Key event!</b><br>{e["detail"]}' for e in hot_evts],
+            hoverinfo="text",
+            hoverlabel=dict(bgcolor="#fef3c7", bordercolor="#d97706"),
+        ), row=3, col=1)
 
 
 def _plot_gdd(
-    ax: plt.Axes,
+    fig: go.Figure,
     gdd_series: pd.Series | None,
     weather_df: pd.DataFrame | None,
     crop_name: str,
     year: int,
 ) -> None:
-    ax.set_facecolor("#ffffff")
-    ax.set_ylabel("Cumul. GDD", fontsize=10, color="#475569")
-    ax.tick_params(axis="y", labelsize=9)
-    ax.grid(True, alpha=0.15)
-
     if gdd_series is None or weather_df is None or weather_df.empty:
-        ax.text(0.5, 0.5, "GDD data unavailable",
-                ha="center", va="center", transform=ax.transAxes,
-                fontsize=11, color="#94a3b8", fontstyle="italic")
+        fig.add_annotation(xref="paper", yref="paper", x=0.5, y=0.5,
+                           text="GDD data unavailable", showarrow=False,
+                           font=dict(size=11, color="#94a3b8"), row=4, col=1)
         return
 
-    ax.set_title("Cumulative Growing Degree Days", fontsize=11, fontweight="bold",
-                 color="#0f172a", loc="left", pad=14)
-    ax.plot(
-        weather_df["date"], gdd_series,
-        color=_COLORS["gdd"], linewidth=2.0, zorder=4,
+    daily_gdd = np.clip(
+        (weather_df["T2M_MAX"] + weather_df["T2M_MIN"]) / 2.0 - GDD_BASE_TEMP,
+        0, GDD_CAP_TEMP - GDD_BASE_TEMP,
     )
+    fig.add_trace(go.Scatter(
+        x=weather_df["date"], y=gdd_series,
+        mode="lines",
+        line=dict(color=_COLORS["gdd"], width=2),
+        name="Cumul. GDD",
+        customdata=np.column_stack([daily_gdd.round(1)]),
+        hovertemplate="%{x|%b %d}<br>%{y:.0f} GDD (+%{customdata[0]:.1f})<extra></extra>",
+    ), row=4, col=1)
 
     final_gdd = float(gdd_series.iloc[-1])
-    ax.text(
-        0.98, 0.95, f"{final_gdd:.0f} GDD",
-        transform=ax.transAxes, fontsize=9, fontweight="bold",
-        color=_COLORS["gdd"], ha="right", va="top",
-        bbox=dict(boxstyle="round,pad=0.2", facecolor="#fffbeb", edgecolor=_COLORS["gdd"], lw=0.5),
+    fig.add_annotation(
+        x=1.0, y=final_gdd, xref="x domain", yref="y",
+        text=f"{final_gdd:.0f} GDD",
+        showarrow=False, font=dict(size=11, color=_COLORS["gdd"]),
+        bgcolor="#fffbeb", bordercolor=_COLORS["gdd"], borderwidth=0.5, borderpad=3,
+        xanchor="right", yanchor="bottom",
+        row=4, col=1,
     )
 
     stages = CROP_STAGES.get(crop_name, CROP_STAGES.get("Corn", []))
     for stage in stages:
         stage_gdd = float(stage["gdd"])
         stage_name = str(stage["name"])
-        ax.axhline(y=stage_gdd, color=_COLORS["gdd_stage"], linewidth=0.8,
-                   linestyle="--", alpha=0.5, zorder=1)
-        ax.text(
-            1.0, stage_gdd, f"  {stage_name}",
-            transform=ax.get_xaxis_transform(), fontsize=7.5,
-            color=_COLORS["gdd_stage_label"], va="center", ha="left",
-            alpha=0.8,
+        fig.add_hline(y=stage_gdd, line=dict(color=_COLORS["gdd_stage"], width=0.8, dash="dash"), opacity=0.5,
+                      row=4, col=1)
+        fig.add_annotation(
+            xref="paper", y=stage_gdd,
+            text=stage_name,
+            showarrow=False, font=dict(size=9, color=_COLORS["gdd_stage_label"]),
+            xanchor="left", x=1.0,
+            row=4, col=1,
         )
+
+    fig.update_yaxes(title_text="Cumul. GDD", row=4, col=1)
+    fig.update_xaxes(title_text="Date", dtick="M1", tickformat="%b", row=4, col=1)
+    for row in range(1, 5):
+        fig.update_xaxes(range=[datetime(year, 3, 1), datetime(year, 11, 30)], row=row, col=1)
+
+
+def _compute_spi(lat: float, lon: float, year: int) -> str | None:
+    try:
+        url = f"https://power.larc.nasa.gov/api/temporal/monthly/point?parameters=PRECTOTCORR&community=RE&longitude={lon}&latitude={lat}&start=2000&end={year}&format=JSON"
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=30) as f:
+            data = json.loads(f.read())
+        precip = data["properties"]["parameter"]["PRECTOTCORR"]
+    except Exception:
+        return None
+
+    apr_sep_totals: list[float] = []
+    for y in range(2000, year + 1):
+        months = []
+        for m in range(4, 10):
+            key = f"{y}{m:02d}"
+            val = precip.get(key)
+            if val is None or val < 0:
+                break
+            months.append(val)
+        if len(months) == 6:
+            apr_sep_totals.append(sum(months))
+    if len(apr_sep_totals) < 5:
+        return None
+
+    current = apr_sep_totals[-1]
+    historical = np.array(apr_sep_totals[:-1])
+    mean = float(np.mean(historical))
+    std = float(np.std(historical, ddof=1))
+    if std == 0:
+        return None
+
+    spi = (current - mean) / std
+    if spi >= 2.0:
+        cat = "W4 - Exceptionally Wet"
+    elif spi >= 1.6:
+        cat = "W3 - Extremely Wet"
+    elif spi >= 1.3:
+        cat = "W2 - Severely Wet"
+    elif spi >= 0.8:
+        cat = "W1 - Moderately Wet"
+    elif spi >= 0.5:
+        cat = "W0 - Abnormally Wet"
+    elif spi >= -0.5:
+        cat = "Normal"
+    elif spi >= -0.8:
+        cat = "D0 - Abnormally Dry"
+    elif spi >= -1.3:
+        cat = "D1 - Moderate Drought"
+    elif spi >= -1.6:
+        cat = "D2 - Severe Drought"
+    elif spi >= -2.0:
+        cat = "D3 - Extreme Drought"
+    else:
+        cat = "D4 - Exceptional Drought"
+    return f"{cat} ({spi:+.2f})"
+
+
+def _check_yield_constraints(
+    crop_name: str,
+    weather_df: pd.DataFrame | None,
+    gdd_series: pd.Series | None,
+    year: int,
+    spi_category: str | None,
+) -> list[str]:
+    constraints: list[str] = []
+
+    if gdd_series is not None:
+        final_gdd = float(gdd_series.iloc[-1])
+        if final_gdd < 2000:
+            constraints.append(f"Low GDD ({final_gdd:.0f} < 2000) — insufficient thermal time for full maturity")
+
+    if weather_df is not None and not weather_df.empty:
+        april_heavy = weather_df[(weather_df["date"].dt.month == 4) & (weather_df["PRECTOTCORR"] > 44.7)]
+        if not april_heavy.empty:
+            n = len(april_heavy)
+            constraints.append(f"Early crop flooding risk: {n} heavy rainfall event{'s' if n > 1 else ''} in April ({april_heavy.iloc[0]['PRECTOTCORR']:.0f} mm{'–' + str(int(april_heavy.iloc[-1]['PRECTOTCORR'])) + ' mm' if n > 1 else ''})")
+
+        hot_days = int((weather_df["T2M_MAX"] > 30).sum())
+        if hot_days > 40:
+            constraints.append(f"Heat stress: {hot_days} days with max temp above 30°C")
+
+        cold_days = int((weather_df["T2M_MAX"] < 10).sum())
+        if cold_days > 110:
+            constraints.append(f"Not enough heat: {cold_days} days with max temp below 10°C")
+
+    if spi_category:
+        if any(cat in spi_category for cat in ["D2 -", "D3 -", "D4 -"]):
+            constraints.append(f"Severe drought ({spi_category}) — high water stress risk")
+
+    return constraints
+
+
+def _build_year_overview(
+    crop_name: str,
+    events: list[dict[str, Any]],
+    ndvi_df: pd.DataFrame,
+    weather_df: pd.DataFrame | None,
+    year: int,
+    gdd_series: pd.Series | None,
+    spi_category: str | None = None,
+) -> str:
+    parts: list[str] = []
+    parts.append(f"In {year}, <strong>{crop_name}</strong> was grown on this field.")
+
+    if ndvi_df is not None and not ndvi_df.empty:
+        valid = ndvi_df[ndvi_df["mean_ndvi"].notna()].sort_values("date")
+        if len(valid) >= 2:
+            growing = valid[(valid["mean_ndvi"] >= 0.3) & (valid["date"].dt.dayofyear >= 60)]
+            if len(growing) >= 2:
+                emergence = growing.iloc[0]["date"].strftime("%b %-d")
+                maturity = growing.iloc[-1]["date"].strftime("%b %-d")
+                parts.append(f"The crop emerged around <strong>{emergence}</strong> (NDVI reached 0.3) and reached maturity around <strong>{maturity}</strong>.")
+
+    if weather_df is not None and not weather_df.empty:
+        mar_nov = weather_df[(weather_df["date"].dt.month >= 3) & (weather_df["date"].dt.month <= 11)]
+        total_precip = mar_nov["PRECTOTCORR"].sum()
+        parts.append(f"The growing season (Mar–Nov) accumulated <strong>{total_precip:.0f} mm</strong> of precipitation.")
+
+    if gdd_series is not None:
+        final_gdd = float(gdd_series.iloc[-1])
+        parts.append(f"Total GDD accumulation was <strong>{final_gdd:.0f}</strong> (base 10°C, cap 30°C).")
+
+    constraints = _check_yield_constraints(crop_name, weather_df, gdd_series, year, spi_category)
+    if constraints:
+        parts.append("")
+        parts.append("<strong>⚠️ Potential Yield Constraints:</strong>")
+        for c in constraints:
+            parts.append(f"&nbsp;&nbsp;\u2022 {c}")
+
+    sorted_events = sorted(events, key=lambda e: e.get("doy", 0))
+    if sorted_events:
+        parts.append("")
+        parts.append("<strong>Key events:</strong>")
+        for ev in sorted_events:
+            dt = ev["date"] if isinstance(ev["date"], (datetime, pd.Timestamp)) else pd.Timestamp(ev["date"])
+            ds = dt.strftime("%b %-d")
+            if ev["label"] == "Heavy Rain":
+                parts.append(f"&nbsp;&nbsp;\u2022 {ds}: Heavy rainfall of {ev['detail']}")
+            elif ev["label"] == "Hot Day":
+                parts.append(f"&nbsp;&nbsp;\u2022 {ds}: Hot day with a high of {ev['detail']}")
+            elif ev.get("type") == "dip":
+                parts.append(f"&nbsp;&nbsp;\u2022 {ds}: NDVI dip detected ({ev['detail']})")
+            elif ev.get("type") == "surge":
+                parts.append(f"&nbsp;&nbsp;\u2022 {ds}: Rapid NDVI increase ({ev['detail']})")
+            elif ev["label"] == "Cool Period":
+                end_dt = ev.get("end_date", dt)
+                if isinstance(end_dt, (pd.Timestamp, datetime)):
+                    parts.append(f"&nbsp;&nbsp;\u2022 {ds} \u2013 {end_dt.strftime('%b %-d')}: Cool period lasting {ev['detail']}")
+
+    return "<br>".join(parts)
 
 
 def _build_html(
-    chart_png_bytes: bytes,
+    fig: go.Figure,
     events: list[dict[str, Any]],
     warnings_list: list[dict[str, str]],
     crop_name: str,
@@ -720,9 +818,14 @@ def _build_html(
     field_slug: str,
     field_info: dict[str, Any],
     ndvi_count: int,
+    weather_df: pd.DataFrame | None = None,
+    ndvi_df: pd.DataFrame | None = None,
+    gdd_series: pd.Series | None = None,
+    all_events: list[dict[str, Any]] | None = None,
+    spi_category: str | None = None,
 ) -> str:
-    chart_b64 = base64.b64encode(chart_png_bytes).decode("utf-8")
-    event_cards_html = _build_event_cards(events)
+    chart_div = fig.to_html(full_html=False, include_plotlyjs="cdn", default_width="100%", default_height=f"{_FIG_HEIGHT}px")
+    event_cards_html = _build_year_overview(crop_name, all_events or events, ndvi_df, weather_df, year, gdd_series, spi_category)
     warnings_html = _build_warnings(warnings_list)
 
     county = field_info.get("county_name", "")
@@ -734,7 +837,7 @@ def _build_html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{year} {crop_name} \u00b7 {field_slug}</title>
+<title>{year} {crop_name} - {field_slug}</title>
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{
@@ -753,7 +856,6 @@ body {{
   background: white; border-radius: 12px; padding: 16px; margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }}
-.chart-container img {{ width: 100%; height: auto; display: block; }}
 .events-section {{
   background: white; border-radius: 12px; padding: 20px; margin-bottom: 20px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -770,6 +872,7 @@ body {{
 .event-card .body .ev-date {{ font-size: 11px; color: #64748b; }}
 .event-card .body .ev-detail {{ font-size: 12px; color: #334155; margin-top: 2px; }}
 .event-empty {{ text-align: center; padding: 20px; color: #94a3b8; font-style: italic; }}
+.overview-text {{ font-size: 13px; line-height: 1.7; color: #334155; }}
 .warnings {{ margin-bottom: 20px; }}
 .warning-item {{
   border-radius: 8px; padding: 10px 14px; margin-bottom: 6px;
@@ -791,21 +894,21 @@ body {{
 <body>
 <div class="dashboard">
   <div class="header">
-    <h1>{year} {crop_name} \u00b7 {field_slug}</h1>
+    <h1>{year} {crop_name} - {field_slug}</h1>
     <div class="sub">{county}{", " + state if state else ""}{f" \u00b7 {area:.1f} ac" if area else ""}</div>
     <div class="meta">
-      <span class="data-badge" style="color:#0f172a;">&#x1F4C8; {ndvi_count} Sentinel scenes</span>
+      <span class="data-badge" style="color:#0f172a;">&#x1F4C8; {ndvi_count} satellite scenes</span>
       <span class="data-badge" style="color:#0f172a;">&#x1F326; NASA POWER weather</span>
       <span class="data-badge" style="color:#0f172a;">&#x1F4CD; CDL crop: {crop_name}</span>
     </div>
   </div>
   {warnings_html}
   <div class="chart-container">
-    <img src="data:image/png;base64,{chart_b64}" alt="{year} {crop_name} dashboard">
+    {chart_div}
   </div>
   <div class="events-section">
-    <h2>Notable Events</h2>
-    {event_cards_html}
+    <h2>Year Overview</h2>
+    <div class="overview-text">{event_cards_html}</div>
   </div>
   <div class="footer">
     Generated by ndvi-weather-dashboard &middot; Data: CDL, Sentinel-2, NASA POWER
@@ -909,9 +1012,9 @@ def generate_dashboard(
     boundary = _read_boundary(froot)
     field_info = _read_field_boundary_properties(froot)
 
-    ndvi_scenes = _collect_sentinel_scenes(froot, year, data_root)
+    ndvi_scenes = _collect_all_scenes(froot, year, data_root)
     ndvi_df = pd.DataFrame([
-        {"date": pd.Timestamp(s["date"]), "mean_ndvi": s["mean_ndvi"], "cloud_cover": s["cloud_cover"]}
+        {"date": pd.Timestamp(s["date"]), "mean_ndvi": s["mean_ndvi"], "cloud_cover": s["cloud_cover"], "source": s.get("source", "sentinel")}
         for s in ndvi_scenes if not s["excluded"]
     ])
     if not ndvi_df.empty:
@@ -919,6 +1022,12 @@ def generate_dashboard(
 
     weather_df = _load_weather_for_year(froot, year)
     gdd_series = _compute_gdd(weather_df) if weather_df is not None else None
+
+    spi_category: str | None = None
+    if weather_df is not None and not weather_df.empty:
+        lat = float(weather_df["lat"].iloc[0])
+        lon = float(weather_df["lon"].iloc[0])
+        spi_category = _compute_spi(lat, lon, year)
 
     quality_warnings = _check_data_quality(froot, year, ndvi_scenes, weather_df)
 
@@ -931,15 +1040,20 @@ def generate_dashboard(
         events.extend(_detect_ndvi_events(ndvi_df))
 
     display_events = _filter_events_for_display(events, min_doy=60)
-    chart_png = _render_figure(
+    fig = _render_figure(
         ndvi_df, weather_df, gdd_series,
         display_events, crop_name, year, field_slug, boundary,
     )
 
     ndvi_count = len([s for s in ndvi_scenes if not s["excluded"]])
     html = _build_html(
-        chart_png, display_events, quality_warnings,
+        fig, display_events, quality_warnings,
         crop_name, year, field_slug, field_info, ndvi_count,
+        weather_df=weather_df,
+        ndvi_df=ndvi_df,
+        gdd_series=gdd_series,
+        all_events=display_events,
+        spi_category=spi_category,
     )
 
     if output_dir:

@@ -65,6 +65,27 @@ flowchart LR
 | Strategy | [`strategy/INDEX.md`](my-farm-advisor/strategy/INDEX.md) | Crop strategy and maturity planning |
 | Weather | [`weather/INDEX.md`](my-farm-advisor/weather/INDEX.md) | NASA POWER weather and derived farm weather analysis |
 
+#### Assignment 2 — Field-Level EDA Subskill
+
+An EDA subskill under the EDA area (`my-farm-advisor/eda/assignment-2/`) that generates static Python PNG visualizations for all 30 Assignment 2 fields (Illinois, Iowa, Nebraska). Scripts live in the data-pipeline runtime at `scripts/eda/assignment_2/` and produce per-grower outputs under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/{grower}/farms/{farm}/derived/reports/`:
+
+| Category | Viz 1 | Viz 2 | Cross-state via `eda_cross_state.py` |
+|---|---|---|---|
+| Field boundaries | Size histogram + box plot | Ranking bar + compactness scatter | Violin + summary in dashboard |
+| Weather | Multi-year temp & monthly precip | Growing-season GDD & precip bars | Temp/precip/GDD grouped bars |
+| CDL/cropland | Crop type stacked bars by year | Rotation pattern grouped bars | Crop mix + rotation counts |
+| Geospatial | Field overview map with CDL crop coloring, county boundary, ID labels | — | — |
+
+Outputs (22 PNGs total) are viewable in the self-contained evidence page: `assignment2_eda_outputs_evidence.html` at the runtime root. Run via:
+
+```bash
+export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
+cd "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src"
+for g in il-grower ia-grower ne-grower; do ...; done
+"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" \
+  scripts/eda/assignment_2/eda_cross_state.py
+```
+
 ### 🌱 My Farm Breeding Trial Management
 
 `my-farm-breeding-trial-management` is the breeding operations skill. Use it when the work is about running a breeding program rather than analyzing genetics after the fact.

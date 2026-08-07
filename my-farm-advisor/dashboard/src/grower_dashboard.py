@@ -550,6 +550,15 @@ tr:hover {{ background: #f9f9f9; }}
     </div>
   </div>
 
+  <div class="row-full">
+    <div class="panel-full">
+      <h3>Field Data Summary</h3>
+      <div class="table-wrap">
+        {full_table.to_html(index=False, border=0, na_rep="—")}
+      </div>
+    </div>
+  </div>
+
   <div class="highlights">
     <h3>🔑 Key Highlights</h3>
     <ul>
@@ -559,15 +568,6 @@ tr:hover {{ background: #f9f9f9; }}
       <li>{highlights[3]}</li>
       <li>{highlights[4]}</li>
     </ul>
-  </div>
-
-  <div class="row-full">
-    <div class="panel-full">
-      <h3>Field Data Summary</h3>
-      <div class="table-wrap">
-        {full_table.to_html(index=False, border=0, na_rep="—")}
-      </div>
-    </div>
   </div>
 </div>
 </body>

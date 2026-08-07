@@ -86,9 +86,15 @@ def load_all_growers(data_root: Path, year_focus: int = 2024) -> dict[str, Any]:
 
 def build_map_per_grower(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> str:
     import geopandas as gpd
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6), gridspec_kw={"width_ratios": [1, 1, 1]})
+    fig, axes = plt.subplots(1, 3, figsize=(18, 6.5), gridspec_kw={"width_ratios": [1, 1, 1]})
     growers = ["Iowa", "Illinois", "Nebraska"]
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
+    
+    # Use actual SHS range for color normalization so variation is visible
+    shs_min = metrics_df["shs"].min()
+    shs_max = metrics_df["shs"].max()
+    vmin = max(0, shs_min - 5)
+    vmax = min(100, shs_max + 3)
     
     for ax, grower in zip(axes, growers):
         gdf = boundaries[boundaries["grower"] == grower].copy()
@@ -103,7 +109,7 @@ def build_map_per_grower(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> 
         # Plot with fully opaque fill so every field is clearly visible
         gdf.plot(
             column="shs", cmap="RdYlGn", linewidth=1.5, edgecolor="black",
-            alpha=0.95, ax=ax, vmin=0, vmax=100, legend=False,
+            alpha=0.95, ax=ax, vmin=vmin, vmax=vmax, legend=False,
         )
         
         ax.set_title(f"{grower} ({len(gdf)} fields)", fontsize=13, fontweight="bold", color=grower_colors.get(grower, "black"), pad=10)
@@ -112,16 +118,18 @@ def build_map_per_grower(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> 
         ax.grid(True, alpha=0.3, linestyle="--")
         ax.set_aspect("equal", adjustable="datalim")
     
-    # Vertical colorbar on the right
-    sm = plt.cm.ScalarMappable(cmap="RdYlGn", norm=plt.Normalize(vmin=0, vmax=100))
+    # Vertical colorbar on the right — uses actual data range
+    sm = plt.cm.ScalarMappable(cmap="RdYlGn", norm=plt.Normalize(vmin=vmin, vmax=vmax))
     sm.set_array([])
     cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
     cbar = fig.colorbar(sm, cax=cbar_ax, orientation="vertical")
-    cbar.set_label("Soil Health Score (0-100)", fontsize=11, fontweight="bold")
+    cbar.set_label(f"Soil Health Score ({vmin:.0f}–{vmax:.0f})", fontsize=11, fontweight="bold")
     cbar.ax.tick_params(labelsize=9)
     
     fig.suptitle("Field Boundaries by Grower — Colored by Soil Health Score", fontsize=15, fontweight="bold", y=0.98)
-    plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.95])
+    fig.text(0.5, 0.93, "SHS = pH_score(25) + OM_score(25) + drainage(20) + AWC(20) + texture(10)  |  Range: {:.1f}–{:.1f}".format(shs_min, shs_max),
+             ha="center", fontsize=10, style="italic", color="#555")
+    plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.92])
     
     return _fig_to_base64(fig)
 
@@ -238,7 +246,7 @@ def build_weather_chart(w2024: pd.DataFrame, year_focus: int) -> str:
     return _fig_to_base64(fig)
 
 
-def build_gdd_chart(w2024: pd.DataFrame, year_focus: int) -> str:
+def build_gdd_chart(w2024: pd.DataFrame, year_focus: int, weather_all: pd.DataFrame = None) -> str:
     if w2024.empty or "T2M_MAX" not in w2024.columns or "T2M_MIN" not in w2024.columns:
         fig, ax = plt.subplots(figsize=(10, 5))
         ax.text(0.5, 0.5, "No GDD data available", ha="center", va="center", transform=ax.transAxes, fontsize=14)
@@ -255,14 +263,30 @@ def build_gdd_chart(w2024: pd.DataFrame, year_focus: int) -> str:
     fig, ax = plt.subplots(figsize=(10, 5))
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
     
+    # Plot 5-year average as faint dashed background if available
+    if weather_all is not None and not weather_all.empty and "year" in weather_all.columns:
+        other_years = weather_all[weather_all["year"] != year_focus].copy()
+        if not other_years.empty and "T2M_MAX" in other_years.columns and "T2M_MIN" in other_years.columns:
+            other_years["gdd_daily"] = ((other_years["T2M_MAX"] + other_years["T2M_MIN"]) / 2 - 10).clip(lower=0)
+            avg_gdd = other_years.groupby(["date", "grower"]).agg({"gdd_daily": "mean"}).reset_index()
+            avg_gdd["date"] = pd.to_datetime(avg_gdd["date"])
+            avg_gdd["doy"] = avg_gdd["date"].dt.dayofyear
+            avg_gdd = avg_gdd.sort_values(["grower", "doy"])
+            avg_gdd["gdd_cum"] = avg_gdd.groupby("grower")["gdd_daily"].cumsum()
+            for grower in sorted(avg_gdd["grower"].unique()):
+                gdata = avg_gdd[avg_gdd["grower"] == grower]
+                ax.plot(gdata["doy"], gdata["gdd_cum"], color=grower_colors.get(grower, "gray"),
+                        linewidth=1.5, linestyle="--", alpha=0.4)
+    
+    # Plot 2024 as solid bold lines
     for grower in sorted(gdd_grower["grower"].unique()):
         gdata = gdd_grower[gdd_grower["grower"] == grower]
         ax.plot(gdata["doy"], gdata["gdd_cum"], color=grower_colors.get(grower, "gray"), 
-                linewidth=2.5, label=f"{grower} GDD", alpha=0.9)
+                linewidth=2.5, label=f"{grower} {year_focus}", alpha=0.9)
     
     ax.set_xlabel("Day of Year", fontsize=11)
     ax.set_ylabel("Cumulative GDD (°C, base 10°C)", fontsize=11)
-    ax.set_title(f"Cumulative Growing Degree Days by Grower — {year_focus}", fontsize=13, fontweight="bold", pad=15)
+    ax.set_title(f"Cumulative Growing Degree Days — {year_focus} vs Multi-Year Average", fontsize=13, fontweight="bold", pad=15)
     ax.grid(True, alpha=0.3, linestyle="--")
     ax.legend(fontsize=10, loc="upper left")
     
@@ -316,7 +340,7 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     weather_b64 = build_weather_chart(w2024, year_focus)
     
     print("[Dashboard] Building GDD chart...")
-    gdd_b64 = build_gdd_chart(w2024, year_focus)
+    gdd_b64 = build_gdd_chart(w2024, year_focus, weather)
 
     # === MEANINGFUL METRICS TABLE ===
     print("[Dashboard] Building metrics table...")
@@ -480,7 +504,7 @@ tr:hover {{ background: #f9f9f9; }}
       <h3>Growing Degree Days by Grower</h3>
       <img class="chart-img" src="data:image/png;base64,{gdd_b64}" alt="GDD">
       <div class="ndvi-explanation">
-        <strong>Method:</strong> Cumulative GDD = Σ[max(0, (Tmax + Tmin)/2 - 10°C)] per day. Base temperature = 10°C. Tracks heat accumulation for crop development timing.
+        <strong>Method:</strong> Cumulative GDD = Σ[max(0, (Tmax + Tmin)/2 - 10°C)] per day. Base temperature = 10°C. Solid lines = {year_focus}; dashed faint lines = multi-year average (2021–2025). Gaps above/below average indicate warmer/cooler seasons affecting crop development timing.
       </div>
     </div>
   </div>

@@ -97,21 +97,14 @@ def build_map_per_grower(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> 
             continue
         gdf = gdf.merge(metrics_df[["field_id", "shs"]], on="field_id", how="left")
         
-        # Plot with high-visibility colors
-        gdf.plot(
-            column="shs", cmap="RdYlGn", linewidth=1.2, edgecolor="black",
-            alpha=0.85, ax=ax, vmin=0, vmax=100, legend=False,
-        )
+        # Ensure all fields have a valid SHS for coloring
+        gdf["shs"] = gdf["shs"].fillna(metrics_df["shs"].mean())
         
-        # Small white labels
-        for _, row in gdf.iterrows():
-            centroid = row.geometry.centroid
-            short_id = row["field_id"].replace("osm-", "")[-6:]
-            ax.text(
-                centroid.x, centroid.y, short_id, fontsize=5, ha="center", va="center",
-                color="black", fontweight="bold",
-                bbox=dict(boxstyle="round,pad=0.15", facecolor="white", alpha=0.8, edgecolor="gray", linewidth=0.5),
-            )
+        # Plot with fully opaque fill so every field is clearly visible
+        gdf.plot(
+            column="shs", cmap="RdYlGn", linewidth=1.5, edgecolor="black",
+            alpha=0.95, ax=ax, vmin=0, vmax=100, legend=False,
+        )
         
         ax.set_title(f"{grower} ({len(gdf)} fields)", fontsize=13, fontweight="bold", color=grower_colors.get(grower, "black"), pad=10)
         ax.set_xlabel("Longitude", fontsize=9)
@@ -327,20 +320,35 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
 
     # === MEANINGFUL METRICS TABLE ===
     print("[Dashboard] Building metrics table...")
-    metric_rows = []
+    # Build transposed table: metrics as rows, growers + formula as columns
+    growers_list = []
     for grower in ["Iowa", "Illinois", "Nebraska"]:
         gdf = metrics_df[metrics_df["grower"] == grower]
-        if len(gdf) == 0:
-            continue
-        metric_rows.append({
-            "Grower": grower,
-            "Fields": len(gdf),
-            "Avg SHS": f"{gdf['shs'].mean():.1f}",
-            "Avg SI": f"{gdf['si'].mean():.1f}",
-            "NDVI Stability": f"{gdf['ndvi_stability_score'].mean():.1f}" if "ndvi_stability_score" in gdf.columns else "N/A",
-            "Weather Resilience": f"{gdf['weather_resilience'].mean():.1f}" if "weather_resilience" in gdf.columns else "N/A",
-            "Rotation Score": f"{gdf['rotation_score'].mean():.1f}" if "rotation_score" in gdf.columns else "N/A",
-        })
+        if len(gdf) > 0:
+            growers_list.append(grower)
+    
+    metric_definitions = [
+        ("Fields monitored", "Count of fields in dataset", "count"),
+        ("Avg Soil Health Score (SHS)", "pH_score + OM_score + drainage_score + awc_score + texture_score (each 0-25/20/10 pts)", "shs"),
+        ("Avg Sustainability Index (SI)", "SHS×0.40 + rotation_score + weather_resilience + ndvi_stability_score", "si"),
+        ("NDVI Stability Score", "(1 - CV_ndvi / max_CV) × 20, where CV = std(mean_NDVI) / mean(mean_NDVI)", "ndvi_stability_score"),
+        ("Weather Resilience", "(1 - drought_days/max_drought)×10 + (1 - heat_stress_days/max_heat)×10", "weather_resilience"),
+        ("Rotation Score", "Shannon_diversity / 2.0 × 20.0 from 5-year CDL crop rotation data", "rotation_score"),
+    ]
+    
+    metric_rows = []
+    for metric_name, formula, col in metric_definitions:
+        row = {"Metric": metric_name, "Formula": formula}
+        for grower in growers_list:
+            gdf = metrics_df[metrics_df["grower"] == grower]
+            if col == "count":
+                row[grower] = len(gdf)
+            elif col in gdf.columns:
+                row[grower] = f"{gdf[col].mean():.1f}"
+            else:
+                row[grower] = "N/A"
+        metric_rows.append(row)
+    
     metrics_table_df = pd.DataFrame(metric_rows)
 
     # === 5 DATA-DRIVEN BULLET HIGHLIGHTS ===
@@ -479,16 +487,12 @@ tr:hover {{ background: #f9f9f9; }}
 
   <div class="row-full">
     <div class="panel-full">
-      <h3>Sustainability Metrics by Grower (How They're Calculated)</h3>
+      <h3>Sustainability Metrics by Grower</h3>
       <div class="table-wrap">
         {metrics_table_df.to_html(index=False, classes='metrics-table', border=0)}
       </div>
       <div class="metrics-explanation">
-        <strong>Soil Health Score (SHS):</strong> Weighted index of pH (25 pts), organic matter (25 pts), drainage class (20 pts), available water capacity (20 pts), and texture balance (10 pts), scaled 0-100.<br><br>
-        <strong>Sustainability Index (SI):</strong> Composite score weighing SHS (40%), crop rotation diversity score (20%), weather stress resilience (20%), and NDVI stability score (20%). Range 0-100.<br><br>
-        <strong>Weather Resilience:</strong> Based on drought days (&lt;1mm rain) and heat stress days (&gt;32°C) during growing season (May-Sep). Higher = more resilient.<br><br>
-        <strong>NDVI Stability Score:</strong> Derived from coefficient of variation of mean NDVI across years. Lower variability = higher stability score (0-20).<br><br>
-        <strong>Rotation Score:</strong> Shannon diversity index of crop types across 5 years of CDL data, scaled to 0-20.
+        <strong>Notes:</strong> Each metric row above includes its exact calculation formula in the second column. All scores are computed per-field then averaged by grower. SHS and SI are scaled 0-100. NDVI Stability, Weather Resilience, and Rotation Score each contribute 0-20 points toward the SI.
       </div>
     </div>
   </div>

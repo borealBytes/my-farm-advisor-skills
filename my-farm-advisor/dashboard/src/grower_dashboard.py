@@ -197,12 +197,21 @@ def _weather_climate_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figur
 
     fig = make_subplots(specs=[[{"secondary_y": True}]])
 
+    # Color bars by season for visual distinction
+    month_colors = [
+        "#64b5f6", "#64b5f6", "#81c784",  # Winter, Winter, Spring
+        "#81c784", "#4caf50", "#4caf50",  # Spring, Spring, Summer
+        "#ff9800", "#ff9800", "#ff9800",  # Summer, Summer, Fall
+        "#ff7043", "#64b5f6", "#64b5f6",  # Fall, Winter, Winter
+    ]
     fig.add_trace(
         go.Bar(
             x=monthly["month_name"],
             y=monthly["total_precip"],
             name="Precipitation (mm)",
-            marker_color="steelblue",
+            marker_color=month_colors,
+            text=[f"{v:.0f}" for v in monthly["total_precip"]],
+            textposition="outside",
         ),
         secondary_y=False,
     )
@@ -236,15 +245,16 @@ def _weather_climate_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figur
         height=_PLOT_HEIGHT,
         paper_bgcolor="white",
         plot_bgcolor="#fafafa",
+        barmode="group",
     )
-    fig.update_yaxes(title_text="Precipitation (mm)", secondary_y=False)
-    fig.update_yaxes(title_text="Temperature (°C)", secondary_y=True)
+    fig.update_yaxes(title_text="Precipitation (mm)", secondary_y=False, gridcolor="#eee")
+    fig.update_yaxes(title_text="Temperature (°C)", secondary_y=True, gridcolor="#eee")
 
     return fig
 
 
 def _gdd_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figure:
-    """Cumulative GDD curve for the focus year (averaged across fields)."""
+    """Cumulative GDD curve for the focus year — growing season only (Apr-Oct)."""
     if weather_df is None or weather_df.empty:
         return go.Figure()
 
@@ -257,35 +267,80 @@ def _gdd_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figure:
         T2M_MAX=("T2M_MAX", "mean"),
         T2M_MIN=("T2M_MIN", "mean"),
     ).reset_index()
+    daily_avg["date"] = pd.to_datetime(daily_avg["date"])
+    daily_avg["month"] = daily_avg["date"].dt.month
     daily_avg["gdd_daily"] = ((daily_avg["T2M_MAX"] + daily_avg["T2M_MIN"]) / 2.0 - 10.0).clip(lower=0)
     daily_avg = daily_avg.sort_values("date")
     daily_avg["gdd_cum"] = daily_avg["gdd_daily"].cumsum()
 
-    fig = px.line(
-        daily_avg,
-        x="date",
-        y="gdd_cum",
-        labels={"gdd_cum": "Cumulative GDD (°C·days)", "date": "Date"},
-        title=f"Growing Degree Day Accumulation — {year_focus}",
-    )
-    fig.update_traces(line=dict(color="green", width=2))
+    # Filter to growing season only (Apr-Oct) for clarity
+    grow_season = daily_avg[daily_avg["month"].isin(range(4, 11))].copy()
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=grow_season["date"],
+        y=grow_season["gdd_cum"],
+        mode="lines",
+        line=dict(color="#2e7d32", width=3),
+        fill="tozeroy",
+        fillcolor="rgba(46, 125, 50, 0.1)",
+        name="Cumulative GDD",
+    ))
 
     # Add reference lines for corn growth stages
-    for gdd_val, label, color in [(400, "V6", "#8bc34a"), (1200, "VT", "#ff9800"), (1800, "R2", "#f44336")]:
+    stage_info = [
+        (400, "V6\n(4-6 leaves)", "#8bc34a"),
+        (800, "V12\n(12 leaves)", "#cddc39"),
+        (1200, "VT\n(Tasseling)", "#ff9800"),
+        (1600, "R1\n(Silking)", "#ff5722"),
+        (1800, "R2\n(Blister)", "#f44336"),
+    ]
+    for gdd_val, label, color in stage_info:
         fig.add_hline(
             y=gdd_val,
-            line_dash="dot",
+            line_dash="dash",
             line_color=color,
+            line_width=2,
             annotation_text=label,
             annotation_position="right",
+            annotation_font_size=10,
+            annotation_font_color=color,
         )
 
+    # Shade planting and harvest windows
+    fig.add_vrect(
+        x0=pd.Timestamp(f"{year_focus}-04-15"),
+        x1=pd.Timestamp(f"{year_focus}-05-31"),
+        fillcolor="rgba(33, 150, 243, 0.1)",
+        line_width=0,
+        annotation_text="Planting Window",
+        annotation_position="top left",
+        annotation_font_size=10,
+    )
+    fig.add_vrect(
+        x0=pd.Timestamp(f"{year_focus}-09-15"),
+        x1=pd.Timestamp(f"{year_focus}-10-31"),
+        fillcolor="rgba(255, 152, 0, 0.1)",
+        line_width=0,
+        annotation_text="Harvest Window",
+        annotation_position="top left",
+        annotation_font_size=10,
+    )
+
     fig.update_layout(
+        title_text=f"Growing Degree Day Accumulation — {year_focus} (Growing Season)",
+        xaxis_title="Date",
+        yaxis_title="Cumulative GDD (°C·days)",
         height=_PLOT_HEIGHT,
-        margin={"l": 40, "r": 80, "t": 60, "b": 40},
+        margin={"l": 40, "r": 120, "t": 60, "b": 40},
         paper_bgcolor="white",
         plot_bgcolor="#fafafa",
+        showlegend=False,
+        hovermode="x unified",
     )
+    fig.update_xaxes(gridcolor="#eee", dtick="M1", tickformat="%b")
+    fig.update_yaxes(gridcolor="#eee")
+
     return fig
 
 

@@ -76,7 +76,7 @@ def build_field_map(
         color="shs",
         color_continuous_scale="RdYlGn",
         range_color=(0, 100),
-        mapbox_style="carto-positron",
+        mapbox_style="open-street-map",
         zoom=12,
         center={"lat": gdf.geometry.centroid.y.mean(), "lon": gdf.geometry.centroid.x.mean()},
         opacity=0.7,
@@ -110,7 +110,7 @@ def build_field_map(
         mapbox={
             "center": {"lat": gdf.geometry.centroid.y.mean(), "lon": gdf.geometry.centroid.x.mean()},
             "zoom": 12,
-            "style": "carto-positron",
+            "style": "open-street-map",
         },
         paper_bgcolor="white",
         title={

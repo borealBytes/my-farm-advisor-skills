@@ -2,17 +2,11 @@
 """
 grower_dashboard.py — Main orchestrator for the grower-level interactive dashboard.
 
-Generates a single self-contained Plotly HTML file integrating:
-  - Field boundaries and acreage
-  - SSURGO soil health metrics
-  - NASA POWER weather summaries
-  - CDL crop history and rotation patterns
-  - Sentinel-2 / Landsat NDVI (TIFF-based via rasterstats)
-  - Custom sustainability and conservation-priority scores
+Generates a single self-contained Plotly HTML file.
 
 Usage:
     python grower_dashboard.py --grower-slug ia-grower
-    python grower_dashboard.py --grower-slug ia-grower --year-focus 2024 --png-fallback --verbose
+    python grower_dashboard.py --grower-slug ia-grower --year-focus 2024 --verbose
 """
 
 from __future__ import annotations
@@ -24,6 +18,7 @@ import warnings
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -48,8 +43,16 @@ from metrics import (  # noqa: E402
 from ndvi_extractor import compute_ndvi_stability, extract_all_field_ndvi  # noqa: E402
 
 
-def _kpi_cards(data: dict[str, Any], ndvi_df: pd.DataFrame, metrics_df: pd.DataFrame) -> go.Figure:
-    """Build KPI summary cards as a subplot grid."""
+# ---------------------------------------------------------------------------
+# Layout constants
+# ---------------------------------------------------------------------------
+_PLOT_HEIGHT = 420  # px for standard charts
+_MAP_HEIGHT = 550   # px for the map
+_GAUGE_HEIGHT = 350 # px for gauges
+
+
+def _kpi_cards_html(data: dict[str, Any], ndvi_df: pd.DataFrame, metrics_df: pd.DataFrame, year_focus: int) -> str:
+    """Build KPI summary cards as pure HTML/CSS (no Plotly)."""
     boundaries = data["boundaries"]
     weather = data["weather"]
 
@@ -57,7 +60,6 @@ def _kpi_cards(data: dict[str, Any], ndvi_df: pd.DataFrame, metrics_df: pd.DataF
     total_acres = boundaries["area_acres"].sum() if boundaries is not None and "area_acres" in boundaries.columns else 0
 
     # Average peak NDVI across all fields for focus year
-    year_focus = data["year_focus"]
     if ndvi_df is not None and not ndvi_df.empty:
         year_ndvi = ndvi_df[ndvi_df["year"] == year_focus]
         avg_ndvi = year_ndvi["mean_ndvi"].mean() if not year_ndvi.empty else 0.0
@@ -71,34 +73,28 @@ def _kpi_cards(data: dict[str, Any], ndvi_df: pd.DataFrame, metrics_df: pd.DataF
     else:
         avg_rain = 0.0
 
-    # Average SHS and SI
     avg_shs = metrics_df["shs"].mean() if metrics_df is not None and "shs" in metrics_df.columns else 0.0
     avg_si = metrics_df["si"].mean() if metrics_df is not None and "si" in metrics_df.columns else 0.0
 
-    fig = make_subplots(
-        rows=1, cols=6,
-        subplot_titles=[
-            f"<b>Total Fields</b><br><span style='font-size:24px'>{total_fields}</span>",
-            f"<b>Total Acres</b><br><span style='font-size:24px'>{total_acres:,.1f}</span>",
-            f"<b>Avg Peak NDVI</b><br><span style='font-size:24px'>{avg_ndvi:.3f}</span>",
-            f"<b>Avg Growing Rain</b><br><span style='font-size:24px'>{avg_rain:.0f} mm</span>",
-            f"<b>Avg Soil Health</b><br><span style='font-size:24px'>{avg_shs:.1f}</span>",
-            f"<b>Avg Sustainability</b><br><span style='font-size:24px'>{avg_si:.1f}</span>",
-        ],
-    )
+    cards = [
+        ("Total Fields", f"{total_fields}", "#2196f3", "📍"),
+        ("Total Acres", f"{total_acres:,.1f}", "#4caf50", "🌾"),
+        (f"Avg Peak NDVI ({year_focus})", f"{avg_ndvi:.3f}", "#ff9800", "📈"),
+        ("Avg Growing Rain", f"{avg_rain:.0f} mm", "#03a9f4", "🌧️"),
+        ("Avg Soil Health", f"{avg_shs:.1f}", "#8bc34a", "🪱"),
+        ("Avg Sustainability", f"{avg_si:.1f}", "#9c27b0", "♻️"),
+    ]
 
-    for i in range(1, 7):
-        fig.update_xaxes(visible=False, row=1, col=i)
-        fig.update_yaxes(visible=False, row=1, col=i)
+    card_html = "\n".join([
+        f"""<div class='kpi-card' style='background: linear-gradient(135deg, {color}, {color}dd);'>
+            <div class='kpi-icon'>{icon}</div>
+            <div class='kpi-value'>{value}</div>
+            <div class='kpi-label'>{label}</div>
+        </div>"""
+        for label, value, color, icon in cards
+    ])
 
-    fig.update_layout(
-        height=180,
-        margin={"l": 10, "r": 10, "t": 60, "b": 10},
-        showlegend=False,
-        title_text="<b>Iowa Grower — Field Intelligence Overview</b>",
-        title_x=0.5,
-    )
-    return fig
+    return f"<div class='kpi-grid'>{card_html}</div>"
 
 
 def _soil_variability_plot(soil_scores: pd.DataFrame) -> go.Figure:
@@ -124,7 +120,12 @@ def _soil_variability_plot(soil_scores: pd.DataFrame) -> go.Figure:
         color_continuous_scale="RdYlGn",
     )
     fig.update_traces(marker=dict(line=dict(width=1, color="DarkSlateGrey")))
-    fig.update_layout(margin={"l": 40, "r": 40, "t": 60, "b": 40})
+    fig.update_layout(
+        height=_PLOT_HEIGHT,
+        margin={"l": 40, "r": 40, "t": 60, "b": 40},
+        paper_bgcolor="white",
+        plot_bgcolor="#fafafa",
+    )
     return fig
 
 
@@ -149,7 +150,13 @@ def _field_ranking_plot(ndvi_df: pd.DataFrame, year_focus: int) -> go.Figure:
         labels={"mean_ndvi": f"Mean NDVI ({year_focus})", "field_id": "Field"},
         title=f"Field Performance Ranking by NDVI — {year_focus}",
     )
-    fig.update_layout(margin={"l": 40, "r": 40, "t": 60, "b": 40}, yaxis=dict(categoryorder="total ascending"))
+    fig.update_layout(
+        height=_PLOT_HEIGHT,
+        margin={"l": 40, "r": 40, "t": 60, "b": 40},
+        yaxis=dict(categoryorder="total ascending"),
+        paper_bgcolor="white",
+        plot_bgcolor="#fafafa",
+    )
     return fig
 
 
@@ -158,11 +165,27 @@ def _weather_climate_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figur
     if weather_df is None or weather_df.empty:
         return go.Figure()
 
+    # Average across all fields for the focus year
     df = weather_df[weather_df["year"] == year_focus].copy()
     if df.empty:
         return go.Figure()
 
     monthly = df.groupby("month").agg(
+        total_precip=("PRECTOTCORR", "sum"),  # summed across fields, but better to average per-field then average
+        avg_temp=("T2M", "mean"),
+        avg_max_temp=("T2M_MAX", "mean"),
+        avg_min_temp=("T2M_MIN", "mean"),
+    ).reset_index()
+
+    # Recompute: average daily values across fields, then monthly totals
+    daily_avg = df.groupby("date").agg(
+        PRECTOTCORR=("PRECTOTCORR", "mean"),
+        T2M=("T2M", "mean"),
+        T2M_MAX=("T2M_MAX", "mean"),
+        T2M_MIN=("T2M_MIN", "mean"),
+    ).reset_index()
+    daily_avg["month"] = pd.to_datetime(daily_avg["date"]).dt.month
+    monthly = daily_avg.groupby("month").agg(
         total_precip=("PRECTOTCORR", "sum"),
         avg_temp=("T2M", "mean"),
         avg_max_temp=("T2M_MAX", "mean"),
@@ -210,6 +233,9 @@ def _weather_climate_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figur
         title_text=f"Weather & Climate — {year_focus}",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         margin={"l": 40, "r": 40, "t": 80, "b": 40},
+        height=_PLOT_HEIGHT,
+        paper_bgcolor="white",
+        plot_bgcolor="#fafafa",
     )
     fig.update_yaxes(title_text="Precipitation (mm)", secondary_y=False)
     fig.update_yaxes(title_text="Temperature (°C)", secondary_y=True)
@@ -218,27 +244,48 @@ def _weather_climate_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figur
 
 
 def _gdd_plot(weather_df: pd.DataFrame, year_focus: int) -> go.Figure:
-    """Cumulative GDD curve for the focus year."""
+    """Cumulative GDD curve for the focus year (averaged across fields)."""
     if weather_df is None or weather_df.empty:
         return go.Figure()
 
     df = weather_df[weather_df["year"] == year_focus].copy()
-    if df.empty or "gdd_daily" not in df.columns:
-        # Compute GDD on the fly
-        df["gdd_daily"] = ((df["T2M_MAX"] + df["T2M_MIN"]) / 2.0 - 10.0).clip(lower=0)
+    if df.empty:
+        return go.Figure()
 
-    df = df.sort_values("date")
-    df["gdd_cum"] = df["gdd_daily"].cumsum()
+    # Average daily weather across all fields, then compute GDD
+    daily_avg = df.groupby("date").agg(
+        T2M_MAX=("T2M_MAX", "mean"),
+        T2M_MIN=("T2M_MIN", "mean"),
+    ).reset_index()
+    daily_avg["gdd_daily"] = ((daily_avg["T2M_MAX"] + daily_avg["T2M_MIN"]) / 2.0 - 10.0).clip(lower=0)
+    daily_avg = daily_avg.sort_values("date")
+    daily_avg["gdd_cum"] = daily_avg["gdd_daily"].cumsum()
 
     fig = px.line(
-        df,
+        daily_avg,
         x="date",
         y="gdd_cum",
         labels={"gdd_cum": "Cumulative GDD (°C·days)", "date": "Date"},
         title=f"Growing Degree Day Accumulation — {year_focus}",
     )
     fig.update_traces(line=dict(color="green", width=2))
-    fig.update_layout(margin={"l": 40, "r": 40, "t": 60, "b": 40})
+
+    # Add reference lines for corn growth stages
+    for gdd_val, label, color in [(400, "V6", "#8bc34a"), (1200, "VT", "#ff9800"), (1800, "R2", "#f44336")]:
+        fig.add_hline(
+            y=gdd_val,
+            line_dash="dot",
+            line_color=color,
+            annotation_text=label,
+            annotation_position="right",
+        )
+
+    fig.update_layout(
+        height=_PLOT_HEIGHT,
+        margin={"l": 40, "r": 80, "t": 60, "b": 40},
+        paper_bgcolor="white",
+        plot_bgcolor="#fafafa",
+    )
     return fig
 
 
@@ -247,62 +294,50 @@ def _sustainability_gauge(metrics_df: pd.DataFrame) -> go.Figure:
     if metrics_df is None or metrics_df.empty:
         return go.Figure()
 
-    fig = make_subplots(
-        rows=1, cols=2,
-        specs=[[{"type": "indicator"}, {"type": "indicator"}]],
-        subplot_titles=["Soil Health Score Distribution", "Sustainability Index Distribution"],
-    )
-
     avg_shs = metrics_df["shs"].mean()
     avg_si = metrics_df["si"].mean()
 
-    fig.add_trace(
-        go.Indicator(
-            mode="gauge+number",
-            value=avg_shs,
-            title={"text": "Avg SHS"},
-            gauge={
-                "axis": {"range": [0, 100]},
-                "bar": {"color": "darkgreen"},
-                "steps": [
-                    {"range": [0, 40], "color": "#ffebee"},
-                    {"range": [40, 70], "color": "#fff8e1"},
-                    {"range": [70, 100], "color": "#e8f5e9"},
-                ],
-                "threshold": {
-                    "line": {"color": "red", "width": 4},
-                    "thickness": 0.75,
-                    "value": 60,
-                },
-            },
-        ),
-        row=1, col=1,
-    )
+    fig = go.Figure()
 
-    fig.add_trace(
-        go.Indicator(
-            mode="gauge+number",
-            value=avg_si,
-            title={"text": "Avg SI"},
-            gauge={
-                "axis": {"range": [0, 100]},
-                "bar": {"color": "royalblue"},
-                "steps": [
-                    {"range": [0, 40], "color": "#ffebee"},
-                    {"range": [40, 70], "color": "#fff8e1"},
-                    {"range": [70, 100], "color": "#e3f2fd"},
-                ],
-                "threshold": {
-                    "line": {"color": "red", "width": 4},
-                    "thickness": 0.75,
-                    "value": 60,
-                },
-            },
-        ),
-        row=1, col=2,
-    )
+    fig.add_trace(go.Indicator(
+        mode="gauge+number",
+        value=avg_shs,
+        title={"text": "Avg Soil Health Score"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "darkgreen"},
+            "steps": [
+                {"range": [0, 40], "color": "#ffebee"},
+                {"range": [40, 70], "color": "#fff8e1"},
+                {"range": [70, 100], "color": "#e8f5e9"},
+            ],
+            "threshold": {"line": {"color": "red", "width": 4}, "thickness": 0.75, "value": 60},
+        },
+        domain={"x": [0, 0.48], "y": [0, 1]},
+    ))
 
-    fig.update_layout(height=350, margin={"l": 20, "r": 20, "t": 60, "b": 20})
+    fig.add_trace(go.Indicator(
+        mode="gauge+number",
+        value=avg_si,
+        title={"text": "Avg Sustainability Index"},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "bar": {"color": "royalblue"},
+            "steps": [
+                {"range": [0, 40], "color": "#ffebee"},
+                {"range": [40, 70], "color": "#fff8e1"},
+                {"range": [70, 100], "color": "#e3f2fd"},
+            ],
+            "threshold": {"line": {"color": "red", "width": 4}, "thickness": 0.75, "value": 60},
+        },
+        domain={"x": [0.52, 1], "y": [0, 1]},
+    ))
+
+    fig.update_layout(
+        height=_GAUGE_HEIGHT,
+        margin={"l": 20, "r": 20, "t": 40, "b": 20},
+        paper_bgcolor="white",
+    )
     return fig
 
 
@@ -331,7 +366,13 @@ def _conservation_priority_plot(metrics_df: pd.DataFrame) -> go.Figure:
         title="Conservation Priority Ranking (Higher = More Attention Needed)",
     )
     fig.add_vline(x=60, line_dash="dash", line_color="red", annotation_text="Priority Threshold")
-    fig.update_layout(margin={"l": 40, "r": 40, "t": 60, "b": 40}, yaxis=dict(categoryorder="total ascending"))
+    fig.update_layout(
+        height=_PLOT_HEIGHT,
+        margin={"l": 40, "r": 40, "t": 60, "b": 40},
+        yaxis=dict(categoryorder="total ascending"),
+        paper_bgcolor="white",
+        plot_bgcolor="#fafafa",
+    )
     return fig
 
 
@@ -343,8 +384,8 @@ def _interpretation_section(metrics_df: pd.DataFrame, ndvi_df: pd.DataFrame, dat
         "Conversely, poorly drained fields with low OM show scores below 50 and should be prioritized for soil amendments or tile drainage.</p>",
     ]
 
+    year_focus = data["year_focus"]
     if ndvi_df is not None and not ndvi_df.empty:
-        year_focus = data["year_focus"]
         year_ndvi = ndvi_df[ndvi_df["year"] == year_focus]
         if not year_ndvi.empty:
             best = year_ndvi.loc[year_ndvi["mean_ndvi"].idxmax()]
@@ -361,7 +402,7 @@ def _interpretation_section(metrics_df: pd.DataFrame, ndvi_df: pd.DataFrame, dat
             fields = ", ".join(priority["field_id"].tolist())
             lines.append(
                 f"<p><b>Conservation Priority:</b> {len(priority)} field(s) flagged for review: <b>{fields}</b>. "
-                "Recommended actions: cover-crop trials, reduced tillage, or soil sampling to diagnose low scores.</p>"
+                "Recommended actions: cover-crop trials, reduced tillage, or drainage improvements.</p>"
             )
         else:
             lines.append(
@@ -383,10 +424,7 @@ def _interpretation_section(metrics_df: pd.DataFrame, ndvi_df: pd.DataFrame, dat
 
 
 def build_dashboard(data: dict[str, Any], ndvi_df: pd.DataFrame) -> str:
-    """Assemble all Plotly figures into a single HTML string with narrative sections.
-
-    Returns the HTML content as a string.
-    """
+    """Assemble all sections into a single well-structured HTML string."""
     print("[Dashboard] Building dashboard sections...")
 
     # Compute metrics
@@ -394,15 +432,13 @@ def build_dashboard(data: dict[str, Any], ndvi_df: pd.DataFrame) -> str:
     rotation_div = compute_rotation_diversity(data["cdl_years"])
     weather_stress = compute_weather_stress(data["weather"])
     ndvi_stability = compute_ndvi_stability(ndvi_df)
-    gdd = compute_gdd_summary(data["weather"])
 
     sustainability = compute_sustainability_index(
         soil_scores, rotation_div, weather_stress, ndvi_stability
     )
 
-    # Merge all metrics for map and displays
+    # Merge all metrics
     if soil_scores is not None and not soil_scores.empty:
-        # Avoid duplicate 'shs' column — sustainability already has it
         sust_clean = sustainability.drop(columns=["shs"], errors="ignore")
         metrics_df = soil_scores.merge(sust_clean, on="field_id", how="left")
     else:
@@ -411,19 +447,26 @@ def build_dashboard(data: dict[str, Any], ndvi_df: pd.DataFrame) -> str:
     if ndvi_stability is not None and not ndvi_stability.empty:
         metrics_df = metrics_df.merge(ndvi_stability[["field_id", "mean_ndvi_avg"]], on="field_id", how="left")
 
+    year_focus = data["year_focus"]
+
     # Build figures
-    kpi_fig = _kpi_cards(data, ndvi_df, metrics_df)
+    kpi_html = _kpi_cards_html(data, ndvi_df, metrics_df, year_focus)
     soil_fig = _soil_variability_plot(soil_scores)
-    rank_fig = _field_ranking_plot(ndvi_df, data["year_focus"])
-    map_fig = build_field_map(data["boundaries"], metrics_df, ndvi_df, data["year_focus"])
-    weather_fig = _weather_climate_plot(data["weather"], data["year_focus"])
-    gdd_fig = _gdd_plot(data["weather"], data["year_focus"])
+    rank_fig = _field_ranking_plot(ndvi_df, year_focus)
+    map_fig = build_field_map(data["boundaries"], metrics_df, ndvi_df, year_focus)
+    weather_fig = _weather_climate_plot(data["weather"], year_focus)
+    gdd_fig = _gdd_plot(data["weather"], year_focus)
     gauge_fig = _sustainability_gauge(metrics_df)
     priority_fig = _conservation_priority_plot(metrics_df)
 
     # Convert each figure to HTML div
-    def _to_div(fig: go.Figure, div_id: str) -> str:
-        return fig.to_html(full_html=False, include_plotlyjs=False, div_id=div_id)
+    def _to_div(fig: go.Figure, div_id: str, height: int) -> str:
+        return fig.to_html(
+            full_html=False,
+            include_plotlyjs=False,
+            div_id=div_id,
+            default_height=height,
+        )
 
     interpretation = _interpretation_section(metrics_df, ndvi_df, data)
 
@@ -436,47 +479,57 @@ def build_dashboard(data: dict[str, Any], ndvi_df: pd.DataFrame) -> str:
         f"<title>Field Intelligence Dashboard — {data['grower_slug']}</title>",
         "<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>",
         "<style>",
-        "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; }",
-        ".container { max-width: 1400px; margin: 0 auto; padding: 20px; }",
-        ".header { background: linear-gradient(135deg, #2e7d32, #66bb6a); color: white; padding: 30px; border-radius: 8px; margin-bottom: 20px; }",
-        ".header h1 { margin: 0; font-size: 28px; }",
-        ".header p { margin: 8px 0 0; opacity: 0.9; }",
-        ".section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }",
-        ".section h2 { margin-top: 0; color: #2e7d32; font-size: 20px; border-bottom: 2px solid #e8f5e9; padding-bottom: 10px; }",
-        ".section p { line-height: 1.6; color: #444; }",
-        ".two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }",
+        "body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background: #f0f2f5; }",
+        ".container { max-width: 1480px; margin: 0 auto; padding: 20px; }",
+        ".header { background: linear-gradient(135deg, #1b5e20, #4caf50); color: white; padding: 30px; border-radius: 10px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }",
+        ".header h1 { margin: 0; font-size: 32px; letter-spacing: -0.5px; }",
+        ".header p { margin: 10px 0 0; opacity: 0.95; font-size: 15px; }",
+        # KPI grid
+        ".kpi-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 24px; }",
+        ".kpi-card { border-radius: 10px; padding: 20px 16px; text-align: center; color: white; box-shadow: 0 3px 8px rgba(0,0,0,0.12); transition: transform 0.2s; }",
+        ".kpi-card:hover { transform: translateY(-3px); }",
+        ".kpi-icon { font-size: 28px; margin-bottom: 8px; }",
+        ".kpi-value { font-size: 26px; font-weight: 700; margin-bottom: 4px; }",
+        ".kpi-label { font-size: 12px; font-weight: 500; opacity: 0.95; text-transform: uppercase; letter-spacing: 0.5px; }",
+        # Sections
+        ".section { background: white; border-radius: 10px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }",
+        ".section h2 { margin-top: 0; color: #1b5e20; font-size: 20px; border-bottom: 3px solid #e8f5e9; padding-bottom: 12px; margin-bottom: 16px; }",
+        ".section p { line-height: 1.6; color: #555; font-size: 14px; margin-bottom: 16px; }",
+        ".two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px; }",
+        ".two-col .section { margin-bottom: 0; }",
         ".wide { grid-column: 1 / -1; }",
-        "@media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }",
+        ".plot-wrap { width: 100%; min-height: 400px; }",
+        ".map-wrap { width: 100%; min-height: 550px; }",
+        "@media (max-width: 1000px) { .kpi-grid { grid-template-columns: repeat(3, 1fr); } .two-col { grid-template-columns: 1fr; } }",
+        "@media (max-width: 600px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } }",
         "</style>",
         "</head>",
         "<body>",
         "<div class='container'>",
+        # Header
         "<div class='header'>",
         f"<h1>🌾 Field Intelligence Dashboard</h1>",
-        f"<p>Grower: <b>{data['grower_slug']}</b> | Farm: <b>{data['farm_slug']}</b> | Focus Year: <b>{data['year_focus']}</b></p>",
+        f"<p>Grower: <b>{data['grower_slug']}</b> &nbsp;|&nbsp; Farm: <b>{data['farm_slug']}</b> &nbsp;|&nbsp; Focus Year: <b>{year_focus}</b> &nbsp;|&nbsp; Fields: <b>{len(data['boundaries'])}</b></p>",
         "</div>",
         # KPI Section
-        "<div class='section wide'>",
-        "<h2>📈 Key Performance Indicators</h2>",
-        _to_div(kpi_fig, "kpi-cards"),
-        "</div>",
+        kpi_html,
         # Map Section
         "<div class='section wide'>",
         "<h2>🗺️ Field Soil Health Map</h2>",
-        "<p>Click on fields to see detailed soil, crop, and NDVI information. Color intensity reflects the Soil Health Score (0–100).</p>",
-        _to_div(map_fig, "field-map"),
+        "<p>Click on fields to see detailed soil, crop, and NDVI information. Color intensity reflects the Soil Health Score (0–100). Green = healthy, Red = needs attention.</p>",
+        f"<div class='map-wrap'>{_to_div(map_fig, 'field-map', _MAP_HEIGHT)}</div>",
         "</div>",
         # Two-column: Soil scatter + Field ranking
         "<div class='two-col'>",
         "<div class='section'>",
         "<h2>🔬 Soil Variability Explorer</h2>",
         "<p>Each point is a field. Size reflects drainage score; color reflects drainage quality. Ideal soils cluster in the upper-middle (pH 6.0–7.0, OM ≥ 3.5%).</p>",
-        _to_div(soil_fig, "soil-scatter"),
+        f"<div class='plot-wrap'>{_to_div(soil_fig, 'soil-scatter', _PLOT_HEIGHT)}</div>",
         "</div>",
         "<div class='section'>",
         "<h2>🏆 Field Performance Ranking</h2>",
         "<p>Fields ranked by mean peak NDVI for the focus year. Higher NDVI indicates healthier, more vigorous vegetation.</p>",
-        _to_div(rank_fig, "field-ranking"),
+        f"<div class='plot-wrap'>{_to_div(rank_fig, 'field-ranking', _PLOT_HEIGHT)}</div>",
         "</div>",
         "</div>",
         # Two-column: Weather + GDD
@@ -484,25 +537,25 @@ def build_dashboard(data: dict[str, Any], ndvi_df: pd.DataFrame) -> str:
         "<div class='section'>",
         "<h2>🌦️ Weather & Climate</h2>",
         "<p>Monthly precipitation (bars) and temperature (lines) for the focus year. Compare against long-term averages to identify anomalies.</p>",
-        _to_div(weather_fig, "weather-chart"),
+        f"<div class='plot-wrap'>{_to_div(weather_fig, 'weather-chart', _PLOT_HEIGHT)}</div>",
         "</div>",
         "<div class='section'>",
         "<h2>🌡️ Growing Degree Days</h2>",
-        "<p>Cumulative GDD accumulation helps track crop development pace. Reference lines for corn growth stages (V6≈400, VT≈1200, R2≈1800 GDD).</p>",
-        _to_div(gdd_fig, "gdd-chart"),
+        "<p>Cumulative GDD accumulation helps track crop development pace. Dotted lines show corn growth stages (V6≈400, VT≈1200, R2≈1800 GDD).</p>",
+        f"<div class='plot-wrap'>{_to_div(gdd_fig, 'gdd-chart', _PLOT_HEIGHT)}</div>",
         "</div>",
         "</div>",
-        # Sustainability Section
+        # Two-column: Sustainability gauges + Conservation priority
         "<div class='two-col'>",
         "<div class='section'>",
         "<h2>♻️ Sustainability Overview</h2>",
         "<p>Gauge shows the grower-wide average Soil Health Score and Sustainability Index. Threshold at 60 highlights fields needing attention.</p>",
-        _to_div(gauge_fig, "sustainability-gauge"),
+        f"<div class='plot-wrap'>{_to_div(gauge_fig, 'sustainability-gauge', _GAUGE_HEIGHT)}</div>",
         "</div>",
         "<div class='section'>",
         "<h2>🚨 Conservation Priority</h2>",
         "<p>Fields above the red dashed line (score > 60) are flagged for conservation review. Consider cover crops, reduced tillage, or drainage improvements.</p>",
-        _to_div(priority_fig, "conservation-priority"),
+        f"<div class='plot-wrap'>{_to_div(priority_fig, 'conservation-priority', _PLOT_HEIGHT)}</div>",
         "</div>",
         "</div>",
         # Interpretation Section
@@ -578,32 +631,14 @@ def main() -> None:
     # Optional PNG fallback
     if args.png_fallback:
         try:
-            # Use kaleido to export a static image of the full dashboard
-            # We create a combined figure for PNG export
-            from plotly.subplots import make_subplots
-
+            png_path = output_dir / "grower_dashboard.png"
+            # Export the map as a representative static image
             soil_scores = compute_soil_health_score(data["soil"])
             rotation_div = compute_rotation_diversity(data["cdl_years"])
             weather_stress = compute_weather_stress(data["weather"])
             ndvi_stability = compute_ndvi_stability(ndvi_df)
             sustainability = compute_sustainability_index(soil_scores, rotation_div, weather_stress, ndvi_stability)
-            metrics_df = soil_scores.merge(sustainability, on="field_id", how="left")
-
-            fig = make_subplots(
-                rows=3, cols=2,
-                subplot_titles=[
-                    "KPI Summary", "Field Map",
-                    "Soil Variability", "Field Ranking",
-                    "Weather & GDD", "Sustainability",
-                ],
-                specs=[
-                    [{"type": "domain"}, {"type": "domain"}],
-                    [{"type": "xy"}, {"type": "xy"}],
-                    [{"type": "xy"}, {"type": "xy"}],
-                ],
-            )
-            # Simplified PNG: just export the map as representative
-            png_path = output_dir / "grower_dashboard.png"
+            metrics_df = soil_scores.merge(sustainability.drop(columns=["shs"], errors="ignore"), on="field_id", how="left")
             map_fig = build_field_map(data["boundaries"], metrics_df, ndvi_df, data["year_focus"])
             map_fig.write_image(str(png_path), width=1400, height=900, scale=2)
             print(f"[Dashboard] PNG fallback saved: {png_path}")

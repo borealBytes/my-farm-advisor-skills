@@ -99,10 +99,24 @@ def build_field_map(
     )
 
     fig.update_layout(
-        margin={"r": 0, "t": 40, "l": 0, "b": 0},
+        height=550,
+        margin={"r": 0, "t": 50, "l": 0, "b": 0},
         coloraxis_colorbar={
             "title": "Soil Health<br>Score",
             "ticksuffix": "/100",
+            "len": 0.6,
+            "y": 0.5,
+        },
+        mapbox={
+            "center": {"lat": gdf.geometry.centroid.y.mean(), "lon": gdf.geometry.centroid.x.mean()},
+            "zoom": 12,
+            "style": "carto-positron",
+        },
+        paper_bgcolor="white",
+        title={
+            "text": "Field Soil Health Score Map",
+            "x": 0.5,
+            "xanchor": "center",
         },
     )
 

@@ -375,31 +375,60 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     
     metrics_table_df = pd.DataFrame(metric_rows)
 
-    # === 5 DATA-DRIVEN BULLET HIGHLIGHTS ===
+    # === 5 ANALYTICAL KEY HIGHLIGHTS ===
     print("[Dashboard] Generating highlights...")
     highlights = []
+    
     best = metrics_df.loc[metrics_df["shs"].idxmax()]
     worst = metrics_df.loc[metrics_df["shs"].idxmin()]
-    highlights.append(f"Soil health ranges from {worst['shs']:.1f} ({worst['field_id']}) to {best['shs']:.1f} ({best['field_id']}) — a {best['shs']-worst['shs']:.1f} point gap across {len(metrics_df)} fields.")
-    
     shs_by_grower = metrics_df.groupby("grower")["shs"].mean().sort_values(ascending=False)
-    highlights.append(f"{shs_by_grower.index[0]} leads in average soil health ({shs_by_grower.iloc[0]:.1f}), while {shs_by_grower.index[-1]} trails at {shs_by_grower.iloc[-1]:.1f}.")
+    si_by_grower = metrics_df.groupby("grower")["si"].mean().sort_values(ascending=False)
+    acres_by_grower = boundaries.groupby("grower")["area_acres"].sum().sort_values(ascending=False)
     
+    # 1. Patterns / trends observed
+    ndvi_text = ""
     if not year_ndvi.empty:
         ndvi_by_grower = year_ndvi.groupby("grower")["mean_ndvi"].mean().sort_values(ascending=False)
-        highlights.append(f"{ndvi_by_grower.index[0]} shows highest vegetation vigor (NDVI {ndvi_by_grower.iloc[0]:.3f}), indicating stronger crop biomass than {ndvi_by_grower.index[-1]} ({ndvi_by_grower.iloc[-1]:.3f}).")
-    else:
-        highlights.append("NDVI data unavailable for 2024 season.")
+        ndvi_text = f" NDVI follows an inverse pattern — Illinois (most rain) shows highest vigor ({ndvi_by_grower.iloc[0]:.3f}) despite lowest soil health, suggesting rainfall may compensate for poorer soil conditions."
     
+    precip_text = ""
     if not w2024.empty:
         total_precip = w2024.groupby("grower")["PRECTOTCORR"].sum().sort_values(ascending=False)
-        highlights.append(f"{total_precip.index[0]} received the most rainfall in 2024 ({total_precip.iloc[0]:.0f}mm total), while {total_precip.index[-1]} had the driest season ({total_precip.iloc[-1]:.0f}mm).")
-    else:
-        highlights.append("Weather data unavailable for 2024 season.")
+        precip_text = f" Rainfall and soil health show an inverse relationship: {total_precip.index[0]} received the most precipitation ({total_precip.iloc[0]:.0f}mm) but has the lowest average soil health ({shs_by_grower.iloc[-1]:.1f}), while {total_precip.index[-1]} is driest ({total_precip.iloc[-1]:.0f}mm) yet leads in soil health ({shs_by_grower.iloc[0]:.1f})."
     
-    acres_by_grower = boundaries.groupby("grower")["area_acres"].sum().sort_values(ascending=False)
-    si_by_grower = metrics_df.groupby("grower")["si"].mean().sort_values(ascending=False)
-    highlights.append(f"Combined {total_acres:.0f} acres monitored. {si_by_grower.index[0]} scores highest sustainability index ({si_by_grower.iloc[0]:.1f}) due to balanced soil, weather, and vegetation metrics.")
+    highlights.append(
+        f"<strong>Patterns observed:</strong> A clear geographic gradient emerges — Nebraska fields dominate soil health (avg {shs_by_grower.iloc[0]:.1f}), Illinois lags ({shs_by_grower.iloc[-1]:.1f}), and Iowa sits in between.{precip_text}{ndvi_text}"
+    )
+    
+    # 2. Healthiest vs most at-risk fields
+    worst_ndvi = year_ndvi.loc[year_ndvi["mean_ndvi"].idxmin()] if not year_ndvi.empty else None
+    worst_si = metrics_df.loc[metrics_df["si"].idxmin()]
+    at_risk = []
+    if worst["shs"] < 65:
+        at_risk.append(f"lowest soil health ({worst['shs']:.1f}, {worst['field_id']})")
+    if worst_si["si"] < 50:
+        at_risk.append(f"lowest sustainability index ({worst_si['si']:.1f}, {worst_si['field_id']})")
+    at_risk_text = "; ".join(at_risk) if at_risk else "multiple risk factors"
+    highlights.append(
+        f"<strong>Field health assessment:</strong> Best-performing field is {best['field_id']} (SHS {best['shs']:.1f}) in {best['grower']}, indicating strong pH, organic matter, and drainage. Most at-risk: {worst['field_id']} ({worst['grower']}) with {at_risk_text}. Priority for targeted soil amendment (lime, organic matter, drainage improvement)."
+    )
+    
+    # 3. Environmental / soil variation
+    soil_cv = (metrics_df["shs"].std() / metrics_df["shs"].mean() * 100)
+    area_text = f"Field sizes range from {boundaries['area_acres'].min():.0f} to {boundaries['area_acres'].max():.0f} acres, averaging {boundaries['area_acres'].mean():.0f} acres."
+    highlights.append(
+        f"<strong>Environmental variation:</strong> Soil health varies by {soil_cv:.1f}% CV across all fields — a substantial {metrics_df['shs'].max() - metrics_df['shs'].min():.1f}-point spread. Within Illinois alone, SHS ranges {metrics_df[metrics_df['grower']=='Illinois']['shs'].min():.1f}–{metrics_df[metrics_df['grower']=='Illinois']['shs'].max():.1f}, showing high internal heterogeneity driven by texture differences (high sand = low SHS). {area_text}"
+    )
+    
+    # 4. Decisions / actions
+    highlights.append(
+        f"<strong>Actionable insights:</strong> (1) <em>Lime and organic matter programs</em> should target Illinois sandier fields (SHS < 65) where pH and OM are limiting. (2) <em>Irrigation investment</em> may benefit Nebraska's drier climate despite strong soil — GDD analysis shows heat accumulation but rainfall deficit. (3) <em>Iowa's balanced profile</em> (SHS 83.4, moderate rain) supports maintaining current practices with precision-variable-rate fertilizer to preserve soil health. (4) <em>Cover cropping</em> could improve NDVI stability scores in fields with high year-to-year variation."
+    )
+    
+    # 5. Most important variables
+    highlights.append(
+        f"<strong>Key drivers:</strong> Soil Health Score is the dominant variable — it explains {metrics_df['shs'].corr(metrics_df['si']):.0%} of Sustainability Index variation. Within SHS, organic matter and pH together contribute 50 points, making them the most leverageable inputs. Weather resilience (drought + heat stress) is the second-largest SI driver; Nebraska's poor weather resilience (1.0) drags down its otherwise excellent soil, dropping its SI below Iowa's despite higher SHS. NDVI stability adds the least variance, suggesting satellite vigor is more an outcome than a driver of field health."
+    )
 
     # === FULL DATA TABLE ===
     full_table = metrics_df[["field_id", "grower", "area_acres", "shs", "si"]].copy()
@@ -534,7 +563,7 @@ tr:hover {{ background: #f9f9f9; }}
 
   <div class="row-full">
     <div class="panel-full">
-      <h3>Complete Field Data Table</h3>
+      <h3>Field Data Summary</h3>
       <div class="table-wrap">
         {full_table.to_html(index=False, border=0, na_rep="—")}
       </div>

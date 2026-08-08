@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-grower_dashboard.py — Multi-Grower Field Intelligence Dashboard v5
+grower_dashboard.py — Multi-Grower Field Intelligence Dashboard v6
 
-All charts rendered as static matplotlib PNG for guaranteed visibility.
+Interactive Folium map with variable-layer toggling.
+All other charts rendered as static matplotlib PNG.
 """
 
 from __future__ import annotations
@@ -39,6 +40,44 @@ from metrics import (
 from ndvi_extractor import compute_ndvi_stability, extract_all_field_ndvi
 
 
+# ── status helpers ─────────────────────────────────────────────────────────
+
+def _shs_status(v: float) -> str:
+    if v < 40:   return "Poor"
+    if v < 55:   return "Below Average"
+    if v < 70:   return "Moderate"
+    if v < 85:   return "Good"
+    return "Excellent"
+
+def _si_status(v: float) -> str:
+    if v < 30:   return "Unsustainable"
+    if v < 45:   return "Low Sustainability"
+    if v < 60:   return "Moderately Sustainable"
+    if v < 75:   return "Sustainable"
+    return "Highly Sustainable"
+
+def _ndvi_status(v: float) -> str:
+    if v < 5:    return "Very Unstable"
+    if v < 8:    return "Unstable"
+    if v < 11:   return "Moderately Stable"
+    if v < 15:   return "Stable"
+    return "Highly Stable"
+
+def _weather_status(v: float) -> str:
+    if v < 3:    return "Very Vulnerable"
+    if v < 6:    return "Vulnerable"
+    if v < 9:    return "Moderately Resilient"
+    if v < 12:   return "Resilient"
+    return "Highly Resilient"
+
+def _rot_status(v: float) -> str:
+    if v < 4:    return "Poor"
+    if v < 8:    return "Weak"
+    if v < 12:   return "Moderate"
+    if v < 16:   return "Good"
+    return "Excellent"
+
+
 def _fig_to_base64(fig) -> str:
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
@@ -49,7 +88,7 @@ def _fig_to_base64(fig) -> str:
 
 
 def load_all_growers(data_root: Path, year_focus: int = 2024) -> dict[str, Any]:
-    all_boundaries, all_soil, all_weather, all_ndvi = [], [], [], []
+    all_boundaries, all_soil, all_weather, all_ndvi, all_rotation = [], [], [], [], []
     grower_names = {"ia-grower": "Iowa", "il-grower": "Illinois", "ne-grower": "Nebraska"}
     for grower_slug, state_name in grower_names.items():
         farm_slug = discover_farm_slug(data_root, grower_slug)
@@ -73,11 +112,16 @@ def load_all_growers(data_root: Path, year_focus: int = 2024) -> dict[str, Any]:
         if not ndvi.empty:
             ndvi["grower"] = state_name
             all_ndvi.append(ndvi)
+        if data.get("rotation") is not None:
+            r = data["rotation"][["field_id", "predicted_next_crop"]].copy()
+            r["grower"] = state_name
+            all_rotation.append(r)
     combined = {
         "boundaries": pd.concat(all_boundaries, ignore_index=True) if all_boundaries else None,
         "soil": pd.concat(all_soil, ignore_index=True) if all_soil else None,
         "weather": pd.concat(all_weather, ignore_index=True) if all_weather else None,
         "ndvi": pd.concat(all_ndvi, ignore_index=True) if all_ndvi else pd.DataFrame(),
+        "rotation": pd.concat(all_rotation, ignore_index=True) if all_rotation else pd.DataFrame(),
         "year_focus": year_focus,
     }
     print(f"[Loader] Combined: {len(combined['boundaries'])} fields total")
@@ -85,64 +129,103 @@ def load_all_growers(data_root: Path, year_focus: int = 2024) -> dict[str, Any]:
 
 
 def build_map_interactive(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> str:
-    """Build an interactive Folium map with GeoJSON polygons colored by SHS."""
+    """Build an interactive Folium map with variable-layer toggling."""
     import folium
     from branca.colormap import linear
     import json
-    
-    growers = ["Iowa", "Illinois", "Nebraska"]
-    grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
-    
-    # Merge SHS into boundaries
-    gdf = boundaries.merge(metrics_df[["field_id", "shs"]], on="field_id", how="left")
-    gdf["shs"] = gdf["shs"].fillna(metrics_df["shs"].mean())
-    
+    import geopandas as gpd
+
+    # Merge all metrics into boundaries — drop duplicate cols from metrics_df
+    merge_cols = [c for c in metrics_df.columns if c not in boundaries.columns or c == "field_id"]
+    gdf = boundaries.merge(metrics_df[merge_cols], on="field_id", how="left")
+    # Add rotation crop if available
+    if "predicted_next_crop" in gdf.columns:
+        crop_col = "predicted_next_crop"
+    else:
+        crop_col = None
+
     # Compute center from total bounds
-    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+    bounds = gdf.total_bounds
     center_lat = (bounds[1] + bounds[3]) / 2
     center_lon = (bounds[0] + bounds[2]) / 2
-    
+
     # Create map
-    m = folium.Map(location=[center_lat, center_lon], zoom_start=7,
-                   tiles="CartoDB positron", height=550)
-    
-    # Color scale using actual SHS range
-    shs_min = float(metrics_df["shs"].min())
-    shs_max = float(metrics_df["shs"].max())
-    colormap = linear.RdYlGn_11.scale(shs_min, shs_max)
-    colormap.caption = f"Soil Health Score ({shs_min:.1f} – {shs_max:.1f})"
-    
-    # Add each grower as a separate layer
-    for grower in growers:
-        grower_gdf = gdf[gdf["grower"] == grower].copy()
-        if len(grower_gdf) == 0:
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=6,
+                   tiles="CartoDB positron")
+
+    # Variable definitions: (layer_name, column, colormap, caption)
+    variables = [
+        ("Soil Health Score (SHS)", "shs", linear.RdYlGn_11,
+         "SHS: pH(25)+OM(25)+drainage(20)+AWC(20)+texture(10)"),
+        ("Sustainability Index (SI)", "si", linear.RdYlGn_11,
+         "SI: SHS×0.40 + rotation + weather + NDVI stability"),
+        ("NDVI Stability", "ndvi_stability_score", linear.RdYlGn_11,
+         "NDVI Stability: (1-CV/max_CV)×20"),
+        ("Weather Resilience", "weather_resilience", linear.RdYlGn_11,
+         "Weather: drought_score + heat_score"),
+        ("Rotation Score", "rotation_score", linear.RdYlGn_11,
+         "Rotation: Shannon_diversity/2.0×20"),
+    ]
+
+    for layer_name, col, cmap_factory, caption in variables:
+        vals = gdf[col].dropna()
+        if len(vals) == 0:
             continue
-        
-        feature_group = folium.FeatureGroup(name=f"{grower} ({len(grower_gdf)} fields)")
-        
-        for _, row in grower_gdf.iterrows():
-            color = colormap(row["shs"])
-            geo_json = folium.GeoJson(
+        vmin, vmax = float(vals.min()), float(vals.max())
+        colormap = cmap_factory.scale(vmin, vmax)
+        colormap.caption = f"{layer_name}  ({vmin:.1f} – {vmax:.1f})"
+
+        fg = folium.FeatureGroup(name=layer_name)
+
+        for _, row in gdf.iterrows():
+            val = row.get(col)
+            if pd.isna(val):
+                continue
+            color = colormap(val)
+            geo = folium.GeoJson(
                 row.geometry.__geo_interface__,
-                style_function=lambda feature, color=color: {
-                    "fillColor": color,
+                style_function=lambda feat, c=color: {
+                    "fillColor": c,
                     "color": "black",
-                    "weight": 1.5,
+                    "weight": 1.2,
                     "fillOpacity": 0.85,
                 },
-                tooltip=folium.Tooltip(
-                    f"<b>{row['field_id']}</b><br>SHS: {row['shs']:.1f}<br>Grower: {row['grower']}<br>Area: {row.get('area_acres', 'N/A')} ac"
-                ),
             )
-            geo_json.add_to(feature_group)
-        
-        feature_group.add_to(m)
-    
-    # Add layer control and legend
+
+            # Build popup with all variables
+            shs = row.get("shs", 0)
+            si = row.get("si", 0)
+            ndvi_s = row.get("ndvi_stability_score", 0)
+            weather = row.get("weather_resilience", 0)
+            rot = row.get("rotation_score", 0)
+            crop = row.get(crop_col, "N/A") if crop_col else "N/A"
+            area = row.get("area_acres", 0)
+            grower = row.get("grower", "")
+
+            popup_html = f"""
+            <div style="font-family:sans-serif;font-size:13px;min-width:260px;">
+              <h4 style="margin:0 0 6px 0;color:#1a5f2a;">{row['field_id']}</h4>
+              <p style="margin:2px 0;color:#666;"><b>Grower:</b> {grower} | <b>Area:</b> {area:.1f} ac | <b>Crop:</b> {crop}</p>
+              <hr style="margin:6px 0;border:0;border-top:1px solid #e0e0e0;">
+              <table style="width:100%;font-size:12px;border-collapse:collapse;">
+                <tr style="background:#f1f8e9;"><td><b>Variable</b></td><td><b>Value</b></td><td><b>Status</b></td></tr>
+                <tr><td>Soil Health Score</td><td>{shs:.1f}</td><td>{_shs_status(shs)}</td></tr>
+                <tr style="background:#fafafa;"><td>Sustainability Index</td><td>{si:.1f}</td><td>{_si_status(si)}</td></tr>
+                <tr><td>NDVI Stability</td><td>{ndvi_s:.1f}</td><td>{_ndvi_status(ndvi_s)}</td></tr>
+                <tr style="background:#fafafa;"><td>Weather Resilience</td><td>{weather:.1f}</td><td>{_weather_status(weather)}</td></tr>
+                <tr><td>Rotation Score</td><td>{rot:.1f}</td><td>{_rot_status(rot)}</td></tr>
+              </table>
+            </div>
+            """
+            geo.add_child(folium.Popup(popup_html, max_width=320))
+            geo.add_to(fg)
+
+        fg.add_to(m)
+        colormap.add_to(m)
+
     folium.LayerControl(collapsed=False).add_to(m)
-    colormap.add_to(m)
-    
-    # Return the raw HTML (extract just the map div content)
+
+    # Return raw HTML (folium embeds as iframe-friendly div)
     html_map = m._repr_html_()
     return html_map
 
@@ -151,17 +234,16 @@ def build_soil_texture(soil_scores: pd.DataFrame) -> str:
     texture_data = soil_scores.groupby("grower").agg({
         "clay_mean": "mean", "sand_mean": "mean", "silt_mean": "mean",
     }).reset_index()
-    
+
     fig, ax = plt.subplots(figsize=(8, 5))
     growers = texture_data["grower"].tolist()
     x = np.arange(len(growers))
     width = 0.25
-    
+
     bars1 = ax.bar(x - width, texture_data["clay_mean"], width, label="Clay %", color="#8d6e63", edgecolor="black", linewidth=0.5)
     bars2 = ax.bar(x, texture_data["sand_mean"], width, label="Sand %", color="#ffcc80", edgecolor="black", linewidth=0.5)
     bars3 = ax.bar(x + width, texture_data["silt_mean"], width, label="Silt %", color="#90a4ae", edgecolor="black", linewidth=0.5)
-    
-    # Add value labels on bars
+
     for bars in [bars1, bars2, bars3]:
         for bar in bars:
             height = bar.get_height()
@@ -169,7 +251,7 @@ def build_soil_texture(soil_scores: pd.DataFrame) -> str:
                         xy=(bar.get_x() + bar.get_width() / 2, height),
                         xytext=(0, 3), textcoords="offset points",
                         ha='center', va='bottom', fontsize=9, fontweight='bold')
-    
+
     ax.set_ylabel("Percentage (%)", fontsize=11)
     ax.set_title("Soil Particle Size Distribution by Grower", fontsize=13, fontweight="bold", pad=15)
     ax.set_xticks(x)
@@ -177,7 +259,7 @@ def build_soil_texture(soil_scores: pd.DataFrame) -> str:
     ax.legend(fontsize=10, loc="upper right")
     ax.set_ylim(0, max(texture_data[["clay_mean", "sand_mean", "silt_mean"]].max()) * 1.15)
     ax.grid(axis="y", alpha=0.3, linestyle="--")
-    
+
     plt.tight_layout()
     return _fig_to_base64(fig)
 
@@ -188,32 +270,30 @@ def build_ndvi_chart(year_ndvi: pd.DataFrame, year_focus: int) -> str:
         ax.text(0.5, 0.5, "No NDVI data available", ha="center", va="center", transform=ax.transAxes, fontsize=14)
         ax.set_axis_off()
         return _fig_to_base64(fig)
-    
+
     ndvi_sorted = year_ndvi.sort_values("mean_ndvi", ascending=True)
     ndvi_sorted["short_id"] = ndvi_sorted["field_id"].str.replace("osm-", "")
-    
+
     fig, ax = plt.subplots(figsize=(8, 6))
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
     colors = [grower_colors.get(g, "gray") for g in ndvi_sorted["grower"]]
-    
+
     bars = ax.barh(ndvi_sorted["short_id"], ndvi_sorted["mean_ndvi"], color=colors, edgecolor="black", linewidth=0.5)
-    
-    # Add value labels
+
     for bar, val in zip(bars, ndvi_sorted["mean_ndvi"]):
         ax.text(val + 0.005, bar.get_y() + bar.get_height()/2, f"{val:.3f}",
                 va="center", ha="left", fontsize=7, fontweight="bold")
-    
+
     ax.set_xlabel("Mean NDVI", fontsize=11)
-    ax.set_title(f"NDVI Performance by Field — {year_focus}\n(Calculated from Sentinel-2 satellite imagery, composite mean per field)", 
+    ax.set_title(f"NDVI Performance by Field — {year_focus}\n(Calculated from Sentinel-2 satellite imagery, composite mean per field)",
                  fontsize=12, fontweight="bold", pad=15)
     ax.set_xlim(0, ndvi_sorted["mean_ndvi"].max() * 1.15)
     ax.grid(axis="x", alpha=0.3, linestyle="--")
-    
-    # Legend
+
     from matplotlib.patches import Patch
     legend_elements = [Patch(facecolor=c, edgecolor="black", label=g) for g, c in grower_colors.items()]
     ax.legend(handles=legend_elements, loc="lower right", fontsize=9)
-    
+
     plt.tight_layout()
     return _fig_to_base64(fig)
 
@@ -224,37 +304,37 @@ def build_weather_chart(w2024: pd.DataFrame, year_focus: int) -> str:
         ax.text(0.5, 0.5, "No weather data available", ha="center", va="center", transform=ax.transAxes, fontsize=14)
         ax.set_axis_off()
         return _fig_to_base64(fig)
-    
+
     w2024["date"] = pd.to_datetime(w2024["date"])
     w2024["doy"] = w2024["date"].dt.dayofyear
     daily_grower = w2024.groupby(["doy", "grower"]).agg({
         "PRECTOTCORR": "mean", "T2M": "mean",
     }).reset_index()
-    
+
     fig, ax1 = plt.subplots(figsize=(10, 5))
     ax2 = ax1.twinx()
-    
+
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
-    
+
     for grower in sorted(daily_grower["grower"].unique()):
         gdata = daily_grower[daily_grower["grower"] == grower].sort_values("doy")
         gdata["precip_smooth"] = gdata["PRECTOTCORR"].rolling(window=7, min_periods=1).mean()
-        
-        ax1.plot(gdata["doy"], gdata["precip_smooth"], color=grower_colors.get(grower, "gray"), 
+
+        ax1.plot(gdata["doy"], gdata["precip_smooth"], color=grower_colors.get(grower, "gray"),
                  linewidth=2, label=f"{grower} Precip", alpha=0.9)
-        ax2.plot(gdata["doy"], gdata["T2M"], color=grower_colors.get(grower, "gray"), 
+        ax2.plot(gdata["doy"], gdata["T2M"], color=grower_colors.get(grower, "gray"),
                  linewidth=1.5, linestyle="--", alpha=0.7)
-    
+
     ax1.set_xlabel("Day of Year", fontsize=11)
     ax1.set_ylabel("Precipitation (mm, 7-day avg)", fontsize=11, color="#1565c0")
     ax1.tick_params(axis="y", labelcolor="#1565c0")
     ax2.set_ylabel("Temperature (°C)", fontsize=11, color="#c62828")
     ax2.tick_params(axis="y", labelcolor="#c62828")
-    
+
     ax1.set_title(f"Daily Precipitation & Temperature by Day of Year — {year_focus}", fontsize=13, fontweight="bold", pad=15)
     ax1.grid(True, alpha=0.3, linestyle="--")
     ax1.legend(loc="upper left", fontsize=9)
-    
+
     plt.tight_layout()
     return _fig_to_base64(fig)
 
@@ -265,18 +345,17 @@ def build_gdd_chart(w2024: pd.DataFrame, year_focus: int, weather_all: pd.DataFr
         ax.text(0.5, 0.5, "No GDD data available", ha="center", va="center", transform=ax.transAxes, fontsize=14)
         ax.set_axis_off()
         return _fig_to_base64(fig)
-    
+
     w2024["gdd_daily"] = ((w2024["T2M_MAX"] + w2024["T2M_MIN"]) / 2 - 10).clip(lower=0)
     gdd_grower = w2024.groupby(["date", "grower"]).agg({"gdd_daily": "mean"}).reset_index()
     gdd_grower["date"] = pd.to_datetime(gdd_grower["date"])
     gdd_grower["doy"] = gdd_grower["date"].dt.dayofyear
     gdd_grower = gdd_grower.sort_values(["grower", "doy"])
     gdd_grower["gdd_cum"] = gdd_grower.groupby("grower")["gdd_daily"].cumsum()
-    
+
     fig, ax = plt.subplots(figsize=(10, 5))
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
-    
-    # Plot 5-year average as faint dashed background if available
+
     if weather_all is not None and not weather_all.empty and "year" in weather_all.columns:
         other_years = weather_all[weather_all["year"] != year_focus].copy()
         if not other_years.empty and "T2M_MAX" in other_years.columns and "T2M_MIN" in other_years.columns:
@@ -290,19 +369,18 @@ def build_gdd_chart(w2024: pd.DataFrame, year_focus: int, weather_all: pd.DataFr
                 gdata = avg_gdd[avg_gdd["grower"] == grower]
                 ax.plot(gdata["doy"], gdata["gdd_cum"], color=grower_colors.get(grower, "gray"),
                         linewidth=1.5, linestyle="--", alpha=0.4)
-    
-    # Plot 2024 as solid bold lines
+
     for grower in sorted(gdd_grower["grower"].unique()):
         gdata = gdd_grower[gdd_grower["grower"] == grower]
-        ax.plot(gdata["doy"], gdata["gdd_cum"], color=grower_colors.get(grower, "gray"), 
+        ax.plot(gdata["doy"], gdata["gdd_cum"], color=grower_colors.get(grower, "gray"),
                 linewidth=2.5, label=f"{grower} {year_focus}", alpha=0.9)
-    
+
     ax.set_xlabel("Day of Year", fontsize=11)
     ax.set_ylabel("Cumulative GDD (°C, base 10°C)", fontsize=11)
     ax.set_title(f"Cumulative Growing Degree Days — {year_focus} vs Multi-Year Average", fontsize=13, fontweight="bold", pad=15)
     ax.grid(True, alpha=0.3, linestyle="--")
     ax.legend(fontsize=10, loc="upper left")
-    
+
     plt.tight_layout()
     return _fig_to_base64(fig)
 
@@ -313,6 +391,7 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     soil_raw = data["soil"]
     weather = data["weather"]
     ndvi_df = data["ndvi"]
+    rotation_df = data["rotation"]
 
     print(f"[Dashboard] Building for {len(boundaries)} fields")
 
@@ -328,6 +407,11 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     metrics_df = soil_scores.merge(
         sustainability.drop(columns=["shs"], errors="ignore"), on="field_id", how="left"
     )
+    # Add rotation crop info if available
+    if not rotation_df.empty and "predicted_next_crop" in rotation_df.columns:
+        metrics_df = metrics_df.merge(
+            rotation_df[["field_id", "predicted_next_crop"]], on="field_id", how="left"
+        )
 
     # KPIs
     total_fields = len(boundaries)
@@ -339,31 +423,30 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     w2024 = weather[weather["year"] == year_focus].copy() if weather is not None else pd.DataFrame()
     avg_rain = w2024["PRECTOTCORR"].sum() / len(boundaries.groupby("grower")) if not w2024.empty else 0.0
 
-    # === BUILD ALL CHARTS AS PNG ===
+    # === BUILD ALL CHARTS ===
     print("[Dashboard] Building interactive map...")
     map_html = build_map_interactive(boundaries, metrics_df)
-    
+
     print("[Dashboard] Building soil texture chart...")
     soil_b64 = build_soil_texture(soil_scores)
-    
+
     print("[Dashboard] Building NDVI chart...")
     ndvi_b64 = build_ndvi_chart(year_ndvi, year_focus)
-    
+
     print("[Dashboard] Building weather chart...")
     weather_b64 = build_weather_chart(w2024, year_focus)
-    
+
     print("[Dashboard] Building GDD chart...")
     gdd_b64 = build_gdd_chart(w2024, year_focus, weather)
 
     # === MEANINGFUL METRICS TABLE ===
     print("[Dashboard] Building metrics table...")
-    # Build transposed table: metrics as rows, growers + formula as columns
     growers_list = []
     for grower in ["Iowa", "Illinois", "Nebraska"]:
         gdf = metrics_df[metrics_df["grower"] == grower]
         if len(gdf) > 0:
             growers_list.append(grower)
-    
+
     metric_definitions = [
         ("Fields monitored", "Count of fields in dataset", "count"),
         ("Avg Soil Health Score (SHS)", "pH_score + OM_score + drainage_score + awc_score + texture_score (each 0-25/20/10 pts)", "shs"),
@@ -372,7 +455,7 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
         ("Weather Resilience", "(1 - drought_days/max_drought)×10 + (1 - heat_stress_days/max_heat)×10", "weather_resilience"),
         ("Rotation Score", "Shannon_diversity / 2.0 × 20.0 from 5-year CDL crop rotation data", "rotation_score"),
     ]
-    
+
     metric_rows = []
     for metric_name, formula, col in metric_definitions:
         row = {"Metric": metric_name, "Formula": formula}
@@ -385,35 +468,33 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
             else:
                 row[grower] = "N/A"
         metric_rows.append(row)
-    
+
     metrics_table_df = pd.DataFrame(metric_rows)
 
     # === 5 ANALYTICAL KEY HIGHLIGHTS ===
     print("[Dashboard] Generating highlights...")
     highlights = []
-    
+
     best = metrics_df.loc[metrics_df["shs"].idxmax()]
     worst = metrics_df.loc[metrics_df["shs"].idxmin()]
     shs_by_grower = metrics_df.groupby("grower")["shs"].mean().sort_values(ascending=False)
     si_by_grower = metrics_df.groupby("grower")["si"].mean().sort_values(ascending=False)
     acres_by_grower = boundaries.groupby("grower")["area_acres"].sum().sort_values(ascending=False)
-    
-    # 1. Patterns / trends observed
+
     ndvi_text = ""
     if not year_ndvi.empty:
         ndvi_by_grower = year_ndvi.groupby("grower")["mean_ndvi"].mean().sort_values(ascending=False)
         ndvi_text = f" NDVI follows an inverse pattern — Illinois (most rain) shows highest vigor ({ndvi_by_grower.iloc[0]:.3f}) despite lowest soil health, suggesting rainfall may compensate for poorer soil conditions."
-    
+
     precip_text = ""
     if not w2024.empty:
         total_precip = w2024.groupby("grower")["PRECTOTCORR"].sum().sort_values(ascending=False)
         precip_text = f" Rainfall and soil health show an inverse relationship: {total_precip.index[0]} received the most precipitation ({total_precip.iloc[0]:.0f}mm) but has the lowest average soil health ({shs_by_grower.iloc[-1]:.1f}), while {total_precip.index[-1]} is driest ({total_precip.iloc[-1]:.0f}mm) yet leads in soil health ({shs_by_grower.iloc[0]:.1f})."
-    
+
     highlights.append(
         f"<strong>Patterns observed:</strong> A clear geographic gradient emerges — Nebraska fields dominate soil health (avg {shs_by_grower.iloc[0]:.1f}), Illinois lags ({shs_by_grower.iloc[-1]:.1f}), and Iowa sits in between.{precip_text}{ndvi_text}"
     )
-    
-    # 2. Healthiest vs most at-risk fields
+
     worst_ndvi = year_ndvi.loc[year_ndvi["mean_ndvi"].idxmin()] if not year_ndvi.empty else None
     worst_si = metrics_df.loc[metrics_df["si"].idxmin()]
     at_risk = []
@@ -425,20 +506,17 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     highlights.append(
         f"<strong>Field health assessment:</strong> Best-performing field is {best['field_id']} (SHS {best['shs']:.1f}) in {best['grower']}, indicating strong pH, organic matter, and drainage. Most at-risk: {worst['field_id']} ({worst['grower']}) with {at_risk_text}. Priority for targeted soil amendment (lime, organic matter, drainage improvement)."
     )
-    
-    # 3. Environmental / soil variation
+
     soil_cv = (metrics_df["shs"].std() / metrics_df["shs"].mean() * 100)
     area_text = f"Field sizes range from {boundaries['area_acres'].min():.0f} to {boundaries['area_acres'].max():.0f} acres, averaging {boundaries['area_acres'].mean():.0f} acres."
     highlights.append(
         f"<strong>Environmental variation:</strong> Soil health varies by {soil_cv:.1f}% CV across all fields — a substantial {metrics_df['shs'].max() - metrics_df['shs'].min():.1f}-point spread. Within Illinois alone, SHS ranges {metrics_df[metrics_df['grower']=='Illinois']['shs'].min():.1f}–{metrics_df[metrics_df['grower']=='Illinois']['shs'].max():.1f}, showing high internal heterogeneity driven by texture differences (high sand = low SHS). {area_text}"
     )
-    
-    # 4. Decisions / actions
+
     highlights.append(
         f"<strong>Actionable insights:</strong> (1) <em>Lime and organic matter programs</em> should target Illinois sandier fields (SHS < 65) where pH and OM are limiting. (2) <em>Irrigation investment</em> may benefit Nebraska's drier climate despite strong soil — GDD analysis shows heat accumulation but rainfall deficit. (3) <em>Iowa's balanced profile</em> (SHS 83.4, moderate rain) supports maintaining current practices with precision-variable-rate fertilizer to preserve soil health. (4) <em>Cover cropping</em> could improve NDVI stability scores in fields with high year-to-year variation."
     )
-    
-    # 5. Most important variables
+
     highlights.append(
         f"<strong>Key drivers:</strong> Soil Health Score is the dominant variable — it explains {metrics_df['shs'].corr(metrics_df['si']):.0%} of Sustainability Index variation. Within SHS, organic matter and pH together contribute 50 points, making them the most leverageable inputs. Weather resilience (drought + heat stress) is the second-largest SI driver; Nebraska's poor weather resilience (1.0) drags down its otherwise excellent soil, dropping its SI below Iowa's despite higher SHS. NDVI stability adds the least variance, suggesting satellite vigor is more an outcome than a driver of field health."
     )
@@ -451,11 +529,14 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
         full_table = full_table.merge(metrics_df[["field_id", "ndvi_stability_score"]], on="field_id", how="left")
     if "weather_resilience" in metrics_df.columns:
         full_table = full_table.merge(metrics_df[["field_id", "weather_resilience"]], on="field_id", how="left")
-    
+    if "predicted_next_crop" in metrics_df.columns:
+        full_table = full_table.merge(metrics_df[["field_id", "predicted_next_crop"]], on="field_id", how="left")
+
     full_table = full_table.rename(columns={
         "field_id": "Field ID", "grower": "Grower", "area_acres": "Area (ac)",
         "shs": "Soil Health", "si": "Sustainability", "mean_ndvi": "NDVI 2024",
         "ndvi_stability_score": "NDVI Stability", "weather_resilience": "Weather Resilience",
+        "predicted_next_crop": "Crop",
     }).round({"Area (ac)": 1, "Soil Health": 1, "Sustainability": 1, "NDVI 2024": 3, "NDVI Stability": 1, "Weather Resilience": 1})
 
     # === RENDER HTML ===
@@ -492,6 +573,7 @@ tr:hover {{ background: #f9f9f9; }}
 .table-wrap {{ max-height: 400px; overflow-y: auto; border-radius: 8px; border: 1px solid #e0e0e0; }}
 .metrics-explanation {{ font-size: 12px; color: #555; margin-top: 12px; line-height: 1.6; background: #fafafa; padding: 14px; border-radius: 6px; border-left: 3px solid #4caf50; }}
 .ndvi-explanation {{ font-size: 12px; color: #555; margin-top: 10px; line-height: 1.5; background: #f5f5f5; padding: 10px; border-radius: 4px; }}
+.map-note {{ font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 10px; line-height: 1.5; }}
 </style>
 </head>
 <body>
@@ -511,13 +593,12 @@ tr:hover {{ background: #f9f9f9; }}
   </div>
 
   <div class="row-full">
-    <div class="panel-full">
+    <div class="panel-full" style="padding-bottom: 10px;">
       <h3>Field Boundaries by Grower (Colored by Soil Health Score)</h3>
-      <p style="font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 10px;">
-        <em>Interactive map — zoom and pan to inspect individual fields. Toggle growers with layer control (top right). Hover for field details.</em><br>
-        <strong>SHS formula:</strong> pH_score(25) + OM_score(25) + drainage(20) + AWC(20) + texture(10) &nbsp;|&nbsp; Range: {metrics_df["shs"].min():.1f}–{metrics_df["shs"].max():.1f}
+      <p class="map-note">
+        <em>Interactive map — click any field polygon to see all variables. Toggle symbology layer in top-right (default: SHS). Pan and zoom to inspect.</em>
       </p>
-      {map_html}
+      <div style="width:100%;">{map_html}</div>
     </div>
   </div>
 

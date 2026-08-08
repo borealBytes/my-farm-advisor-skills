@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This folder owns the interactive dashboard generation skill for the My Farm Advisor umbrella. It produces self-contained Plotly HTML dashboards from integrated farm-pipeline data.
+This folder owns the interactive dashboard generation skill for the My Farm Advisor umbrella. It produces self-contained HTML dashboards from integrated farm-pipeline data.
 
 ## Safe Edit Scope
 
@@ -16,54 +16,38 @@ Read `README.md` first for usage, then `SKILL.md` for routing context. Open `src
 
 - `DATA_PIPELINE_DATA_ROOT` is required and must be an absolute writable path outside the skill checkout.
 - The dashboard reads data from the runtime tree at `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower>/`.
-- Generated outputs (HTML, PNG) belong under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower>/derived/reports/` and must stay out of Git.
-- The dashboard uses the existing pipeline venv at `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv`.
-- Plotly and Kaleido must be installed in that venv:
+- Generated outputs (HTML) belong under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/all/derived/reports/` and must stay out of Git.
+- The dashboard uses system Python (or the existing pipeline venv) with these dependencies:
   ```bash
-  "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/pip" install plotly kaleido
+  pip install pandas numpy matplotlib plotly geopandas folium branca rasterio rasterstats
   ```
 
 ## Command Runbook
 
-### Generate dashboard for a grower
+### Generate multi-grower dashboard (default)
 
 ```bash
 export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
 cd my-farm-advisor/dashboard
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py --grower-slug ia-grower
+python3 src/grower_dashboard.py
 ```
 
-### Generate with specific year focus and PNG fallback
+### Generate with specific year focus
 
 ```bash
 export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py \
-  --grower-slug ia-grower \
-  --year-focus 2024 \
-  --png-fallback \
-  --verbose
-```
-
-### Generate for a specific farm
-
-```bash
-export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py \
-  --grower-slug ia-grower \
-  --farm-slug ia-grower-iowa \
-  --verbose
+python3 src/grower_dashboard.py --year 2023
 ```
 
 ## Data Dependencies
 
-The dashboard expects these runtime files to exist for the target grower/farm:
+The dashboard expects these runtime files to exist for each grower:
 
 | File Pattern | Purpose |
 |-------------|---------|
 | `boundary/field_boundaries.geojson` | Field polygons + acreage |
 | `derived/tables/*_fields_soil.csv` | SSURGO horizon data per field |
 | `derived/tables/*_weather_YYYY_YYYY.csv` | Daily NASA POWER weather |
-| `derived/tables/*_YYYY_cdl.csv` | CDL crop classification per year |
 | `derived/tables/*_crop_rotation.csv` | 5-year rotation summary |
 | `fields/<field>/derived/features/ndvi_year_YYYY_composite.tif` | Per-field-year NDVI composite |
 
@@ -78,12 +62,12 @@ cd ../..
 ./scripts/validate.sh
 ```
 
-For functional testing, run the dashboard against the default grower and inspect the output HTML:
+For functional testing, run the dashboard and inspect the output HTML:
 
 ```bash
 export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
 cd my-farm-advisor/dashboard
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py --grower-slug ia-grower --verbose
+python3 src/grower_dashboard.py
 ```
 
 ## Local-Delta-Only Reminder

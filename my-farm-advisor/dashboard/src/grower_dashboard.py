@@ -2,8 +2,25 @@
 """
 grower_dashboard.py — Multi-Grower Field Intelligence Dashboard v6
 
-Interactive Folium map with variable-layer toggling.
-All other charts rendered as static matplotlib PNG.
+Generates a self-contained HTML dashboard integrating all field-level data
+from the My Farm Advisor data pipeline across 3 growers (Iowa, Illinois, Nebraska).
+
+Dashboard components:
+  - Interactive Folium map with 5 toggleable variable layers (SHS, SI, NDVI
+    Stability, Weather Resilience, Rotation Score). Click any field polygon to
+    see a popup with all 5 variables, 5-tier status labels, grower, acreage,
+    and predicted crop.
+  - Static matplotlib PNG charts: soil texture, NDVI ranking, weather DOY,
+    GDD multi-year comparison.
+  - Sustainability metrics table with inline formulas.
+  - Field Data Summary table (30 rows).
+  - 5 analytical Key Highlights.
+
+Usage:
+    python3 src/grower_dashboard.py [--year YYYY]
+
+Output:
+    ${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/all/derived/reports/grower_dashboard.html
 """
 
 from __future__ import annotations
@@ -594,7 +611,7 @@ tr:hover {{ background: #f9f9f9; }}
 
   <div class="row-full">
     <div class="panel-full" style="padding-bottom: 10px;">
-      <h3>Field Boundaries by Grower (Colored by Soil Health Score)</h3>
+      <h3>Field Boundaries by Grower</h3>
       <p class="map-note">
         <em>Interactive map — click any field polygon to see all variables. Toggle symbology layer in top-right (default: SHS). Pan and zoom to inspect.</em>
       </p>
@@ -658,7 +675,7 @@ tr:hover {{ background: #f9f9f9; }}
   </div>
 
   <div class="highlights">
-    <h3>🔑 Key Highlights</h3>
+    <h3>Key Highlights</h3>
     <ul>
       <li>{highlights[0]}</li>
       <li>{highlights[1]}</li>

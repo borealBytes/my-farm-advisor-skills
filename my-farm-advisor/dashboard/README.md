@@ -1,27 +1,32 @@
 # My Farm Advisor Dashboard
 
-Interactive grower-level agricultural intelligence dashboard built with **Plotly**.
+Interactive multi-grower agricultural intelligence dashboard. Generates a single self-contained `.html` file integrating field boundaries, soil health, weather, NDVI, and sustainability metrics across all growers in the runtime dataset.
 
 ## What It Does
 
-This skill generates a single, self-contained `.html` file that integrates all field-level data from the My Farm Advisor data pipeline into an interactive decision-support dashboard. No web server is required — open the file in any browser.
+This skill generates a single, self-contained `grower_dashboard.html` file that integrates all field-level data from the My Farm Advisor data pipeline into an interactive decision-support dashboard. No web server is required — open the file in any browser.
 
 ### Dashboard Sections
 
-1. **KPI Summary Cards** — Total fields, total acres, average peak NDVI, average growing-season rainfall, average Soil Health Score, and Sustainability Index.
-2. **Soil Variability Explorer** — Scatter plot of pH vs. Organic Matter, sized by field area, colored by drainage class.
-3. **Field Performance Ranking** — Horizontal bar chart ranking fields by mean peak NDVI (computed from composite TIFFs via `rasterstats`).
-4. **Interactive Geospatial Map** — Field boundaries colored by Soil Health Score with click popups showing acres, crop, pH, OM, drainage, and NDVI.
-5. **Weather & Climate Analysis** — Dual-axis chart of monthly precipitation and temperature, plus Growing Degree Day (GDD) accumulation curves.
-6. **Soil Health & Sustainability** — Gauge charts, distribution histograms, Conservation Priority ranking, and metric explanations.
+1. **KPI Summary Cards** — Total fields, total acres, average NDVI, average growing-season rainfall, average Soil Health Score, and Sustainability Index.
+2. **Interactive Geospatial Map** — Field boundaries colored by selectable variable (Soil Health Score, Sustainability Index, NDVI Stability, Weather Resilience, or Rotation Score). Click any field polygon to open a popup showing all 5 variables with 5-tier status labels, plus grower name, acreage, and predicted crop.
+3. **Soil Particle Size Distribution** — Grouped bar chart showing clay/sand/silt percentages for each grower, with value labels.
+4. **NDVI Performance Ranking** — Horizontal bar chart ranking all 30 fields by mean NDVI, color-coded by grower, with value labels.
+5. **Weather & Climate Analysis** — Dual-axis chart of daily precipitation (7-day rolling average) and temperature by Day of Year for all 3 growers.
+6. **Growing Degree Days** — Cumulative GDD curves for 2024 vs. multi-year average (2021–2025), with climate anomaly context.
+7. **Sustainability Metrics by Grower** — Table showing each metric with its exact calculation formula, plus grower averages.
+8. **Field Data Summary** — 30-row table with all per-field metrics.
+9. **Key Highlights** — 5 analytical bullets covering patterns, health assessment, environmental variation, actionable insights, and key drivers.
 
 ### Custom Metrics
 
 | Metric | Range | Description |
 |--------|-------|-------------|
-| **Soil Health Score (SHS)** | 0–100 | Composite of pH balance, organic matter, drainage quality, water holding capacity, and texture balance |
-| **Sustainability Index (SI)** | 0–100 | Weighted composite: SHS (40%) + rotation diversity (20%) + weather stress resilience (20%) + NDVI stability (20%) |
-| **Conservation Priority** | 0–100 | Inverse of SI; fields > 60 flagged for conservation review |
+| **Soil Health Score (SHS)** | 0–100 | Composite of pH balance (25 pts), organic matter (25 pts), drainage class (20 pts), available water capacity (20 pts), and texture balance (10 pts) |
+| **Sustainability Index (SI)** | 0–100 | Weighted composite: SHS (40%) + rotation diversity score (20%) + weather stress resilience (20%) + NDVI stability score (20%) |
+| **NDVI Stability Score** | 0–20 | Based on coefficient of variation of mean NDVI across years; lower variability = higher score |
+| **Weather Resilience** | 0–20 | Drought score + heat stress score; fewer stress days = higher resilience |
+| **Rotation Score** | 0–20 | Shannon diversity index of crop types across 5 years of CDL data, scaled to 0–20 |
 
 ## Prerequisites
 
@@ -31,73 +36,90 @@ This skill generates a single, self-contained `.html` file that integrates all f
    cd my-farm-advisor/data-pipeline
    ./scripts/install.sh
    ```
-2. Plotly and Kaleido must be installed in the pipeline venv:
+2. Install dependencies in the pipeline venv or system Python:
    ```bash
-   "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/pip" install plotly kaleido
+   pip install pandas numpy matplotlib plotly geopandas folium branca rasterio rasterstats
    ```
 
 ## Running the Dashboard
 
-### Basic Usage
+### Multi-Grower Dashboard (Default)
 
-Generate the dashboard for a specific grower:
+Generate the combined dashboard for all 3 growers (Iowa, Illinois, Nebraska):
 
 ```bash
 cd my-farm-advisor/dashboard
 export DATA_PIPELINE_DATA_ROOT=/home/coder/my-farm-advisor-runtime
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py --grower-slug ia-grower
+python3 src/grower_dashboard.py
 ```
 
 ### Command-Line Options
 
 | Flag | Description | Default |
 |------|-------------|---------|
-| `--grower-slug` | Grower identifier (required) | — |
-| `--farm-slug` | Farm identifier (auto-discovered if omitted) | first farm under grower |
-| `--output-dir` | Directory to write the HTML output | `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower>/derived/reports` |
-| `--year-focus` | Focus year for NDVI and weather analysis | most recent year with data |
-| `--png-fallback` | Also export a static PNG using Kaleido | False |
-| `--verbose` | Print detailed progress | False |
+| `--data-root` | Path to data-pipeline root | `/home/coder/my-farm-advisor-runtime/data-pipeline` |
+| `--output-dir` | Directory to write the HTML output | `.../growers/all/derived/reports` |
+| `--year` | Focus year for analysis | `2024` |
 
-### Example: Generate with PNG fallback
+### Example: Generate with specific year
 
 ```bash
-"${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv/bin/python" src/grower_dashboard.py \
-  --grower-slug ia-grower \
-  --year-focus 2024 \
-  --png-fallback \
-  --verbose
+python3 src/grower_dashboard.py --year 2023
 ```
 
 ## Output Files
 
 | File | Location | Description |
 |------|----------|-------------|
-| `grower_dashboard.html` | `growers/<grower>/derived/reports/` | Interactive Plotly dashboard |
-| `grower_dashboard.png` | `growers/<grower>/derived/reports/` | Static PNG fallback (if `--png-fallback`) |
+| `grower_dashboard.html` | `growers/all/derived/reports/` | Interactive dashboard (map + static PNG charts) |
+
+The dashboard is self-contained — all charts are embedded as base64 PNG or inline Folium/Leaflet JavaScript. No external server needed.
+
+## Where to Find the Dashboard in Runtime
+
+After generation, the dashboard HTML is written to:
+
+```
+${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/all/derived/reports/grower_dashboard.html
+```
+
+Example full path:
+```
+/home/coder/my-farm-advisor-runtime/data-pipeline/growers/all/derived/reports/grower_dashboard.html
+```
 
 ## Interpretation Guide
 
 The dashboard includes inline interpretive text to help users turn data into decisions:
 
-- **Soil Health patterns:** "Fields with higher organic matter and well-drained soils show consistently higher NDVI values."
-- **NDVI trends:** "Declining NDVI across multiple years may signal compaction, nutrient depletion, or drainage issues."
-- **Weather stress:** "Fields experiencing > 15 drought-stress days during the growing season show reduced peak NDVI by an average of 0.08."
-- **Conservation priority:** "Fields flagged as Conservation Priority should be prioritized for cover-crop trials, reduced tillage, or tile-drainage evaluation."
+- **Soil Health patterns:** Nebraska fields dominate soil health (avg 85.0) while Illinois trails (71.8), driven by texture differences (high sand = low SHS).
+- **NDVI trends:** Illinois shows highest vegetation vigor (NDVI 0.381) despite lowest soil health, suggesting rainfall compensates for poorer soil.
+- **Weather stress:** Illinois received the most rainfall (10,157mm) but Nebraska is driest (6,847mm); Nebraska's poor weather resilience (1.0) drags its SI below Iowa's despite higher SHS.
+- **Actionable insights:** Lime and organic matter programs should target Illinois sandy fields (SHS < 65); irrigation may benefit Nebraska; Iowa's balanced profile supports precision fertilizer.
 
 ## Data Sources Integrated
 
 | Data | Source | Files Used |
 |------|--------|------------|
 | Field Boundaries | OpenStreetMap / Farm pipeline | `boundary/field_boundaries.geojson` |
-| Soil | NRCS SSURGO | `derived/tables/*_fields_soil.csv`, `soil/ssurgo_summary.csv` |
+| Soil | NRCS SSURGO | `derived/tables/*_fields_soil.csv` |
 | Weather | NASA POWER | `derived/tables/*_weather_YYYY_YYYY.csv` |
-| Crops | USDA NASS CDL | `derived/tables/*_YYYY_cdl.csv`, `*_crop_rotation.csv` |
-| NDVI | Sentinel-2 / Landsat composites | `derived/features/ndvi_year_YYYY_composite.tif` |
+| Crops / Rotation | USDA NASS CDL | `derived/tables/*_crop_rotation.csv` |
+| NDVI | Sentinel-2 composites | `fields/<field>/derived/features/ndvi_year_YYYY_composite.tif` |
 
-## AI Assistance Documentation
+## Dependencies
 
-See [`AI_DOCUMENTATION.md`](AI_DOCUMENTATION.md) for a transparent record of how AI tools assisted in the design, coding, and debugging of this dashboard.
+| Package | Purpose |
+|---------|---------|
+| `pandas` | Data loading, merging, aggregation |
+| `numpy` | Numerical operations, score computation |
+| `matplotlib` | Static chart rendering (soil texture, NDVI, weather, GDD) |
+| `plotly` | (Available but not used in current version; kept for compatibility) |
+| `geopandas` | GeoJSON boundary handling for Folium map |
+| `folium` | Interactive Leaflet map with layer control |
+| `branca` | Color ramps for Folium |
+| `rasterio` | TIFF reading for NDVI extraction |
+| `rasterstats` | Zonal statistics on NDVI composite TIFFs |
 
 ## File Structure
 
@@ -107,15 +129,16 @@ dashboard/
 ├── README.md                 # This file
 ├── AGENTS.md                 # Agent runtime instructions
 ├── INDEX.md                  # Subtree navigation
-├── requirements.txt          # plotly, kaleido
+├── requirements.txt          # Python dependencies
 ├── AI_DOCUMENTATION.md       # AI usage log
+├── DASHBOARD_INFO.md         # Supplementary: project overview, dataset, interpretation
 └── src/
-    ├── grower_dashboard.py     # Main orchestrator
+    ├── grower_dashboard.py     # Main orchestrator (v6: multi-grower, interactive Folium map)
     └── lib/
         ├── data_loader.py    # Load & merge all data sources
-        ├── metrics.py        # Compute SHS, SI, conservation priority
+        ├── metrics.py        # Compute SHS, SI, weather resilience, NDVI stability, rotation score
         ├── ndvi_extractor.py # rasterstats zonal stats on composite TIFFs
-        └── geospatial.py     # Build Plotly choropleth map
+        └── geospatial.py     # Geospatial helpers
 ```
 
 ## License

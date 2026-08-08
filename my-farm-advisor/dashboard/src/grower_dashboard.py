@@ -84,54 +84,67 @@ def load_all_growers(data_root: Path, year_focus: int = 2024) -> dict[str, Any]:
     return combined
 
 
-def build_map_per_grower(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> str:
-    import geopandas as gpd
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6.5), gridspec_kw={"width_ratios": [1, 1, 1]})
+def build_map_interactive(boundaries: pd.DataFrame, metrics_df: pd.DataFrame) -> str:
+    """Build an interactive Folium map with GeoJSON polygons colored by SHS."""
+    import folium
+    from branca.colormap import linear
+    import json
+    
     growers = ["Iowa", "Illinois", "Nebraska"]
     grower_colors = {"Iowa": "#4caf50", "Illinois": "#2196f3", "Nebraska": "#ff9800"}
     
-    # Use actual SHS range for color normalization so variation is visible
-    shs_min = metrics_df["shs"].min()
-    shs_max = metrics_df["shs"].max()
-    vmin = max(0, shs_min - 5)
-    vmax = min(100, shs_max + 3)
+    # Merge SHS into boundaries
+    gdf = boundaries.merge(metrics_df[["field_id", "shs"]], on="field_id", how="left")
+    gdf["shs"] = gdf["shs"].fillna(metrics_df["shs"].mean())
     
-    for ax, grower in zip(axes, growers):
-        gdf = boundaries[boundaries["grower"] == grower].copy()
-        if len(gdf) == 0:
-            ax.text(0.5, 0.5, f"No data for {grower}", ha="center", va="center", transform=ax.transAxes, fontsize=12)
+    # Compute center from total bounds
+    bounds = gdf.total_bounds  # [minx, miny, maxx, maxy]
+    center_lat = (bounds[1] + bounds[3]) / 2
+    center_lon = (bounds[0] + bounds[2]) / 2
+    
+    # Create map
+    m = folium.Map(location=[center_lat, center_lon], zoom_start=7,
+                   tiles="CartoDB positron", height=550)
+    
+    # Color scale using actual SHS range
+    shs_min = float(metrics_df["shs"].min())
+    shs_max = float(metrics_df["shs"].max())
+    colormap = linear.RdYlGn_11.scale(shs_min, shs_max)
+    colormap.caption = f"Soil Health Score ({shs_min:.1f} – {shs_max:.1f})"
+    
+    # Add each grower as a separate layer
+    for grower in growers:
+        grower_gdf = gdf[gdf["grower"] == grower].copy()
+        if len(grower_gdf) == 0:
             continue
-        gdf = gdf.merge(metrics_df[["field_id", "shs"]], on="field_id", how="left")
         
-        # Ensure all fields have a valid SHS for coloring
-        gdf["shs"] = gdf["shs"].fillna(metrics_df["shs"].mean())
+        feature_group = folium.FeatureGroup(name=f"{grower} ({len(grower_gdf)} fields)")
         
-        # Plot with fully opaque fill so every field is clearly visible
-        gdf.plot(
-            column="shs", cmap="RdYlGn", linewidth=1.5, edgecolor="black",
-            alpha=0.95, ax=ax, vmin=vmin, vmax=vmax, legend=False,
-        )
+        for _, row in grower_gdf.iterrows():
+            color = colormap(row["shs"])
+            geo_json = folium.GeoJson(
+                row.geometry.__geo_interface__,
+                style_function=lambda feature, color=color: {
+                    "fillColor": color,
+                    "color": "black",
+                    "weight": 1.5,
+                    "fillOpacity": 0.85,
+                },
+                tooltip=folium.Tooltip(
+                    f"<b>{row['field_id']}</b><br>SHS: {row['shs']:.1f}<br>Grower: {row['grower']}<br>Area: {row.get('area_acres', 'N/A')} ac"
+                ),
+            )
+            geo_json.add_to(feature_group)
         
-        ax.set_title(f"{grower} ({len(gdf)} fields)", fontsize=13, fontweight="bold", color=grower_colors.get(grower, "black"), pad=10)
-        ax.set_xlabel("Longitude", fontsize=9)
-        ax.set_ylabel("Latitude", fontsize=9)
-        ax.grid(True, alpha=0.3, linestyle="--")
-        ax.set_aspect("equal", adjustable="datalim")
+        feature_group.add_to(m)
     
-    # Vertical colorbar on the right — uses actual data range
-    sm = plt.cm.ScalarMappable(cmap="RdYlGn", norm=plt.Normalize(vmin=vmin, vmax=vmax))
-    sm.set_array([])
-    cbar_ax = fig.add_axes([0.92, 0.15, 0.015, 0.7])
-    cbar = fig.colorbar(sm, cax=cbar_ax, orientation="vertical")
-    cbar.set_label(f"Soil Health Score ({vmin:.0f}–{vmax:.0f})", fontsize=11, fontweight="bold")
-    cbar.ax.tick_params(labelsize=9)
+    # Add layer control and legend
+    folium.LayerControl(collapsed=False).add_to(m)
+    colormap.add_to(m)
     
-    fig.suptitle("Field Boundaries by Grower — Colored by Soil Health Score", fontsize=15, fontweight="bold", y=0.98)
-    fig.text(0.5, 0.93, "SHS = pH_score(25) + OM_score(25) + drainage(20) + AWC(20) + texture(10)  |  Range: {:.1f}–{:.1f}".format(shs_min, shs_max),
-             ha="center", fontsize=10, style="italic", color="#555")
-    plt.tight_layout(rect=[0.02, 0.02, 0.90, 0.92])
-    
-    return _fig_to_base64(fig)
+    # Return the raw HTML (extract just the map div content)
+    html_map = m._repr_html_()
+    return html_map
 
 
 def build_soil_texture(soil_scores: pd.DataFrame) -> str:
@@ -327,8 +340,8 @@ def build_dashboard(data: dict[str, Any], output_dir: Path) -> str:
     avg_rain = w2024["PRECTOTCORR"].sum() / len(boundaries.groupby("grower")) if not w2024.empty else 0.0
 
     # === BUILD ALL CHARTS AS PNG ===
-    print("[Dashboard] Building map...")
-    map_b64 = build_map_per_grower(boundaries, metrics_df)
+    print("[Dashboard] Building interactive map...")
+    map_html = build_map_interactive(boundaries, metrics_df)
     
     print("[Dashboard] Building soil texture chart...")
     soil_b64 = build_soil_texture(soil_scores)
@@ -500,7 +513,11 @@ tr:hover {{ background: #f9f9f9; }}
   <div class="row-full">
     <div class="panel-full">
       <h3>Field Boundaries by Grower (Colored by Soil Health Score)</h3>
-      <img class="chart-img" src="data:image/png;base64,{map_b64}" alt="Field Map">
+      <p style="font-size: 12px; color: #666; margin-top: -10px; margin-bottom: 10px;">
+        <em>Interactive map — zoom and pan to inspect individual fields. Toggle growers with layer control (top right). Hover for field details.</em><br>
+        <strong>SHS formula:</strong> pH_score(25) + OM_score(25) + drainage(20) + AWC(20) + texture(10) &nbsp;|&nbsp; Range: {metrics_df["shs"].min():.1f}–{metrics_df["shs"].max():.1f}
+      </p>
+      {map_html}
     </div>
   </div>
 

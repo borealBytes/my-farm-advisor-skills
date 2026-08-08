@@ -10,6 +10,10 @@ build/
 out/
 coverage/
 *.log
+output/
+
+# Allow Assignment 3 dashboard outputs (plural 'outputs' is distinct from ignored 'output/')
+!data-pipeline/dashboard/outputs/
 
 # Runtime geodata payloads
 countries.geojson

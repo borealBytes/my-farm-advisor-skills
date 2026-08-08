@@ -10,6 +10,7 @@ Use this skill when the request is fundamentally about fields, crops, weather, s
 - Connects field operations, data rebuilds, imagery, soil, weather, and strategy work into one coherent system.
 - Preserves a field-level source of truth so summaries and recommendations stay traceable.
 - Provides both quick guidance docs and scoped agent instructions for repeatable farm workflows.
+- Generates interactive, self-contained HTML dashboards via [Dashboard](dashboard/) for grower-level field intelligence.
 - Anchors the farm-specific skill layer that sits on top of upstream OpenClaw.
 
 ## Canonical Farm Data Structure

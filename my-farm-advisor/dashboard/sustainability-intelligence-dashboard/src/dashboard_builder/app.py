@@ -909,7 +909,7 @@ class DashboardBuilder:
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
-        body {{ font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; margin: 0; }}
+        body {{ font-family: 'Segoe UI', Arial, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; flex-direction: column; height: 100vh; }}
 
         .header-bar {{
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
@@ -946,26 +946,22 @@ class DashboardBuilder:
         .kpi-unit {{ font-size: 0.6rem; color: rgba(255,255,255,0.5); }}
 
         .main-container {{
+            flex: 1;
             display: flex;
             gap: 15px;
-            padding: 15px;
-            height: calc(100vh - 60px);
-        }}
-        .left-panel {{
-            flex: 1.6;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            min-width: 0;
+            padding: 15px 15px 0 15px;
+            min-height: 0;
+            overflow: hidden;
         }}
         .map-panel {{
-            flex: 1;
+            flex: 1.6;
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
             overflow: hidden;
             display: flex;
             flex-direction: column;
+            min-width: 0;
             min-height: 0;
         }}
         .map-header {{
@@ -1070,6 +1066,16 @@ class DashboardBuilder:
             margin: 0 0 10px 0;
         }}
 
+        .bottom-bar {{
+            display: flex;
+            gap: 15px;
+            padding: 15px;
+            flex-shrink: 0;
+            min-height: 0;
+        }}
+        .bottom-bar .time-slider-container {{ flex: 1; min-width: 0; }}
+        .bottom-bar .nl-summary {{ flex: 1; min-width: 0; }}
+
         .chart-panel {{
             flex: 1;
             display: flex;
@@ -1172,9 +1178,10 @@ class DashboardBuilder:
         .info-box strong {{ color: #2a5298; }}
 
         @media (max-width: 992px) {{
-            .main-container {{ flex-direction: column; height: auto; }}
+            body {{ height: auto; }}
+            .main-container {{ flex-direction: column; height: auto; overflow: visible; }}
             .chart-panel {{ max-width: 100%; min-width: auto; }}
-            .left-panel {{ min-width: auto; }}
+            .bottom-bar {{ flex-direction: column; }}
         }}
     </style>
 </head>
@@ -1190,30 +1197,15 @@ class DashboardBuilder:
     </div>
 
     <div class="main-container">
-        <div class="left-panel">
-            <div class="map-panel">
-                <div class="map-header">
-                    <span style="margin-right: 10px;">&#127758;</span> Interactive Field Map
-                    <span style="float:right; font-weight:400; font-size:0.75rem; color:#6c757d;">
-                        Toggle layers (top-right) for drainage class & NDVI
-                    </span>
-                </div>
-                <div class="map-body">
-                    {map_html}
-                </div>
+        <div class="map-panel">
+            <div class="map-header">
+                <span style="margin-right: 10px;">&#127758;</span> Interactive Field Map
+                <span style="float:right; font-weight:400; font-size:0.75rem; color:#6c757d;">
+                    Toggle layers (top-right) for drainage class & NDVI
+                </span>
             </div>
-
-            <div class="time-slider-container">
-                <div class="time-slider-label">&#128197; Year Explorer — Select a year to view field-specific NDVI and weather conditions</div>
-                <div class="year-slider" id="yearSlider"></div>
-                <div class="year-details" id="yearDetails">
-                    <div style="color: #6c757d; font-style: italic;">Select a year above to see detailed field NDVI values and weather anomalies.</div>
-                </div>
-            </div>
-
-            <div class="nl-summary">
-                <h3>&#128221; Executive Summary</h3>
-                <p>{nl_summary}</p>
+            <div class="map-body">
+                {map_html}
             </div>
         </div>
 
@@ -1237,6 +1229,21 @@ class DashboardBuilder:
                 <strong>Method:</strong> SHI = 30% OM + 25% AWS + 20% CEC + 15% pH + 10% Clay + drainage adj.
                 NDVI stability = inter-annual CV. Lower CV = more stable productivity.
             </div>
+        </div>
+    </div>
+
+    <div class="bottom-bar">
+        <div class="time-slider-container">
+            <div class="time-slider-label">&#128197; Year Explorer — Select a year to view field-specific NDVI and weather conditions</div>
+            <div class="year-slider" id="yearSlider"></div>
+            <div class="year-details" id="yearDetails">
+                <div style="color: #6c757d; font-style: italic;">Select a year above to see detailed field NDVI values and weather anomalies.</div>
+            </div>
+        </div>
+
+        <div class="nl-summary">
+            <h3>&#128221; Executive Summary</h3>
+            <p>{nl_summary}</p>
         </div>
     </div>
 

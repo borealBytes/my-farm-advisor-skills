@@ -231,146 +231,27 @@ class ChartBuilder:
         idx = list(self.field_map.values()).index(field_name) % len(self.field_colors)
         return self.field_colors[idx]
 
-    def build_scatter(self) -> str | None:
-        ndvi = self.data.get("ndvi_stability")
-        if ndvi is None or ndvi.empty or "shi" not in ndvi.columns:
-            return None
-
-        df = ndvi[["field_id", "field_name", "shi", "cv_ndvi", "psi", "mean_ndvi"]].dropna()
-        if df.empty:
-            return None
-
-        df["color"] = df["field_name"].apply(self._field_color)
-
-        fig = go.Figure()
-        for _, row in df.iterrows():
-            fig.add_trace(go.Scatter(
-                x=[row["shi"]],
-                y=[row["cv_ndvi"]],
-                mode="markers+text",
-                name=row["field_name"],
-                text=row["field_name"],
-                textposition="top center",
-                marker=dict(size=18, color=row["color"], line=dict(width=1, color="black")),
-                hovertemplate=(
-                    f"<b>{row['field_name']}</b><br>"
-                    f"SHI: {row['shi']:.1f}<br>"
-                    f"NDVI CV: {row['cv_ndvi']:.3f}<br>"
-                    f"Mean NDVI: {row['mean_ndvi']:.3f}<extra></extra>"
-                ),
-            ))
-
-        r2, r_spear, p_spear = 0, 0, 1
-        if len(df) >= 3:
-            z = np.polyfit(df["shi"], df["cv_ndvi"], 1)
-            p = np.poly1d(z)
-            x_line = np.linspace(df["shi"].min() - 2, df["shi"].max() + 2, 100)
-            y_line = p(x_line)
-            fig.add_trace(go.Scatter(
-                x=x_line, y=y_line, mode="lines",
-                name="OLS Trend", line=dict(color="red", dash="dash", width=2),
-                hoverinfo="skip",
-            ))
-            y_pred = p(df["shi"])
-            ss_res = np.sum((df["cv_ndvi"] - y_pred) ** 2)
-            ss_tot = np.sum((df["cv_ndvi"] - df["cv_ndvi"].mean()) ** 2)
-            r2 = 1 - (ss_res / ss_tot) if ss_tot > 0 else 0
-            r_spear, p_spear = sp_stats.spearmanr(df["shi"], df["cv_ndvi"])
-
-        fig.update_layout(
-            title="Soil Health vs NDVI Stability",
-            xaxis_title="Soil Health Index (SHI)",
-            yaxis_title="NDVI Coefficient of Variation",
-            template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            margin=dict(l=60, r=40, t=60, b=80),
-        )
-
-        fig.add_annotation(
-            x=0.02, y=0.98, xref="paper", yref="paper",
-            text=f"R² = {r2:.3f}<br>Spearman r = {r_spear:.3f}<br>p = {p_spear:.3f}",
-            showarrow=False, align="left", bgcolor="white", bordercolor="red",
-            borderwidth=1, font=dict(size=11), xanchor="left", yanchor="top",
-        )
-        return self._fig_to_html(fig)
-
-    def build_heatmap(self) -> str | None:
-        shi = self.data.get("shi")
-        if shi is None or shi.empty:
-            return None
-
-        components = ["om_score", "aws_score", "cec_score", "ph_score", "clay_score"]
-        labels = ["OM", "AWS", "CEC", "pH", "Clay"]
-        matrix = shi[components].values
-        field_names = shi["field_name"].tolist()
-
-        fig = go.Figure(data=go.Heatmap(
-            z=matrix,
-            x=labels,
-            y=field_names,
-            colorscale=[[0, "#d62728"], [0.5, "#ffdd44"], [1, "#2ca02c"]],
-            zmin=0, zmax=100,
-            text=[[f"{v:.1f}" for v in row] for row in matrix],
-            texttemplate="%{text}",
-            hovertemplate="Field: %{y}<br>Component: %{x}<br>Score: %{z:.1f}<extra></extra>",
-        ))
-        fig.update_layout(
-            title="SHI Component Breakdown by Field",
-            template="plotly_white",
-            yaxis=dict(categoryorder="array", categoryarray=field_names),
-            margin=dict(l=80, r=40, t=60, b=40),
-        )
-        return self._fig_to_html(fig)
-
-    def build_boxplot(self) -> str | None:
-        shi = self.data.get("shi")
-        if shi is None or shi.empty:
-            return None
-
-        properties = [
-            ("avg_om_pct", "Organic Matter (%)"),
-            ("avg_ph", "pH"),
-            ("total_aws_inches", "Available Water (in)"),
-            ("avg_cec", "CEC (cmolc/kg)"),
-            ("avg_clay_pct", "Clay (%)"),
-        ]
-
-        long_rows = []
-        for _, row in shi.iterrows():
-            for col, label in properties:
-                long_rows.append({
-                    "field_name": row["field_name"],
-                    "property": label,
-                    "value": row[col],
-                })
-        long_df = pd.DataFrame(long_rows)
-
-        fig = px.box(
-            long_df, x="property", y="value", color="field_name",
-            points="all", title="Soil Property Distribution Across Fields",
-            template="plotly_white",
-            color_discrete_sequence=self.field_colors,
-        )
-        fig.update_layout(
-            xaxis_title="",
-            yaxis_title="Value",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.3, xanchor="center", x=0.5),
-            margin=dict(l=60, r=40, t=60, b=100),
-        )
-        return self._fig_to_html(fig)
-
-    def build_climatology(self) -> str | None:
+    def build_combined_chart(self) -> str | None:
+        """Single chart combining weather anomalies, NDVI trajectories, and SHI reference."""
         anomalies = self.data.get("weather_anomalies")
-        ndvi_yearly = self.data.get("ndvi_yearly")
+        ndvi = self.data.get("ndvi_yearly")
+        master = self.data.get("shi")
         if anomalies is None or anomalies.empty:
             return None
-
-        fig = make_subplots(specs=[[{"secondary_y": True}]])
 
         years = anomalies["year"].values
         precip = anomalies["avg_precip_anomaly"].values
         gdd = anomalies["avg_gdd_anomaly"].values
 
+        fig = make_subplots(
+            rows=2, cols=1,
+            shared_xaxes=True,
+            subplot_titles=("Growing Season Weather Anomalies", "NDVI Trajectories & Average SHI"),
+            vertical_spacing=0.14,
+            row_heights=[0.52, 0.48],
+        )
+
+        # Top panel: weather anomalies
         bar_colors = []
         for v in precip:
             if v < -20:
@@ -385,76 +266,68 @@ class ChartBuilder:
         fig.add_trace(go.Bar(
             x=years, y=precip, name="Precip Anomaly (%)",
             marker_color=bar_colors, text=[f"{v:.0f}%" for v in precip],
-            textposition="outside",
-        ), secondary_y=False)
+            textposition="outside", xaxis="x", yaxis="y",
+        ), row=1, col=1)
 
         fig.add_trace(go.Scatter(
             x=years, y=gdd, mode="lines+markers+text", name="GDD Anomaly (%)",
             line=dict(color="darkorange", width=2),
-            marker=dict(size=8),
-            text=[f"{v:.0f}%" for v in gdd],
-            textposition="top center",
-        ), secondary_y=True)
-
-        if ndvi_yearly is not None and not ndvi_yearly.empty:
-            ndvi_avg = ndvi_yearly.groupby("year")["mean_ndvi"].mean().reset_index().sort_values("year")
-            ndvi_scaled = ndvi_avg["mean_ndvi"].values * 100
-            fig.add_trace(go.Scatter(
-                x=ndvi_avg["year"].values, y=ndvi_scaled, mode="lines+markers",
-                name="Avg NDVI (x100)", line=dict(color="green", dash="dash"),
-                marker=dict(size=6),
-            ), secondary_y=False)
+            marker=dict(size=8), text=[f"{v:.0f}%" for v in gdd],
+            textposition="top center", xaxis="x", yaxis="y",
+        ), row=1, col=1)
 
         if "dominant_stress" in anomalies.columns:
             for _, row in anomalies.iterrows():
                 if row["dominant_stress"] != "Normal":
                     fig.add_annotation(
-                        x=row["year"], y=max(precip) + 5,
+                        x=row["year"], y=max(precip) + 8,
                         text=row["dominant_stress"], showarrow=False,
                         font=dict(size=10, color="black"), bgcolor="white",
                         bordercolor="gray", borderwidth=1,
+                        row=1, col=1,
                     )
 
-        fig.update_xaxes(title_text="Year", tickmode="array", tickvals=years)
-        fig.update_yaxes(title_text="Precip Anomaly (%) / NDVI (x100)", secondary_y=False)
-        fig.update_yaxes(title_text="GDD Anomaly (%)", secondary_y=True)
-        fig.update_layout(
-            title="Growing Season Weather Anomalies vs NDVI (2021-2025)",
-            template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            margin=dict(l=60, r=60, t=60, b=80),
-        )
-        return self._fig_to_html(fig)
+        # Bottom panel: NDVI trajectories by field
+        if ndvi is not None and not ndvi.empty:
+            for field_name in self.field_map.values():
+                field_data = ndvi[ndvi["field_name"] == field_name].sort_values("year")
+                if field_data.empty:
+                    continue
+                color = self._field_color(field_name)
+                fig.add_trace(go.Scatter(
+                    x=field_data["year"], y=field_data["mean_ndvi"],
+                    mode="lines+markers", name=field_name,
+                    line=dict(width=2, color=color),
+                    marker=dict(size=8, color=color),
+                    hovertemplate="%{fullData.name}<br>Year: %{x}<br>NDVI: %{y:.3f}<extra></extra>",
+                ), row=2, col=1)
 
-    def build_ndvi_timeseries(self) -> str | None:
-        ndvi = self.data.get("ndvi_yearly")
-        if ndvi is None or ndvi.empty:
-            return None
-
-        fig = go.Figure()
-        for field_name in self.field_map.values():
-            field_data = ndvi[ndvi["field_name"] == field_name].sort_values("year")
-            if field_data.empty:
-                continue
-            color = self._field_color(field_name)
+        # Bottom panel: average SHI reference line (scaled 0-1)
+        if master is not None and not master.empty and "shi" in master.columns:
+            avg_shi = master["shi"].mean()
             fig.add_trace(go.Scatter(
-                x=field_data["year"], y=field_data["mean_ndvi"],
-                mode="lines+markers", name=field_name,
-                line=dict(width=2, color=color),
-                marker=dict(size=8, color=color),
-                hovertemplate="%{fullData.name}<br>Year: %{x}<br>NDVI: %{y:.3f}<extra></extra>",
-            ))
+                x=years, y=[avg_shi / 100.0] * len(years),
+                mode="lines", name="Avg SHI (÷100)",
+                line=dict(color="black", dash="dash", width=2),
+                hovertemplate=f"Avg SHI: {avg_shi:.1f}<extra></extra>",
+            ), row=2, col=1)
+            fig.add_annotation(
+                x=years[-1], y=avg_shi / 100.0,
+                text=f"Avg SHI: {avg_shi:.1f}",
+                showarrow=False, xanchor="left", xshift=10,
+                font=dict(size=10), row=2, col=1,
+            )
 
+        fig.update_xaxes(title_text="Year", tickmode="array", tickvals=years, row=2, col=1)
+        fig.update_yaxes(title_text="Anomaly (%)", row=1, col=1)
+        fig.update_yaxes(title_text="NDVI / SHI (÷100)", range=[0, 1.0], row=2, col=1)
         fig.update_layout(
-            title="Mean NDVI Trajectories by Field (2021-2025)",
-            xaxis_title="Year", yaxis_title="Mean NDVI",
+            title="Climate, NDVI, and Soil Health Index (2021-2025)",
             template="plotly_white",
-            legend=dict(orientation="h", yanchor="bottom", y=-0.25, xanchor="center", x=0.5),
-            xaxis=dict(tickmode="array", tickvals=YEARS),
-            yaxis=dict(range=[0, 1.0]),
-            margin=dict(l=60, r=40, t=60, b=80),
+            legend=dict(orientation="h", yanchor="bottom", y=-0.30, xanchor="center", x=0.5),
+            margin=dict(l=60, r=60, t=80, b=90),
+            height=620,
         )
-        fig.add_hline(y=0.5, line_dash="dash", line_color="gray", opacity=0.3)
         return self._fig_to_html(fig)
 
 
@@ -701,13 +574,7 @@ class DashboardBuilder:
         # Charts
         print("\n[2/5] Building Plotly charts...")
         cb = ChartBuilder(data, self.field_map, self.field_colors)
-        charts = {
-            "scatter": cb.build_scatter(),
-            "heatmap": cb.build_heatmap(),
-            "boxplot": cb.build_boxplot(),
-            "climatology": cb.build_climatology(),
-            "ndvi_timeseries": cb.build_ndvi_timeseries(),
-        }
+        charts = {"combined": cb.build_combined_chart()}
         for name, html in charts.items():
             print(f"  {name}: {'OK' if html else 'FAIL'}")
 
@@ -836,32 +703,8 @@ class DashboardBuilder:
                 <div class="kpi-unit">{kpi['unit']}</div>
             </div>"""
 
-        chart_slides = []
-        chart_nav = []
-        chart_titles = {
-            "scatter": "Soil Health vs NDVI Stability",
-            "heatmap": "SHI Component Breakdown",
-            "boxplot": "Soil Property Distribution",
-            "climatology": "Weather Anomalies & NDVI",
-            "ndvi_timeseries": "NDVI Trajectories (2021-2025)",
-        }
-
-        idx = 0
-        for key in ["scatter", "heatmap", "boxplot", "climatology", "ndvi_timeseries"]:
-            html = charts.get(key)
-            if html:
-                active = "active" if idx == 0 else ""
-                chart_slides.append(f"""
-                <div class="carousel-slide {active}" data-index="{idx}">
-                    {html}
-                    <div class="chart-caption">{chart_titles[key]}</div>
-                </div>""")
-                chart_nav.append(f"""<button class="nav-dot {'active' if idx == 0 else ''}" onclick="goTo({idx})"></button>""")
-                idx += 1
-
-        slides_html = "\n".join(chart_slides)
-        nav_html = "\n".join(chart_nav)
-        total_slides = idx
+        combined_chart = charts.get("combined")
+        chart_html = combined_chart if combined_chart else "<p>Chart unavailable</p>"
 
         master = data.get("shi")
         ndvi = data.get("ndvi_stability")
@@ -1127,7 +970,7 @@ class DashboardBuilder:
             min-width: 420px;
             max-width: 560px;
         }}
-        .carousel-container {{
+        .single-chart-container {{
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -1136,78 +979,12 @@ class DashboardBuilder:
             display: flex;
             flex-direction: column;
             min-height: 0;
-        }}
-        .carousel-viewport {{
-            flex: 1;
-            position: relative;
             overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 0;
         }}
-        .carousel-slide {{
-            display: none;
-            width: 100%;
-            height: 100%;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-        }}
-        .carousel-slide.active {{ display: flex; }}
-        .carousel-slide .plotly-graph-div {{
+        .single-chart-container .plotly-graph-div {{
             width: 100% !important;
             height: 100% !important;
             min-height: 320px;
-        }}
-        .chart-caption {{
-            font-size: 0.85rem;
-            font-weight: 600;
-            color: #495057;
-            margin-top: 8px;
-            text-align: center;
-        }}
-
-        .carousel-controls {{
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 15px;
-            margin-top: 10px;
-            padding-top: 10px;
-            border-top: 1px solid #e9ecef;
-        }}
-        .carousel-btn {{
-            background: #2a5298;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 32px;
-            height: 32px;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }}
-        .carousel-btn:hover {{ background: #1e3c72; }}
-        .nav-dots {{ display: flex; gap: 6px; }}
-        .nav-dot {{
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            border: none;
-            background: #ced4da;
-            cursor: pointer;
-            transition: background 0.2s;
-        }}
-        .nav-dot.active {{ background: #2a5298; }}
-        .slide-counter {{
-            font-size: 0.75rem;
-            color: #6c757d;
-            min-width: 50px;
-            text-align: center;
         }}
 
         .info-box {{
@@ -1256,18 +1033,8 @@ class DashboardBuilder:
         </div>
 
         <div class="chart-panel">
-            <div class="carousel-container">
-                <div class="carousel-viewport">
-                    {slides_html}
-                </div>
-                <div class="carousel-controls">
-                    <button class="carousel-btn" onclick="prevSlide()">&#9664;</button>
-                    <span class="slide-counter" id="slideCounter">1 / {total_slides}</span>
-                    <div class="nav-dots">
-                        {nav_html}
-                    </div>
-                    <button class="carousel-btn" onclick="nextSlide()">&#9654;</button>
-                </div>
+            <div class="single-chart-container" id="combinedChart">
+                {chart_html}
             </div>
 
             <div class="info-box">
@@ -1294,38 +1061,19 @@ class DashboardBuilder:
     </div>
 
     <script>
-        // --- Chart Carousel ---
-        let currentSlide = 0;
-        const slides = document.querySelectorAll('.carousel-slide');
-        const dots = document.querySelectorAll('.nav-dot');
-        const counter = document.getElementById('slideCounter');
-        const total = slides.length;
-
-        function showSlide(index) {{
-            slides.forEach((s, i) => s.classList.toggle('active', i === index));
-            dots.forEach((d, i) => d.classList.toggle('active', i === index));
-            if (counter) counter.textContent = (index + 1) + ' / ' + total;
-            currentSlide = index;
-
-            // Resize the Plotly chart in the newly active slide so it renders correctly
-            const activeSlide = slides[index];
-            if (activeSlide && window.Plotly) {{
-                const plotDiv = activeSlide.querySelector('.plotly-graph-div');
-                if (plotDiv) {{
-                    setTimeout(() => {{
-                        try {{ window.Plotly.Plots.resize(plotDiv); }} catch (e) {{}}
-                    }}, 50);
-                }}
+        // --- Combined Chart Resize ---
+        function resizeCombinedChart() {{
+            const container = document.getElementById('combinedChart');
+            if (!container || !window.Plotly) return;
+            const plotDiv = container.querySelector('.plotly-graph-div');
+            if (plotDiv) {{
+                try {{ window.Plotly.Plots.resize(plotDiv); }} catch (e) {{}}
             }}
         }}
 
-        function nextSlide() {{ showSlide((currentSlide + 1) % total); }}
-        function prevSlide() {{ showSlide((currentSlide - 1 + total) % total); }}
-        function goTo(index) {{ showSlide(index); }}
-
-        document.addEventListener('keydown', function(e) {{
-            if (e.key === 'ArrowRight') nextSlide();
-            if (e.key === 'ArrowLeft') prevSlide();
+        window.addEventListener('resize', resizeCombinedChart);
+        document.addEventListener('DOMContentLoaded', () => {{
+            setTimeout(resizeCombinedChart, 100);
         }});
 
         // --- Year Slider ---

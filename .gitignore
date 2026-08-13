@@ -18,6 +18,7 @@ states_usa.geojson
 # Python cache
 __pycache__/
 *.pyc
+venv/
 
 # IDE files
 .vscode/

@@ -56,12 +56,9 @@ Open this file in any modern web browser (Chrome, Firefox, Edge, Safari). An int
 
 ### Right Sidebar
 - **KPI Cards**: Total fields, total acreage, average SHI, average NDVI, NDVI field count, average growing-season precipitation
-- **Plotly Chart Carousel**: 5 interactive charts with dot navigation and keyboard arrow controls
-  - **Scatter Plot**: SHI vs NDVI Coefficient of Variation with OLS trend line and R² annotation
-  - **Heatmap**: SHI component breakdown (OM, AWS, CEC, pH, Clay) by field
-  - **Boxplot**: Soil property distributions across fields with individual field hover points
-  - **Climatology**: Dual-axis weather anomalies (precipitation bars + GDD line + NDVI overlay)
-  - **NDVI Time-Series**: Mean NDVI trajectories by field (2021–2025)
+- **Combined Plotly Chart**: Single interactive chart showing climate, NDVI, and soil health index together for 2021–2025
+  - **Top panel**: Growing-season precipitation and GDD anomalies, with dominant stress annotations
+  - **Bottom panel**: Mean NDVI trajectory per field plus the average Soil Health Index reference line
 - **Correlation Text**: Dynamic interpretation of the soil health-stability relationship
 - **Methodology Note**: In-dashboard explanation of how SHI is calculated
 

@@ -52,7 +52,7 @@ This dashboard tests that relationship using 5 years (2021–2025) of Sentinel-2
 - **Header**: Farm name, analysis period, total field count, and KPI cards
 - **Hero Map**: Interactive Folium map with layer control, field boundaries colored by SHI, NDVI markers, and a field-level drainage class layer
 - **Year Explorer**: Interactive year selector showing field-level NDVI and weather anomalies
-- **Right Sidebar**: Plotly chart carousel, KPI summary, and methodology note
+- **Right Sidebar**: Combined Plotly chart, KPI summary, and methodology note
 - **Executive Summary**: Natural-language interpretation of the findings
 
 ### How to Read Each Section
@@ -66,31 +66,10 @@ This dashboard tests that relationship using 5 years (2021–2025) of Sentinel-2
 - Toggle NDVI markers to see average NDVI by field (larger/greener circles = higher NDVI)
 - Click **Expand** in the map header to view the map full-screen
 
-#### Scatter Plot: SHI vs NDVI-CV
-- **X-axis**: Soil Health Index (0–100)
-- **Y-axis**: NDVI Coefficient of Variation (lower = more stable)
-- **Trend line**: Red dashed OLS regression
-- **Interpretation**: Points in the bottom-right are healthy AND stable
-
-#### SHI Component Heatmap
-- Rows = 5 fields
-- Columns = OM, AWS, CEC, pH, Clay scores
-- Color scale = red (low) → yellow → green (high)
-- Use this to identify which specific soil properties drive a field's SHI score
-
-#### Soil Property Boxplot
-- Distributions of key soil properties across all 5 fields
-- Hover points to see individual field values
-- Useful for comparing soil variability across the farm
-
-#### Climatology Strip
-- **Bars**: Growing-season precipitation anomaly vs. 5-year average
-- **Line**: Growing Degree Day anomaly
-- **Context**: 2022–2023 were severe drought years; 2024 was excess moisture. This helps explain NDVI dips.
-
-#### NDVI Trajectories
-- Line chart showing mean NDVI per field across 2021–2025
-- Identifies which fields maintained consistent productivity vs. those with high inter-annual volatility
+#### Combined Chart: Climate, NDVI, and Soil Health Index (2021–2025)
+- **Top panel**: Growing-season precipitation anomaly (bars) and GDD anomaly (line), with dominant stress annotations. Drought years appear red/orange; wet years appear green/blue.
+- **Bottom panel**: Mean NDVI trajectory for each field (one line per field) and the average SHI reference line (dashed black) scaled to the NDVI axis.
+- **Interpretation**: Compare NDVI dips with weather anomalies to see which fields are resilient; compare NDVI levels against the average SHI to see whether soil health translates into greenness.
 
 ---
 

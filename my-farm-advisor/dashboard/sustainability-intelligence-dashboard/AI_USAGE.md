@@ -10,9 +10,9 @@ This project utilized AI tools (specifically, GitHub Copilot / OpenCode AI assis
 - **Changes made**: Simplified some over-engineered suggestions; merged small helper functions
 
 ### 2. Plotly & Folium Integration
-- **AI assisted with**: Writing Plotly figure code for scatter plots with trend lines, radar charts, and dual-axis climatology charts
-- **Human verified**: All chart data inputs, axis labels, color schemes, and statistical calculations (R², Spearman correlation)
-- **Changes made**: Adjusted color scales for accessibility; simplified radar chart to show top 3 fields only
+- **AI assisted with**: Writing Plotly figure code for the combined climate/NDVI/SHI chart and the dual-axis weather anomaly panel
+- **Human verified**: All chart data inputs, axis labels, color schemes, and legend layout
+- **Changes made**: Replaced the 5-chart carousel with a single combined two-panel chart for 2021–2025
 
 ### 3. Soil Health Index Formula
 - **AI assisted with**: Researching established soil health scoring methodologies and suggesting weight distributions
@@ -73,3 +73,4 @@ AI tools were used as a coding and writing assistant, similar to an IDE with aut
 ## Date
 
 Project completed: 2025-07-31
+Last dashboard update: 2026-08-13

@@ -34,7 +34,7 @@ Open the generated HTML in any modern browser. The dashboard uses Plotly and Boo
 - Folium hero map with field boundaries colored by Soil Health Index
 - Field-level drainage class layer (toggleable)
 - Esri satellite base map (toggleable)
-- Plotly interactive chart carousel: SHI vs NDVI-CV scatter, SHI component heatmap, soil property boxplot, weather anomalies, NDVI time-series
+- Plotly interactive combined chart: climate anomalies, NDVI trajectories, and average Soil Health Index reference line for 2021–2025
 - Year explorer with field-level NDVI and weather anomalies
 - KPI summary cards
 - Executive summary with natural-language interpretation

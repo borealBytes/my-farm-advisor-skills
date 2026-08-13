@@ -58,24 +58,30 @@ FIELD_COLORS = (
 
 
 def _load_field_inventory(farm_dir: Path) -> dict[str, str]:
-    """Load field IDs from the pipeline manifest and assign friendly names."""
-    try:
-        inventory_path = farm_dir / "manifests" / "field-inventory.csv"
-        if inventory_path.exists():
-            df = pd.read_csv(inventory_path)
-            ids = sorted(df["field_id"].dropna().astype(str).unique().tolist())
-            if ids:
-                return {fid: f"Field {i + 1}" for i, fid in enumerate(ids)}
-    except Exception as e:
-        print(f"  Warning: could not load field inventory: {e}")
-    # Fallback for the original Iowa 5-field demo set
-    return {
+    """Load field IDs from the pipeline manifest, keep only fields with NDVI composites, and assign friendly names."""
+    fallback = {
         "osm-1360326432": "Field 1",
         "osm-1360386537": "Field 2",
         "osm-1360394834": "Field 3",
         "osm-1360386533": "Field 4",
         "osm-1360394843": "Field 5",
     }
+    try:
+        inventory_path = farm_dir / "manifests" / "field-inventory.csv"
+        if inventory_path.exists():
+            df = pd.read_csv(inventory_path)
+            ids = sorted(df["field_id"].dropna().astype(str).unique().tolist())
+            if ids:
+                fields_with_ndvi = []
+                for fid in ids:
+                    field_dir = farm_dir / "fields" / fid
+                    if any((field_dir / "derived" / "features" / f"ndvi_year_{year}_composite.tif").exists() for year in YEARS):
+                        fields_with_ndvi.append(fid)
+                if fields_with_ndvi:
+                    return {fid: f"Field {i + 1}" for i, fid in enumerate(fields_with_ndvi)}
+    except Exception as e:
+        print(f"  Warning: could not load field inventory: {e}")
+    return fallback
 
 
 FIELD_MAP = _load_field_inventory(FARM_DIR)
@@ -618,28 +624,29 @@ class MapBuilder:
             fg_drainage.add_to(m)
 
         legend_html = """
-        <div id="dynamic-legend" style="position: fixed; bottom: 20px; left: 20px; z-index: 9999; background: white; padding: 12px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.2); font-family: Arial; font-size: 12px; line-height: 1.6;">
-            <div id="legend-shi" style="display: block;">
-                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">Field SHI Legend</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> High (&ge;70)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ffdd44; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Moderate (50-69)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Low (30-49)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Very Low (&lt;30)</div>
+        <div id="dynamic-legend" style="position: absolute; bottom: 12px; left: 12px; z-index: 1000; background: white; padding: 8px 10px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); font-family: Arial; font-size: 10px; line-height: 1.4; max-width: 160px;">
+            <div style="font-weight: bold; margin-bottom: 6px; border-bottom: 1px solid #ddd; padding-bottom: 3px; font-size: 11px;">Map Legend</div>
+            <div style="margin-bottom: 6px;">
+                <div style="font-weight: 600; margin-bottom: 3px;">Field SHI</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> High (&ge;70)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ffdd44; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Moderate (50-69)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Low (30-49)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Very Low (&lt;30)</div>
             </div>
-            <div id="legend-ndvi" style="display: block; margin-top: 10px;">
-                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">NDVI Legend</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> High (&ge;0.75)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ffdd44; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Moderate (0.60-0.74)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Low (0.45-0.59)</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Very Low (&lt;0.45)</div>
+            <div style="margin-bottom: 6px;">
+                <div style="font-weight: 600; margin-bottom: 3px;">NDVI (2021-2025 Avg)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> High (&ge;0.75)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ffdd44; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Moderate (0.60-0.74)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Low (0.45-0.59)</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Very Low (&lt;0.45)</div>
             </div>
-            <div id="legend-drainage" style="display: none; margin-top: 10px;">
-                <div style="font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ddd; padding-bottom: 4px;">Drainage Class</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Well drained</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#98df8a; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Mod. well drained</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ffbb78; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Somewhat poorly</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Poorly drained</div>
-                <div><span style="display:inline-block; width:14px; height:14px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:6px;"></span> Very poorly drained</div>
+            <div>
+                <div style="font-weight: 600; margin-bottom: 3px;">Drainage Class</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#2ca02c; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Well drained</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#98df8a; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Mod. well</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ffbb78; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Somewhat poor</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#ff7f0e; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Poorly drained</div>
+                <div><span style="display:inline-block; width:12px; height:12px; background:#d62728; border-radius:2px; vertical-align:middle; margin-right:5px;"></span> Very poorly</div>
             </div>
         </div>
         """
@@ -1098,10 +1105,15 @@ class DashboardBuilder:
             flex-shrink: 0;
             min-height: 0;
             max-height: 35vh;
+            align-items: stretch;
         }}
-        .bottom-bar .time-slider-container {{ flex: 1; min-width: 0; }}
-        .bottom-bar .nl-summary {{
+        .bottom-bar .time-slider-container {{
             flex: 1;
+            min-width: 420px;
+            max-width: 560px;
+        }}
+        .bottom-bar .nl-summary {{
+            flex: 1.6;
             min-width: 0;
             max-height: 100%;
             overflow-y: auto;
@@ -1213,6 +1225,8 @@ class DashboardBuilder:
             .main-container {{ flex-direction: column; height: auto; overflow: visible; }}
             .chart-panel {{ max-width: 100%; min-width: auto; }}
             .bottom-bar {{ flex-direction: column; }}
+            .bottom-bar .time-slider-container {{ max-width: 100%; min-width: auto; }}
+            .bottom-bar .nl-summary {{ flex: 1; }}
         }}
     </style>
 </head>
@@ -1381,56 +1395,6 @@ class DashboardBuilder:
             }}, 350);
         }}
 
-        // --- Dynamic Legend for Map ---
-        function setupDynamicLegend() {{
-            const mapBody = document.querySelector('.map-body');
-            if (!mapBody) return;
-
-            const checkInterval = setInterval(() => {{
-                const map = mapBody.querySelector('.folium-map');
-                if (map && (map._leaflet_map || window.map_1)) {{
-                    clearInterval(checkInterval);
-                    attachLegendListeners();
-                }}
-            }}, 500);
-
-            setTimeout(() => clearInterval(checkInterval), 10000);
-        }}
-
-        function attachLegendListeners() {{
-            let leafletMap = null;
-            for (let key in window) {{
-                if (key.startsWith('map_') && window[key] && window[key].hasLayer) {{
-                    leafletMap = window[key];
-                    break;
-                }}
-            }}
-            if (!leafletMap) return;
-
-            function updateLegend() {{
-                const inputs = document.querySelectorAll('.leaflet-control-layers-overlays input');
-                let shiOn = true, drainageOn = false, ndviOn = true;
-                inputs.forEach(input => {{
-                    const label = input.parentElement.textContent.trim();
-                    if (label.includes('Field Boundaries')) shiOn = input.checked;
-                    if (label.includes('Drainage')) drainageOn = input.checked;
-                    if (label.includes('NDVI')) ndviOn = input.checked;
-                }});
-                const shiLegend = document.getElementById('legend-shi');
-                const drainageLegend = document.getElementById('legend-drainage');
-                const ndviLegend = document.getElementById('legend-ndvi');
-                if (shiLegend) shiLegend.style.display = shiOn ? 'block' : 'none';
-                if (drainageLegend) drainageLegend.style.display = drainageOn ? 'block' : 'none';
-                if (ndviLegend) ndviLegend.style.display = ndviOn ? 'block' : 'none';
-            }}
-
-            document.querySelector('.leaflet-control-layers').addEventListener('click', () => {{
-                setTimeout(updateLegend, 100);
-            }});
-            updateLegend();
-        }}
-
-        setupDynamicLegend();
     </script>
 </body>
 </html>"""

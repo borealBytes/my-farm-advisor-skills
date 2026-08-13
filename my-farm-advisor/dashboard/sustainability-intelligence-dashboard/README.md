@@ -2,7 +2,7 @@
 
 ## Skill Overview
 
-This skill generates a **standalone HTML dashboard** for grower-level sustainability analysis, combining SSURGO soil health metrics, Sentinel-2 NDVI composites, and NASA POWER weather context into a single interactive visualization.
+This skill generates a **standalone HTML dashboard** for sustainability analysis of fields with Sentinel-2 NDVI coverage, combining SSURGO soil health metrics, NDVI composites, and NASA POWER weather context into a single interactive visualization.
 
 ## Quick Start
 
@@ -109,14 +109,13 @@ Internal modules within `app.py`:
 - `MapBuilder`: Creates Folium map with field boundaries, drainage class overlays, NDVI markers, layer control
 - `DashboardBuilder`: Assembles all components into final HTML string
 
-## Grower-Level Behavior
+## Field Selection Behavior
 
-The dashboard is **grower-level**: it reads the farm's `manifests/field-inventory.csv` and builds the analysis for every field listed there. It does not hardcode a field list. Fields without NDVI composites are still included in the soil health, weather, and map sections; NDVI-specific charts automatically include only fields with available composites.
+The dashboard reads the farm's `manifests/field-inventory.csv` and keeps only fields that have at least one Sentinel-2 NDVI composite in the runtime. This ensures every field shown in the map, charts, and summary has complete NDVI coverage, making comparisons across fields consistent. Fields without NDVI composites are excluded from this dashboard (their data remains in the runtime pipeline).
 
 ## Known Limitations
 
 - **SoilGrids integration**: The ISRIC SoilGrids REST API is currently paused. Direct COG access was attempted but proved too slow for the project timeline (~15+ min for 9 depth/property combinations). The dashboard uses SSURGO-only SHI with a documented fallback plan.
-- **NDVI coverage**: Only 5 of 10 fields have Sentinel-2 NDVI composites. The remaining 5 fields are included in soil, weather, and map sections but omitted from NDVI-specific charts.
 - **Drainage layer**: The map shows field-level dominant drainage class rather than the full SSURGO map-unit polygons. This keeps the standalone HTML file small and fast-loading while still communicating spatial drainage patterns.
 - **Climatology baseline**: Uses 5-year average (2021–2025) as "normal" rather than a 20+ year climatology due to data availability constraints.
 - **Offline use**: The dashboard loads Plotly and Bootstrap from CDNs. For fully offline use, download the libraries locally and update the `<script>`/`<link>` tags.

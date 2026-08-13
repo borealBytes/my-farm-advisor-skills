@@ -243,6 +243,7 @@ The umbrella entrypoint is [`SKILL.md`](SKILL.md). From there, the skill routes 
 | Terrain          | DEM source policy, elevation provenance, and terrain derivatives       | [`terrain/INDEX.md`](terrain/INDEX.md)                   |
 | Strategy         | Crop strategy and maturity planning workflows                          | [`strategy/INDEX.md`](strategy/INDEX.md)                 |
 | Weather          | NASA POWER weather ingestion and downstream weather analysis           | [`weather/INDEX.md`](weather/INDEX.md)                   |
+| Dashboard        | Grower-level sustainability and field intelligence dashboard           | [`dashboard/sustainability-intelligence-dashboard/SKILL.md`](dashboard/sustainability-intelligence-dashboard/SKILL.md) |
 
 ## Typical Workflow
 
@@ -308,6 +309,7 @@ This skill is the main farm-specific intelligence layer. The rest of the reposit
 - DEM terrain workflows: [`terrain/dem-terrain/SKILL.md`](terrain/dem-terrain/SKILL.md)
 - Sentinel-2 workflows: [`imagery/sentinel2-imagery/GUIDE.md`](imagery/sentinel2-imagery/GUIDE.md)
 - Weather workflows: [`weather/nasa-power-weather/GUIDE.md`](weather/nasa-power-weather/GUIDE.md)
+- Dashboard workflows: [`dashboard/sustainability-intelligence-dashboard/SKILL.md`](dashboard/sustainability-intelligence-dashboard/SKILL.md)
 
 ## Data and Runtime Notes
 

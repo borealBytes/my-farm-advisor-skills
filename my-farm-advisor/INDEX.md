@@ -11,3 +11,4 @@ Use this umbrella index to route into the major farm workflows. Start from the a
 - [Terrain](terrain/INDEX.md) - DEM source policy, elevation provenance, and terrain derivatives
 - [Strategy](strategy/INDEX.md) - crop strategy and maturity planning
 - [Weather](weather/INDEX.md) - NASA POWER weather workflows
+- [Dashboard](dashboard/sustainability-intelligence-dashboard/SKILL.md) - grower-level sustainability and field intelligence dashboard

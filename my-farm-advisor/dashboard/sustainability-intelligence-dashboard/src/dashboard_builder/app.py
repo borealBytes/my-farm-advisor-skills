@@ -982,6 +982,31 @@ class DashboardBuilder:
             height: 100% !important;
         }}
 
+        .expand-btn {{
+            float: right;
+            background: #2a5298;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background 0.2s;
+        }}
+        .expand-btn:hover {{ background: #1e3c72; }}
+
+        .map-expanded {{
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            z-index: 10000 !important;
+            border-radius: 0 !important;
+            max-width: none !important;
+        }}
+
         .time-slider-container {{
             background: white;
             border-radius: 10px;
@@ -1204,12 +1229,13 @@ class DashboardBuilder:
 
     <div class="main-container">
         <div class="map-panel">
-            <div class="map-header">
-                <span style="margin-right: 10px;">&#127758;</span> Interactive Field Map
-                <span style="float:right; font-weight:400; font-size:0.75rem; color:#6c757d;">
-                    Toggle layers (top-right) for drainage class & NDVI
-                </span>
-            </div>
+                <div class="map-header">
+                    <span style="margin-right: 10px;">&#127758;</span> Interactive Field Map
+                    <button class="expand-btn" onclick="toggleMapExpand()">Expand</button>
+                    <span style="float:right; font-weight:400; font-size:0.75rem; color:#6c757d; margin-right: 8px;">
+                        Toggle layers (top-right) for drainage class & NDVI
+                    </span>
+                </div>
             <div class="map-body">
                 {map_html}
             </div>
@@ -1239,17 +1265,17 @@ class DashboardBuilder:
     </div>
 
     <div class="bottom-bar">
+        <div class="nl-summary">
+            <h3>&#128221; Executive Summary</h3>
+            <p>{nl_summary}</p>
+        </div>
+
         <div class="time-slider-container">
             <div class="time-slider-label">&#128197; Year Explorer — Select a year to view field-specific NDVI and weather conditions</div>
             <div class="year-slider" id="yearSlider"></div>
             <div class="year-details" id="yearDetails">
                 <div style="color: #6c757d; font-style: italic;">Select a year above to see detailed field NDVI values and weather anomalies.</div>
             </div>
-        </div>
-
-        <div class="nl-summary">
-            <h3>&#128221; Executive Summary</h3>
-            <p>{nl_summary}</p>
         </div>
     </div>
 
@@ -1315,6 +1341,8 @@ class DashboardBuilder:
                     const f = data.fields[field];
                     const ndviColor = f.ndvi >= 0.75 ? '#2ca02c' : f.ndvi >= 0.6 ? '#ff7f0e' : '#d62728';
                     html += '<tr><td><b>' + field + '</b></td><td style="color:' + ndviColor + '; font-weight:600;">' + f.ndvi.toFixed(3) + '</td><td>' + (f.peak ? f.peak.toFixed(3) : '—') + '</td></tr>';
+                }} else {{
+                    html += '<tr><td><b>' + field + '</b></td><td colspan="2" style="color:#6c757d; font-style:italic;">No NDVI composite available</td></tr>';
                 }}
             }});
             html += '</tbody></table>';
@@ -1332,6 +1360,26 @@ class DashboardBuilder:
         }}
 
         initYearSlider();
+
+        // --- Map Full-Screen Toggle ---
+        function toggleMapExpand() {{
+            const panel = document.querySelector('.map-panel');
+            panel.classList.toggle('map-expanded');
+            const btn = document.querySelector('.expand-btn');
+            btn.textContent = panel.classList.contains('map-expanded') ? 'Close' : 'Expand';
+
+            // Give the browser time to resize, then invalidate the Leaflet map
+            setTimeout(() => {{
+                let leafletMap = null;
+                for (let key in window) {{
+                    if (key.startsWith('map_') && window[key] && window[key].invalidateSize) {{
+                        leafletMap = window[key];
+                        break;
+                    }}
+                }}
+                if (leafletMap) leafletMap.invalidateSize();
+            }}, 350);
+        }}
 
         // --- Dynamic Legend for Map ---
         function setupDynamicLegend() {{

@@ -1072,9 +1072,15 @@ class DashboardBuilder:
             padding: 15px;
             flex-shrink: 0;
             min-height: 0;
+            max-height: 35vh;
         }}
         .bottom-bar .time-slider-container {{ flex: 1; min-width: 0; }}
-        .bottom-bar .nl-summary {{ flex: 1; min-width: 0; }}
+        .bottom-bar .nl-summary {{
+            flex: 1;
+            min-width: 0;
+            max-height: 100%;
+            overflow-y: auto;
+        }}
 
         .chart-panel {{
             flex: 1;

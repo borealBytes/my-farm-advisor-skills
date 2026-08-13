@@ -1306,6 +1306,17 @@ class DashboardBuilder:
             dots.forEach((d, i) => d.classList.toggle('active', i === index));
             if (counter) counter.textContent = (index + 1) + ' / ' + total;
             currentSlide = index;
+
+            // Resize the Plotly chart in the newly active slide so it renders correctly
+            const activeSlide = slides[index];
+            if (activeSlide && window.Plotly) {{
+                const plotDiv = activeSlide.querySelector('.plotly-graph-div');
+                if (plotDiv) {{
+                    setTimeout(() => {{
+                        try {{ window.Plotly.Plots.resize(plotDiv); }} catch (e) {{}}
+                    }}, 50);
+                }}
+            }}
         }}
 
         function nextSlide() {{ showSlide((currentSlide + 1) % total); }}

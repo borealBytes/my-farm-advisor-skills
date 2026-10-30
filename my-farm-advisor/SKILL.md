@@ -2,8 +2,8 @@
 name: my-farm-advisor
 description: >
   Umbrella agricultural data science and farm management skill that routes requests into
-  field management, imagery, soil, terrain, weather, exploratory analysis, strategy, and farm-data
-  rebuild/reporting workflows.
+  field management, imagery, soil, terrain, weather, exploratory analysis, strategy,
+  dashboard generation, and farm-data rebuild/reporting workflows.
 license: Apache-2.0
 metadata:
   author: Clayton Young / Superior Byte Works, LLC (@borealBytes)
@@ -29,6 +29,7 @@ Use My Farm Advisor as the umbrella skill for agricultural data-science and farm
 Open the subtree index that matches the request:
 
 - [Admin](admin/INDEX.md)
+- [Dashboard](dashboard/SKILL.md)
 - [Data Sources](data-sources/INDEX.md)
 - [EDA](eda/INDEX.md)
 - [Field Management](field-management/INDEX.md)
@@ -49,6 +50,7 @@ Open the subtree index that matches the request:
 - Use **Strategy** for maturity planning and crop-strategy decisions.
 - Use **Weather** for NASA POWER weather acquisition and downstream farm weather analysis.
 - Use **Admin** for geospatial administration and browser-based interactive map workflows.
+- Use **Dashboard** for generating Plotly Dash row crop intelligence dashboards.
 
 ## Runtime Notes
 

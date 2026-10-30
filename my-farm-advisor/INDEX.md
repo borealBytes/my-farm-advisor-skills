@@ -3,6 +3,7 @@
 Use this umbrella index to route into the major farm workflows. Start from the area that matches the user request, then open the linked subtree index or workflow doc.
 
 - [Admin](admin/INDEX.md) - geospatial admin tools and interactive web map workflows
+- [Dashboard](dashboard/SKILL.md) - Plotly Dash row crop intelligence dashboard generation
 - [Data Sources](data-sources/INDEX.md) - rebuilds, reporting, and data-pipeline orchestration
 - [EDA](eda/INDEX.md) - exploratory analysis, comparisons, and visualization
 - [Field Management](field-management/INDEX.md) - boundaries, sampling, and headlands

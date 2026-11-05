@@ -26,7 +26,15 @@ with **no API keys, logins, or paid services anywhere in the default path**:
 | Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
 | Imagery | Sentinel-2 L2A (10 m, ~5 d) + Landsat C2 L2 (30 m; archive 1982→, pipeline default L8+L9 for the 8-day window) — keyless PC STAC | ← | ← | ←; Sentinel-1 SAR (VV/VH) wired into WorldCereal — real radar via free optional CDSE backend, NODATA in keyless default |
 | Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 | GADM L1/L2 | GADM L1/L2 |
-| Corn RM / Soybean MG | FIPS maturity model | provincial analog | — (season calendar) | season calendar |
+| Corn RM / Soybean MG (**derived**) | Heuristic FIPS models computed in-house from our own POWER weather — annual `rm_by_fips_YYYY` + 5-year averages | provincial analog | season calendar | season calendar |
+
+Maturity maps are **models, not licensed data**. No open authoritative
+source exists for corn RM or soybean MG — each seed company publishes its own
+proprietary version — so we generate ours from literature-based heat-unit and
+photoperiod models fed by the pipeline's own weather, which means the windows
+and assumptions are ours to choose and every year is re-runnable. The same
+machinery generalizes: expansion to additional crops and regions (more
+calendars, more phenology models) is the planned direction.
 
 Per-year crop-type classification for any field/year runs the open
 **WorldCereal default models** (`data-pipeline/src/scripts/ingest/apply_worldcereal.py`)

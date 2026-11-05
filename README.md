@@ -75,7 +75,8 @@ keys, logins, or paid services anywhere in the default path.
 | **Crop rotation history** | USDA CDL, 2008→ (US); AAFC ACI, 2017→ (CA) | Per-year WorldCereal default-model inference on keyless Sentinel-2 (any country) — see below |
 | **Imagery** | Sentinel-2 L2A (10 m, ~5-day revisit) + Landsat Collection 2 L2 (30 m; collection back to 1982 — pipeline defaults to Landsat 8+9 for the combined 8-day window) | Same archives are global via keyless Planetary Computer STAC; Sentinel-1 C-band SAR (VV/VH) is wired into the WorldCereal input cube — real radar via the free optional CDSE backend, constant NODATA in the keyless default (documented trade-off) |
 | **Weather** | NASA POWER field-centroid Zarr (station-assimilated, any coordinate) | Same |
-| **Admin & context** | geoadmin + combined FIPS (US); corn RM / soybean MG zones (US + CA) | GADM L1/L2, choropleth maps |
+| **Admin & context** | geoadmin + combined FIPS (US) | GADM L1/L2, choropleth maps |
+| **Maturity zones (derived, not licensed)** | Corn RM / soybean MG computed **in-house per year** for US FIPS counties + provincial analog (CA) | No open official source exists — every seed company keeps proprietary maps; we rebuild ours from literature-based heat-unit models driven by our own NASA POWER weather (default 2021–2025 window, annual parquets you can re-run). More crops and regions are on the roadmap |
 
 **Rotation history for any country, any year.** Where no national map exists,
 [`apply_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/ingest/apply_worldcereal.py)

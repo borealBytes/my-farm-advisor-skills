@@ -43,6 +43,22 @@ deliverable — a web map, a dashboard, an app, a slide, a scouting tool — rea
 those same sources and draws them the way *you* need. The pipeline's unit of
 value is the durable raw layer, not the PNG.
 
+### Ready-to-use layers, not downloads you still have to process
+
+The ingest scripts don't stop at "here's your raster." Take terrain: one call
+clips the best-resolution DEM to your boundary, hydrologically conditions it,
+and emits the **full derivative stack as GeoTIFFs with previews** — slope
+(degrees and percent), aspect, hillshade, D8 flow direction and accumulation,
+profile and planform curvature, topographic wetness index, TPI, TRI, relative
+elevation, depression depth, and an erosion proxy — plus per-field summary
+tables. Every layer carries the same provenance record, so a drainage or
+erosion conversation downstream starts from computed rasters, not a raw DEM
+and a to-do list. Same pattern across the archive: soil comes as rasters *and*
+survey polygons with attribute tables, weather as daily-parquet plus computed
+GDD, crop classification as per-year class grids *and* per-class probability
+bands. It's a ready-to-use data pipeline for any purpose here — the processing
+is the product; the download is just step one.
+
 ### Farm data stacks — terrain, soil, and crop type for one field boundary
 
 Rendered by [`render_field_maps.py`](my-farm-advisor/data-pipeline/src/scripts/render_field_maps.py)

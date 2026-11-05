@@ -176,10 +176,10 @@ The same models run **per year** and stack into a rotation-strip figure via
 `render_year_series()` — this is how rotation history is sourced for countries
 with no national per-year layer (Brazil, most of the world):
 
-| Brazil (São Paulo) — 2021→2024 | Ontario, Canada — 2021→2023 |
+| Brazil (São Paulo) — 2021→2024 (WorldCereal model) | Ontario, Canada — 2019/2021/2023 (AAFC ACI, national layer) |
 | --- | --- |
-| ![BR year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/br-r1_crop_class_year_series.png) | ![CA year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/on-r1_crop_class_year_series.png) |
-| Sugarcane years honestly read *no crop* (the layer has no cane class — 2021/2022 at 96–100 %); the 2023 grass/fodder year (75 %) and 2024 maize year (60 %) pop in color. Panel titles report **in-field** pixel shares with the winning class **bold** — a field is managed as one thing, and the class with the most votes wins | Optical time series is cloud-gapped in-field (≥96 % no-data every year; the tc-s1 radar re-run does not fix it) — an honest negative: ACI + RDM reference (below) is the Ontario answer, not a better sensor pass |
+| ![BR year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/br-r1_crop_class_year_series.png) | ![CA year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/on-r2_crop_class_year_series.png) |
+| Sugarcane years honestly read *no crop* (the layer has no cane class — 2021/2022 at 96–100 %); the 2023 grass/fodder year (75 %) and 2024 maize year (60 %) pop in color. Panel titles report **in-field** pixel shares with the winning class **bold** — a field is managed as one thing, and the class with the most votes wins | Ontario has a national cloud-free product, so the ladder skips the model: field-level ACI exports (30 m ImageServer, bbox + buffer) give 98–99% labeled coverage every year — soybean → corn (2021) → soybean reads per panel; the ladder figure (below) shows what the optical model sees in-place without it |
 
 Coverage note (stated, not hidden): the crop-type layer labels only pixels inside
 WorldCereal's reference cropland mask for that year, so partial-year coverage on

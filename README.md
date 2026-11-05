@@ -365,16 +365,17 @@ The three per-domain playbooks in
 (boundaries, rotation, soil) document exactly how a new country or provider
 gets onboarded — discover, license-check, ingest module, provenance, validator.
 
-Who we expect to fork and extend this, and what they'd plug in first:
+Illustrative examples — not a checklist — of what different operators do with
+the base, all of it decision support grounded in their own data:
 
-| Reader | Extends first |
+| Reader | Might extend it for |
 | --- | --- |
-| Grower / farm manager | Their fields' boundaries, the reports and dashboards they read |
-| Processor / grain buyer | Delivery-zone analytics, contract-area crop maps |
-| Insurance / investment | Damage-evidence pipelines, area-yield views, region benchmarks |
-| Extension agent | Local variety trials, regional rotation analytics |
-| Research / breeding company | Trial designs, germplasm integrations, their own QTL pipelines |
-| Seed company | Maturity models and zones for their genetics specifically |
+| Grower / farm manager | Field-by-field decision support on their own ground: planting windows, drainage and erosion calls, rotation planning, scouting priorities |
+| Grain buyer / processor | Supply-origin risk: contract-area delivery planning, quality and acreage signals near each intake point |
+| Insurance / investment | Field-level risk selection and index products, claims triage with damage-evidence imagery, region benchmarks |
+| Extension agent | Local variety-trial analytics and advisory dashboards for the counties they serve |
+| Research / breeding company | Their trial designs and germplasm pipelines wired to real field conditions |
+| Seed company | Maturity models and placement zones for their genetics specifically |
 
 The point of publishing it as skills rather than an application: the analysis
 interface is natural language ("show me last week's canopy for the home field"),

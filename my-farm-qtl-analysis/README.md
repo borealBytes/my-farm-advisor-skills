@@ -1,5 +1,8 @@
 # My Farm QTL Analysis
 
+
+> **Status:** initial stab — real, runnable workflows and examples; this tree
+> will expand the most as the data-pipeline foundation underneath it matures.
 My Farm QTL Analysis is the genetics and quantitative-analysis skill pack for this repo. It covers GWAS, eQTL mapping, classical QTL workflows, kinship, population structure, genomic prediction, and reporting patterns that turn marker-level results into breeding insight.
 
 Use this skill when the problem is trait-genetics analysis, association mapping, breeding-genomics interpretation, or downstream selection support.

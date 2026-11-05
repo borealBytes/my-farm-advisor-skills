@@ -25,15 +25,17 @@ from paths import (
     farm_cdl_rotation_path,
     farm_cdl_year_table_path,
     shared_cdl_conus_raster_path,
+    shared_cdl_dir,
     shared_cdl_state_raster_path,
 )
 from reporting_bootstrap import ensure_skill_path
 
 ensure_skill_path("cdl-cropland")
 
+from aci_reporting import ACI_MIN_YEAR, extract_aci_crop_composition
 from cdl_reporting import extract_crop_composition, summarize_crop_history
 
-DEFAULT_CDL_LATEST_YEAR = 2025
+DEFAULT_CDL_LATEST_YEAR = 2023  # 2026 program data rule: external data must be public by 2026-02-01 (CDL 2024+ publishes later)
 DEFAULT_CDL_WINDOW_YEARS = 5
 
 
@@ -238,8 +240,24 @@ def main():
     force = args.force or os.environ.get("AG_FORCE") == "1"
     fields = gpd.read_file(farm_boundary_path(grower_slug, farm_slug))
     print(f"Loaded {len(fields)} fields")
-    state_fips_values = _state_fips_values(fields)
-    print("State CDL coverage:", ", ".join(state_fips_values))
+    # Country routing: Canadian fields use the AAFC Annual Crop Inventory
+    # (Canada's 30 m CDL analog, 2009+); everything else uses US CDL. The
+    # `country` property is written by boundary ingestion (e.g. converters set
+    # country='CA'); farms lacking the column fall through to CDL unchanged.
+    if "country" in fields.columns:
+        ca_mask = fields["country"].astype(str).str.strip().str.upper() == "CA"
+    else:
+        ca_mask = pd.Series(False, index=fields.index)
+    canada_fields = fields.loc[ca_mask].copy()
+    us_fields = fields.loc[~ca_mask].copy()
+    if not canada_fields.empty:
+        print(
+            f"  routing {len(canada_fields)} field(s) to AAFC Annual Crop Inventory "
+            f"(ACI {ACI_MIN_YEAR}+)"
+        )
+    state_fips_values = _state_fips_values(us_fields)
+    if not us_fields.empty:
+        print("State CDL coverage:", ", ".join(state_fips_values))
 
     target_years = _target_cdl_years()
     cached_years = [
@@ -287,29 +305,45 @@ def main():
     crop_mix_frames = []
     completed_years: list[int] = []
     for year in target_years:
-        print(f"\n--- {year} CDL ---")
+        print(f"\n--- {year} CDL/ACI ---")
         state_frames: list[pd.DataFrame] = []
-        for state_fips in state_fips_values:
-            if "state_fips" in fields.columns:
-                state_mask = fields["state_fips"].astype(str).str.zfill(2) == state_fips
-            else:
-                state_mask = pd.Series([True] * len(fields), index=fields.index)
-            state_fields = fields.loc[state_mask].copy()
-            if state_fields.empty:
-                continue
-            try:
-                cdl_year_path = download_cdl(year, state_fips=state_fips)
-            except HTTPError as exc:
-                response = getattr(exc, "response", None)
-                if response is not None and response.status_code == 404:
-                    print(
-                        f"  Warning: CDL {year} is not available yet for state {state_fips}; skipping"
-                    )
+        if not us_fields.empty:
+            for state_fips in state_fips_values:
+                if "state_fips" in us_fields.columns:
+                    state_mask = us_fields["state_fips"].astype(str).str.zfill(2) == state_fips
+                else:
+                    state_mask = pd.Series([True] * len(us_fields), index=us_fields.index)
+                state_fields = us_fields.loc[state_mask].copy()
+                if state_fields.empty:
                     continue
-                raise
-            state_frames.append(extract_crop_composition(state_fields, cdl_year_path, year=year))
+                try:
+                    cdl_year_path = download_cdl(year, state_fips=state_fips)
+                except HTTPError as exc:
+                    response = getattr(exc, "response", None)
+                    if response is not None and response.status_code == 404:
+                        print(
+                            f"  Warning: CDL {year} is not available yet for state {state_fips}; skipping"
+                        )
+                        continue
+                    raise
+                cdl_frame = extract_crop_composition(state_fields, cdl_year_path, year=year)
+                if not cdl_frame.empty:
+                    cdl_frame["crop_source"] = "cdl"
+                state_frames.append(cdl_frame)
+        if not canada_fields.empty:
+            aci_frame = extract_aci_crop_composition(
+                canada_fields, shared_cdl_dir(), year=year, force=force
+            )
+            if not aci_frame.empty:
+                aci_frame["crop_source"] = "aci"
+                state_frames.append(aci_frame)
+                valid = aci_frame[aci_frame["crop_name"] != "No Data"]
+                print(
+                    f"  ACI {year}: {len(valid)} composition rows for "
+                    f"{valid['field_id'].nunique()} Canadian fields"
+                )
         if not state_frames:
-            print(f"  Warning: no CDL composition rows were available for {year}; skipping")
+            print(f"  Warning: no CDL/ACI composition rows were available for {year}; skipping")
             continue
         cdl_year = pd.concat(state_frames, ignore_index=True)
         year_output = ensure_parent(farm_cdl_year_table_path(grower_slug, farm_slug, year))

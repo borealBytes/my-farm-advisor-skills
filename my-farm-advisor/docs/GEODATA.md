@@ -47,6 +47,23 @@ Expected outputs are:
 - `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/geoadmin/l2_counties/counties_usa.parquet`
 - `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/shared/geoadmin/l2_counties/fips_lookup.parquet`
 
+## Small-footprint site maps (client dashboards, trial footprints)
+
+Any map that plots a few points on a basemap (BMS / BreedBase / IoT client examples) should
+say where those points are in admin terms. `data-pipeline/src/scripts/lib/geoadmin_context.py`
+adds it from the same cached layers — no new downloads:
+
+```python
+from geoadmin_context import add_admin_context
+add_admin_context(ax, sites_gdf_3857, crs="EPSG:3857")
+```
+
+It clips to the axes view and draws L2 boundaries plus the full county / census-division name
+of every unit touching the sites (nudged off markers), L1 boundaries plus a label per visible
+state/province, and L0 country boundaries — white-on-imagery, deliberately subtle. The module
+lifts `OGR_GEOJSON_MAX_OBJ_SIZE` **before** importing geopandas: pyogrio captures GDAL config
+at import, so reordering that silently breaks the big country/Canada files.
+
 ## How to run the downloader
 
 For the default first-run shared-data setup, use the data-pipeline installer. This builds geoadmin L0/L1/L2 before the shared weather and maturity steps:

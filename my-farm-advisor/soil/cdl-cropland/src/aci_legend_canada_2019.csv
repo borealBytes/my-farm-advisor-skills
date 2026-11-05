@@ -1,0 +1,76 @@
+Code,Red,Green,Blue,RGB HEX,Label,Étiquette
+10,0,0,0,000000,Cloud,Nuages
+20,51,51,255,3333FF,Water,Eau
+30,153,102,102,996666,Exposed land/barren,Sols nus/terres stériles
+34,204,102,153,CC6699,Urban/developed,Milieu urbain/bâti
+35,225,225,225,E1E1E1,Greenhouses,Serres
+50,255,255,0,FFFF00,Shrubland,Arbustaie
+60,102,102,102,666666,Forest fire/burnt area ,Incendie de forêt/zone brûlée
+80,153,51,153,993399,Wetland,Terres humides
+85,80,27,80,501B50,Peatland,Tourbière exploitée
+110,204,204,0,CCCC00,Grassland,Prairies
+120,204,102,0,CC6600,Agriculture (undifferentiated),Agriculture (indifférenciée)
+121,255,153,51,FF9933,Cropland,Terres cultivées
+122,255,204,51,FFCC33,Pasture/forages,Pâturage/cultures fourragères
+130,120,153,246,7899F6,Too wet to be seeded,Trop humide pour l’ensemencement
+131,255,153,0,FF9900,Fallow,Jachère
+132,102,0,0,660000,Cereals,Céréales
+133,218,227,29,DAE31D,Barley,Orge
+134,153,204,0,99CC00,Other grains,Autres céréales
+135,210,219,37,D2DB25,Millet,Millet
+136,209,213,43,D1D52B,Oats,Avoine
+137,202,206,50,CACE32,Rye,Seigle
+138,195,198,58,C3C63A,Spelt,Épeautre
+139,185,188,68,B9BC44,Triticale,Triticale
+140,167,179,77,A7B34D,Wheat,Blé
+141,185,198,78,B9C64E,Switchgrass,Panic érigé
+142,153,153,0,999900,Sorghum,Sorgho
+143,233,226,177,E9E2B1,Quinoa,Quinoa
+145,128,151,105,809769,Winter wheat,Blé d'hiver
+146,146,165,91,92A55B,Spring wheat,Blé de printemps
+147,255,255,153,FFFF99,Corn for grain,Maïs-grain
+148,152,136,124,98887C,Tobacco,Tabac
+149,121,155,147,799B93,Ginseng,Ginseng
+150,94,162,99,5EA263,Oilseeds,Oléagineux
+151,82,174,119,52AE77,Borage,Bourrache
+152,65,191,122,41BF7A,Camelina,Caméline
+153,214,255,112,D6FF70,Canola/rapeseed,Canola/colza
+154,140,140,255,8C8CFF,Flaxseed,Lin
+155,214,204,0,D6CC00,Mustard,Moutarde
+156,255,127,0,FF7F00,Safflower,Carthame
+157,49,84,145,315491,Sunflower,Tournesol
+158,204,153,51,CC9933,Soybeans,Soya
+159,94,162,150,5EA296,Other oilseeds,Autres graines oléagineuses
+160,137,110,67,896E43,Pulses,Légumineuses
+161,153,102,51,996633,Other pulses,Autres légumineuses
+162,143,108,61,8F6C3D,Peas,Pois
+163,182,164,114,B6A472,Chickpeas,Pois chiche
+167,130,101,74,82654A,Beans,Haricots
+168,163,144,105,A39069,Fababeans,Féveroles
+174,184,89,0,B85900,Lentils,Lentilles
+175,183,75,21,B74B15,Vegetables,Légumes
+176,255,138,138,FF8A8A,Tomatoes,Tomates
+177,255,204,204,FFCCCC,Potatoes,Pomme de terre
+178,111,85,202,6F55CA,Sugarbeets,Betterave à sucre
+179,255,204,255,FFCCFF,Other vegetables,Autres légumes
+180,220,84,36,DC5424,Fruits,Fruits
+181,208,90,48,D05A30,Berries,Petits fruits
+182,210,0,0,D20000,Blueberry,Bleuet
+183,204,0,0,CC0000,Cranberry,Canneberge
+185,220,50,0,DC3200,Other berries,Autres baies
+188,255,102,102,FF6666,Orchards,Vergers
+189,197,69,59,C5453B,Other fruits,Autres fruits
+190,116,66,189,7442BD,Vineyards,Vignobles
+191,255,204,153,FFCC99,Hops,Houblon
+192,181,251,5,B5FB05,Sod,Gazon en plaques
+193,204,255,5,CCFF05,Herbs,Fines herbes
+194,7,249,140,07F98C,Nursery,Pépinière
+195,0,255,204,00FFCC,Buckwheat,Sarrasin
+196,204,51,204,CC33CC,Canaryseed,Graines à canaris
+197,142,118,114,8E7672,Hemp,Chanvre
+198,177,149,79,B1954F,Vetch,Vesce
+199,116,154,102,749A66,Other crops,Autres cultures
+200,0,153,0,009900,Forest (undifferentiated),Forêt (indifférenciée)
+210,0,102,0,006600,Coniferous,Forêt de conifères
+220,0,204,0,00CC00,Broadleaf,Forêt de feuillus
+230,204,153,0,CC9900,Mixedwood,Forêt mixte

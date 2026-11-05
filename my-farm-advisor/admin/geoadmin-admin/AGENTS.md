@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This folder owns geospatial administration workflows for selecting and preparing administrative boundary layers used by the farm advisor skill.
+This folder owns geospatial administration workflows for selecting and preparing administrative boundary layers used by the farm advisor skill. Any-country L1/L2 levels are built with `download_geoadmin.py --gadm-iso <ISO3>` (see GUIDE.md, "Any-country L1/L2").
 
 ## Safe edit scope
 

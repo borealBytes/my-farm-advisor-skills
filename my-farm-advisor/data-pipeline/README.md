@@ -1,5 +1,45 @@
 # Data Pipeline Runtime Setup
 
+Real-farm field polygons per country (CSB GeoParquet pruning, Overpass rules,
+repository contract, new-country checklist):
+[references/field-boundary-sources.md](references/field-boundary-sources.md).
+Soil provider selection by boundary `country`:
+[../soil/soil-routing.md](../soil/soil-routing.md).
+Per-year crop rotation/crop-type sources by country (CDL, AAFC ACI, and the
+keyless WorldCereal default-model path for every other country):
+[references/crop-rotation-sources.md](references/crop-rotation-sources.md).
+## Example renders
+
+Vision-QC'd sample figures ship under [`examples/`](examples/) — one
+subfolder per output family (`field-maps/`, `soil-maps/`, `maturity/`,
+`field-components/`, `weather-eda/`, `worldcereal/`). PNGs only; regenerated
+runtime artifacts stay outside the repo under `DATA_PIPELINE_DATA_ROOT`
+(see `ASSET_POLICY.md` at the repo root).
+
+
+## Global parity in one paragraph
+
+Any field, any country, **zero accounts**: boundaries from CSB (US) or
+OSM/Overpass (rules per country); profile soil from SSURGO (US), the Ontario
+detailed survey (CA), Australia's Soil Atlas via Gaia-DAP (AU), or SoilGrids
+250 m as the global floor; rotation history from CDL (US), AAFC ACI (CA), or
+the WorldCereal default crop models applied per year on keyless Microsoft
+Planetary Computer Sentinel-2 (`scripts/ingest/apply_worldcereal.py`,
+verification figures via `scripts/render_worldcereal.py`, plus a USDA CDL
+comparator panel via `scripts/render_worldcereal_cdl.py` — in-field class
+shares and an explicit agree/disagree verdict); terrain from the
+resolution-ranked DEM resolver (USGS 3DEP/TNM where mapped — up to 1 m — with
+Copernicus 30 m, NASADEM, and ALOS as the global floor); weather from NASA
+POWER public Zarr; admin boundaries and choropleths from geoadmin plus GADM
+for any country via `--gadm-iso`. Every provider journals its
+URL, sha256, and version. The one optional upgrade (Sentinel-1 fidelity in
+WorldCereal runs, `--backend cdse`) is genuinely optional — the default path
+never asks you to sign up for anything.
+
+Per-field composite figures (terrain hillshade + contours, soil polygons, and
+per-year crop class over the boundary) render from the same archive with
+`scripts/render_field_maps.py`.
+
 This subskill ships the scripts that build the data-pipeline reports and
 posters. Each runtime host creates its own virtualenv inside the data tree on
 first run; the scripts auto-bootstrap that environment before continuing.
@@ -202,9 +242,9 @@ export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
 
 The `environment.d` file applies to future sessions only. It does not update an already-running shell.
 
-## Running inside OpenClaw CLI
+## Running inside an agent CLI
 
-When invoking the pipeline from the control UI or `openclaw-cli`, you can still
+When invoking the pipeline from an agent harness CLI (OpenClaw, Hermes, or plain shell), you can still
 activate the environment explicitly, but the entrypoints will install and re-exec
 themselves if the runtime venv is missing.
 

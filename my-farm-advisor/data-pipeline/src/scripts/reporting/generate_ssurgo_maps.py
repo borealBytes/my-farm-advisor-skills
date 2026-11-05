@@ -424,7 +424,10 @@ def _render_map(
     if not plot_source.empty:
         plot_target = plot_source.to_crs(epsg=3857) if use_basemap else plot_source
         max_class = int(pd.Series(plot_source["class_id"]).max()) if not plot_source.empty else 0
-        colors = plt.get_cmap("YlGn")(np.linspace(0.35, 0.85, max(1, max_class + 1)))
+        # Categorical palette: adjacent soil components must be tellable apart
+        # at a glance — a continuous green ramp fails the comparator test.
+        _cmap = plt.get_cmap("tab20")
+        colors = [_cmap(i % 20) for i in range(max(1, max_class + 1))]
         legend_elements: list[object] = [
             Line2D([0], [0], color="darkgreen", linewidth=3, label="Field Boundary")
         ]
@@ -436,7 +439,7 @@ def _render_map(
                 ax=ax,
                 color=colors[int(class_id)],
                 alpha=0.62,
-                edgecolor="#166534",
+                edgecolor="#1f2937",
                 linewidth=1.35,
             )
             legend_elements.append(
@@ -469,6 +472,19 @@ def _render_map(
     plt.close(fig)
 
 
+
+def _survey_label(ssurgo_gdf: gpd.GeoDataFrame) -> str:
+    """Name the survey the polygons actually came from (SSURGO, Ontario
+    Detailed Soil Survey, ...) instead of hard-coding SSURGO everywhere."""
+    if ssurgo_gdf is not None and "soil_source" in getattr(ssurgo_gdf, "columns", []):
+        vals = [v for v in ssurgo_gdf["soil_source"].dropna().unique() if isinstance(v, str)]
+        if vals:
+            v = vals[0]
+            if v == "usda-sda":
+                return "SSURGO"
+            return " ".join(w.capitalize() for w in v.replace("_", " ").replace("-", " ").split())
+    return "SSURGO"
+
 def render_ssurgo_component_map(
     field_gdf: gpd.GeoDataFrame,
     ssurgo_gdf: gpd.GeoDataFrame,
@@ -495,7 +511,7 @@ def render_ssurgo_component_map(
         field_gdf=field_gdf,
         plot_source=plot_source,
         output_path=output_path,
-        title=f"Field {field_short} - SSURGO Predominant Component\n({mukey_count} MUKEYs)",
+        title=f"Field {field_short} - {_survey_label(ssurgo_gdf)} Predominant Component\n({mukey_count} MUKEYs)",
         legend_title="Predominant component",
         label_builder=_label,
     )
@@ -572,7 +588,14 @@ def main() -> None:
 
         field_single = fields.iloc[[idx - 1]].copy()
 
-        field_ssurgo = get_ssurgo_polygons_with_soil_data(field_single, field_id)
+        # Cached survey polygons (SSURGO or a national equivalent ingested in
+        # the same schema, e.g. the Ontario Detailed Soil Survey) win over a
+        # fresh query — this is what lets Canada render without SDA.
+        cached = field_soil_polygon_path(_DEFAULT_GROWER, _DEFAULT_FARM, field_slug)
+        if cached.exists():
+            field_ssurgo = gpd.read_file(cached)
+        else:
+            field_ssurgo = get_ssurgo_polygons_with_soil_data(field_single, field_id)
 
         component_output = field_feature_path(
             _DEFAULT_GROWER, _DEFAULT_FARM, field_slug, "soil_component_map.png"

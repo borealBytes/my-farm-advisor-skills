@@ -1,6 +1,6 @@
 # My Farm Advisor
 
-My Farm Advisor is the farm-specific skill umbrella for this repository. It turns the upstream OpenClaw runtime into an evidence-first agricultural system that can rebuild farm data, analyze field conditions, generate operator-ready reports, and route day-to-day questions into the right agronomic workflow.
+My Farm Advisor is the farm-specific skill umbrella for this repository. It turns any upstream agent runtime into an evidence-first agricultural system that can rebuild farm data, analyze field conditions, generate operator-ready reports, and route day-to-day questions into the right agronomic workflow.
 
 Use this skill when the request is fundamentally about fields, crops, weather, soil, terrain, imagery, reporting, or strategy. It is the top-level router for the farm domain in this repo.
 
@@ -10,7 +10,42 @@ Use this skill when the request is fundamentally about fields, crops, weather, s
 - Connects field operations, data rebuilds, imagery, soil, weather, and strategy work into one coherent system.
 - Preserves a field-level source of truth so summaries and recommendations stay traceable.
 - Provides both quick guidance docs and scoped agent instructions for repeatable farm workflows.
-- Anchors the farm-specific skill layer that sits on top of upstream OpenClaw.
+- Anchors the farm-specific skill layer that sits on top of an upstream agent runtime (OpenClaw, Hermes, or any harness that reads SKILL.md/AGENTS.md).
+
+## Global data coverage (any country, zero accounts)
+
+The pipeline now gives non-US fields the same source lineage as US fields,
+with **no API keys, logins, or paid services anywhere in the default path**:
+
+| Capability | US | Canada | Australia | Any other country |
+|---|---|---|---|---|
+| Field boundaries | USDA CSB GeoParquet + OSM | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM/Overpass ([playbook](data-pipeline/references/field-boundary-sources.md)) |
+| Soil (profile) | SSURGO / gNATSGO flags | Ontario detailed DSS + AAFC | ASF via Gaia-DAP (ANSIS) | SoilGrids 250 m global fallback, scale-table verified |
+| Crop rotation history | USDA CDL 2008→ | AAFC ACI 2017→ | WorldCereal models, per-year | WorldCereal models, per-year ([routing](data-pipeline/references/crop-rotation-sources.md)) |
+| Terrain | USGS 3DEP via The National Map — up to **1 m LiDAR** where mapped; ILHMP (Illinois) | NRCan CanElevation HRDEM 10 m (OGL-Canada) next; today Copernicus GLO-30 | ELVIS/Vicmap state LiDAR next; today GA-tier floor | Copernicus DEM GLO-30, NASADEM 1″, ALOS AW3D30 — resolution-ranked auto-select |
+| Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
+| Imagery | Sentinel-2 L2A (10 m, ~5 d) + Landsat C2 L2 (30 m; archive 1982→, pipeline default L8+L9 for the 8-day window) — keyless PC STAC | ← | ← | ←; Sentinel-1 SAR (VV/VH) wired into WorldCereal — real radar via free optional CDSE backend, NODATA in keyless default |
+| Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 (PRUID-enriched) | `--gadm-iso AUS` (live-verified: 568 LGA units) | `--gadm-iso <ISO3>` — any country; L0 worldwide already |
+| Corn RM / Soybean MG (**derived**) | Heuristic FIPS models computed in-house from our own POWER weather — annual `rm_by_fips_YYYY` + 5-year averages | provincial analog | season calendar | season calendar |
+
+Maturity maps are **models, not licensed data**. No open authoritative
+source exists for corn RM or soybean MG — each seed company publishes its own
+proprietary version — so we generate ours from literature-based heat-unit and
+photoperiod models fed by the pipeline's own weather, which means the windows
+and assumptions are ours to choose and every year is re-runnable. The same
+machinery generalizes: expansion to additional crops and regions (more
+calendars, more phenology models) is the planned direction.
+
+Per-year crop-type classification for any field/year runs the open
+**WorldCereal default models** (`data-pipeline/src/scripts/ingest/apply_worldcereal.py`)
+on Sentinel-2 monthly composites fetched keyless from Microsoft Planetary
+Computer — the same anonymous access the NDVI products already use. Season
+windows come from the toolbox crop calendar (Southern-Hemisphere cross-year
+correct) and every output carries provenance + honest accuracy caveats
+(region-dependent; un-fine-tuned regions like Australia may mislabel crops).
+Verification figures: `data-pipeline/src/scripts/render_worldcereal.py`.
+Soil provider selection: [`soil/soil-routing.md`](soil/soil-routing.md);
+new-country checklist: [`data-pipeline/references/field-boundary-sources.md`](data-pipeline/references/field-boundary-sources.md).
 
 ## Canonical Farm Data Structure
 
@@ -128,6 +163,8 @@ High-value pipeline and bootstrap entrypoints include:
 - reporting bootstrap: [`data-pipeline/src/scripts/reporting_bootstrap.py`](data-pipeline/src/scripts/reporting_bootstrap.py)
 - farm markdown/html outputs: [`data-pipeline/src/scripts/reporting/generate_farm_markdown.py`](data-pipeline/src/scripts/reporting/generate_farm_markdown.py), [`data-pipeline/src/scripts/reporting/generate_farm_html.py`](data-pipeline/src/scripts/reporting/generate_farm_html.py)
 - field posters: [`data-pipeline/src/scripts/reporting/generate_field_posters.py`](data-pipeline/src/scripts/reporting/generate_field_posters.py)
+- soil texture triangles + horizon tables (any survey or grid): [`data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py`](data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)
+- standalone weather charts: [`data-pipeline/src/scripts/reporting/generate_weather_charts.py`](data-pipeline/src/scripts/reporting/generate_weather_charts.py)
 
 The most important high-level orchestration docs are:
 
@@ -279,9 +316,9 @@ Examples:
 ```mermaid
 flowchart TD
     accTitle: Farm Skill Value In The Repo
-    accDescr: Diagram showing how the upstream OpenClaw runtime connects to the My Farm Advisor skill layer and how that layer produces operational farm outputs, lineage, reporting, and strategy support.
+    accDescr: Diagram showing how the upstream agent runtime connects to the My Farm Advisor skill layer and how that layer produces operational farm outputs, lineage, reporting, and strategy support.
 
-    upstream([⚙️ Upstream OpenClaw runtime]) --> farm_skill[🌾 My Farm Advisor skill layer]
+    upstream([⚙️ Upstream agent runtime]) --> farm_skill[🌾 My Farm Advisor skill layer]
 
     farm_skill --> field_outputs[🚜 Field operations outputs]
     farm_skill --> lineage[🧬 Traceable data lineage]

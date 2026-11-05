@@ -7,10 +7,16 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import os
 import sys
 from pathlib import Path
 
+# TIGER/GADM county geojsons contain multi-megabyte multipolygons; GDAL's
+# default 500 MB single-feature object guard rejects them on read.
+os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
+
 import geopandas as gpd
+import pandas as pd
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -68,6 +74,13 @@ def main() -> int:
     geoadmin_admin = importlib.import_module("geoadmin_admin")
     fields = gpd.read_file(farm_boundary_path(args.grower_slug, args.farm_slug))
     counties = gpd.read_file(shared_geoadmin_counties_dir() / "counties_usa.geojson")
+    counties_canada_path = shared_geoadmin_counties_dir() / "counties_canada.geojson"
+    if counties_canada_path.exists():
+        counties = gpd.GeoDataFrame(
+            pd.concat([counties, gpd.read_file(counties_canada_path)], ignore_index=True),
+            geometry="geometry",
+            crs="EPSG:4326",
+        )
     field_slug_map = field_slug_map_from_inventory(
         inventory_path if inventory_path.exists() else None
     )

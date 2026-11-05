@@ -72,7 +72,9 @@ def query_zarr_grid_weather(
     fsspec, xr = import_zarr_stack()
     store_url = ZARR_STORES[collection][time_standard]
     store = fsspec.get_mapper(store_url)
-    ds = xr.open_zarr(store, consolidated=True, chunks=None)
+    # NASA POWER stores are zarr v2 format. xarray>=2026 with zarr 3.x silently
+    # returns 0 variables unless zarr_format=2 is declared explicitly.
+    ds = xr.open_zarr(store, zarr_format=2, chunks=None)
     try:
         missing = [parameter for parameter in parameters if parameter not in ds.data_vars]
         if missing:

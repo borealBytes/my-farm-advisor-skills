@@ -1,2 +1,6 @@
-examples/**/output/
+# Generated example outputs are ignored EXCEPT checked-in PNG fixtures under
+# examples/**/output/ (ASSET_POLICY.md: the one allowed location). Non-image
+# outputs there (csv/json/logs) stay ignored and regenerate at runtime.
+examples/**/output/*
+!examples/**/output/*.png
 scripts/output/

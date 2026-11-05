@@ -34,12 +34,67 @@ PALETTE = (list(_cm.get_cmap("tab20").colors)
            + ["#8d8d8d"])          # index 23 = no_crop (grey)
 
 
-def find_run(farm, field, season):
+def find_run(farm, field, season, year=None):
     prov = json.load(open(os.path.join(ROOT, farm, "manifests",
                                        "worldcereal_provenance.json")))
     cands = [r for r in prov["runs"] if r.get("field_id", r.get("field")) == field
-             and r["season"] == season and r.get("backend") == "pc"]
+             and r["season"] == season and r.get("backend") == "pc"
+             and (year is None or r.get("year") == year)]
     return cands[-1]
+
+
+def render_year_series(farm, field, years, season, fname, title):
+    """Per-year WorldCereal crop-type classification for one field.
+
+    One panel per year (nearest-neighbour class raster), title carries the
+    dominant classes and their pixel share for that year — the rotation
+    story reads straight off the series.
+    """
+    runs = {y: find_run(farm, field, season, year=y) for y in years}
+    n = len(years)
+    fig, axes = plt.subplots(1, n, figsize=(4.6 * n, 5.4), squeeze=False)
+    from shapely.geometry import shape
+    with fiona.open(os.path.join(ROOT, farm, "fields", field, "boundary",
+                                 "field_boundary.geojson")) as src:
+        geom = shape(next(iter(src))["geometry"])
+    legend_seen = {}
+    for ax, y in zip(axes[0], years):
+        run = runs[y]
+        rel = [v["path"] for k, v in run["files"].items()
+               if k.startswith("croptype")][0]
+        tif = rel if os.path.isabs(rel) else os.path.join(ROOT, farm, rel)
+        with rasterio.open(tif) as s:
+            arr = s.read(1).astype("int32")
+        valid = arr[arr != 254]
+        hist = np.bincount(arr.ravel(), minlength=25)
+        total = max(len(valid), 1)
+        top = sorted(range(24), key=lambda t: -hist[t])[:3]
+        top = [t for t in top if hist[t] > 0]
+        parts = " · ".join(f"{LABELS[t]} {100*hist[t]/total:.0f}%" for t in top)
+        class_panel(ax, tif, "crop")
+        ax.get_legend().remove()
+        ax.set_title(f"{y} — {parts}", fontsize=9.5)
+        epsg = run["epsg"]
+        tfm = pyproj.Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}",
+                                         always_xy=True)
+        x0, y0 = tfm.transform(geom.bounds[0], geom.bounds[1])
+        x1, y1 = tfm.transform(geom.bounds[2], geom.bounds[3])
+        gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326").to_crs(epsg)
+        gdf.boundary.plot(ax=ax, lw=1.8, edgecolor="red")
+        for t in top:
+            legend_seen[t] = f"{t} {LABELS[t]}"
+    handles = [Patch(facecolor=PALETTE[t], label=legend_seen[t])
+               for t in sorted(legend_seen)]
+    handles.append(Patch(facecolor="#c8b487", label="no crop (254)"))
+    handles.append(Patch(facecolor="#8d8d8d", label="no data"))
+    fig.legend(handles=handles, loc="lower center", ncol=min(len(handles) + 2, 7),
+               fontsize=8, framealpha=.95)
+    fig.suptitle(title, fontsize=13, y=.99)
+    fig.tight_layout(rect=(0, .06, 1, .965))
+    out = os.path.join(SCRATCH, fname)
+    fig.savefig(out, dpi=140, bbox_inches="tight")
+    plt.close(fig)
+    print("OUT:", out)
 
 
 def scene_assets(item_id):

@@ -504,7 +504,43 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
               ("AWC (cm/cm)", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues")),
               ("Clay %", _interp_profile(df, "claytotal_r", bins), plt.get_cmap("PuRd"))]
     have = [(n, y, c) for n, y, c in panels if y is not None]
-    gs2 = gridspec.GridSpecFromSubplotSpec(1, len(have), subplot_spec=gs[-1], wspace=0.08)
+    # fifth profile: sand+silt+clay interpolated the same way, normalized to a
+    # 100 % stack down the profile — you watch texture change with depth
+    tex_curves = {}
+    for key, tcol in (("sand", "sandtotal_r"), ("silt", "silttotal_r"), ("clay", "claytotal_r")):
+        yy = _interp_profile(df, tcol, bins)
+        if yy is not None:
+            tex_curves[key] = yy
+    has_tex = len(tex_curves) == 3
+    # restrictive layers (SSURGO corestrictions, written by the soil ingest):
+    # a red-hatched marker column right of the depth axis, one band per feature
+    rfile = csv_path.parent / "ssurgo_restrictions.csv"
+    restricts: list[tuple[str, float, float]] = []
+    if rfile.exists():
+        try:
+            rdf = pd.read_csv(rfile).dropna(subset=["reskind", "resdept_r"])
+            for (_kind, top, bot), grp in rdf.groupby(
+                    ["reskind", "resdept_r", "resdepb_r"]):
+                restricts.append((str(_kind), float(top), float(bot)))
+        except BaseException:
+            restricts = []
+    has_restr = len(restricts) > 0
+    known_restr = rfile.exists()
+    def _restr_color(kind: str) -> str:
+        k = kind.lower()
+        if any(w in k for w in ("fragipan", "claypan", "duripan", "compacted", "plinthite", "ortstein")):
+            return "#b45309"
+        if any(w in k for w in ("bedrock", "substratum", "contact", "ice")):
+            return "#374151"
+        if any(w in k for w in ("water", "saturat", "perched", "aquic")):
+            return "#1d4ed8"
+        return "#7c2d12"
+    n_cols2 = len(have) + (1 if has_tex else 0) + (1 if (has_restr or known_restr) else 0)
+    ratios2 = [1] * (len(have) + (1 if has_tex else 0))
+    if has_restr or known_restr:
+        ratios2.append(0.62)
+    gs2 = gridspec.GridSpecFromSubplotSpec(1, n_cols2, subplot_spec=gs[-1], wspace=0.08,
+                                           width_ratios=ratios2)
     for i, (name, y, cmap) in enumerate(have):
         ax = fig.add_subplot(gs2[i])
         ax.plot(y, bins, color="#1f2937", lw=1.7)
@@ -515,8 +551,48 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         ax.tick_params(labelsize=6.6)
         ax.grid(alpha=0.25, lw=0.4)
         ax.set_xlabel("interp @ 5 cm", fontsize=6.2)
+    if has_tex:
+        M = np.vstack([tex_curves["sand"], tex_curves["silt"], tex_curves["clay"]])
+        M = np.clip(M, 0, None)
+        M = M / M.sum(axis=0, keepdims=True) * 100.0
+        s, si, c = M[0], M[1], M[2]
+        axx = fig.add_subplot(gs2[len(have)])
+        axx.fill_betweenx(bins, 0, s, color="#d9a066")
+        axx.fill_betweenx(bins, s, s + si, color="#9aa5b1")
+        axx.fill_betweenx(bins, s + si, 100, color="#b23a2f")
+        for depth, frac, txt, cc in ((88, s[-3] / 2, "sand", "#7c4a12"),
+                                     (88, (s[-3] + si[-3] / 2), "silt", "#374151"),
+                                     (88, (s[-3] + si[-3] + c[-3] / 2), "clay", "#fef2f2")):
+            axx.text(frac, depth, txt, fontsize=6.2, color=cc, ha="center", va="center",
+                     path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
+        axx.set_ylim(100, 0); axx.set_xlim(0, 100)
+        axx.set_title("texture (100 %)", fontsize=8.2, weight="bold", pad=4)
+        axx.tick_params(labelsize=6.6)
+        axx.set_xlabel("% of texture @ 5 cm", fontsize=6.2)
+    if has_restr or known_restr:
+        axr = fig.add_subplot(gs2[n_cols2 - 1])
+        axr.set_ylim(100, 0); axr.set_xlim(0, 1)
+        axr.set_yticks([0, 20, 40, 60, 80, 100]); axr.tick_params(labelsize=6.6)
+        axr.set_xticks([])
+        axr.set_title("restrictions", fontsize=8.2, weight="bold", pad=4)
+        if has_restr:
+            for kind, top, bot in restricts:
+                bot = min(bot, 100.0)
+                if top > 100:
+                    continue
+                axr.add_patch(plt.Rectangle((0.08, top), 0.84, max(bot - top, 4),
+                                            facecolor=_restr_color(kind), alpha=0.28,
+                                            edgecolor=_restr_color(kind), hatch="///", lw=0.8))
+                axr.text(0.5, max(top, (top + bot) / 2 - 3), kind, rotation=90, fontsize=5.6,
+                         color=_restr_color(kind), ha="center", va="center", weight="bold",
+                         path_effects=[pe.withStroke(linewidth=1.4, foreground="white")])
+            axr.set_xlabel("hatched = restrictive\nlayer depth range", fontsize=5.8)
+        else:
+            axr.text(0.5, 50, "no restrictive\nfeatures \u2264 100 cm", rotation=90,
+                     fontsize=6.0, color="#6b7280", ha="center", va="center")
     ax_t.text(0.99, 0.02, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
-              "constant beyond table", transform=ax_t.transAxes, fontsize=6.0,
+              "constant beyond table | texture panel: same interpolation, normalized to 100 %",
+              transform=ax_t.transAxes, fontsize=6.0,
               color="#6b7280", ha="right")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight", facecolor="white")
@@ -524,16 +600,25 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     print(f"saved {out}")
 
 
+# Soil-meaningful ramps: warm tans/greens for texture + organic matter, blue-
+# greens for water-related storage, BrBG pH diverging centred on neutral 7.0
+# (brown = acid, teal = alkaline — the convention in soil survey reports),
+# perceptually uniform sequential for the physical/chemical quantities.
 _PROPERTY_SPECS = [
-    ("om_r", "Organic matter %", "Reds"),
-    ("ph1to1h2o_r", "pH (1:1 H2O)", "coolwarm_r"),
-    ("awc_r", "Available water capacity", "Blues"),
-    ("claytotal_r", "Clay %", "PuRd"),
-    ("silttotal_r", "Silt %", "YlGnBu"),
-    ("sandtotal_r", "Sand %", "Oranges"),
-    ("cec7_r", "CEC (cmol/kg)", "viridis"),
-    ("dbthirdbar_r", "Bulk density", "cividis"),
+    ("om_r", "Organic matter %", "YlGn", None),
+    ("ph1to1h2o_r", "pH (1:1 H2O)", "BrBG", 7.0),
+    ("awc_r", "Available water capacity", "YlGnBu", None),
+    ("claytotal_r", "Clay %", "Blues", None),
+    ("silttotal_r", "Silt %", "Purples", None),
+    ("sandtotal_r", "Sand %", "YlOrBr", None),
+    ("cec7_r", "CEC (cmol/kg)", "viridis", None),
+    ("dbthirdbar_r", "Bulk density", "cividis", None),
 ]
+UNIT_BY_COL = {
+    "om_r": "% by weight", "ph1to1h2o_r": "pH units", "awc_r": "cm water / cm soil",
+    "claytotal_r": "%", "silttotal_r": "%", "sandtotal_r": "%",
+    "cec7_r": "cmol(c+)/kg", "dbthirdbar_r": "g/cm³",
+}
 
 
 def render_property_map(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO") -> None:
@@ -558,7 +643,8 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     areas = poly.assign(a=poly.to_crs(6933).geometry.area).groupby("mukey")["a"].sum()
 
     panels = []
-    for col, title, cmap in _PROPERTY_SPECS:
+    import matplotlib.colors as _mc
+    for col, title, cmap, vcenter in _PROPERTY_SPECS:
         sub = top.dropna(subset=[col])
         if sub.empty:
             continue
@@ -566,38 +652,31 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
         sub = sub.assign(w=sub["share"] / wsum)
         vals = (sub["w"] * sub[col]).groupby(sub["mukey"]).sum()
         p = poly.merge(vals.rename("v"), on="mukey", how="left")
-        panels.append((title, cmap, p))
+        norm = None
+        if vcenter is not None and p["v"].notna().any():
+            lo, hi = float(p["v"].min()), float(p["v"].max())
+            if lo < vcenter < hi:
+                pad = 0.5
+                norm = _mc.TwoSlopeNorm(
+                    vcenter=vcenter,
+                    vmin=min(lo, vcenter - pad), vmax=max(hi, vcenter + pad))
+        panels.append((col, title, cmap, p, norm))
     if not panels:
         return
 
-    # --- texture composition strip data: one slice per map unit, ordered
-    # north -> south, width = that unit's share of the field; the three
-    # texture fractions stack to 100 % so you watch sand/silt/clay trade off
-    # as you walk down the field ---
-    tex = top.dropna(subset=["claytotal_r", "silttotal_r", "sandtotal_r"])
-    strip = None
-    if not tex.empty and areas is not None:
-        tsub = tex.assign(w=tex["share"])
-        agg = {c: (tsub["w"] * tsub[c]).groupby(tsub["mukey"]).sum() /
-                  tsub.groupby("mukey")["w"].sum() for c in
-               ("sandtotal_r", "silttotal_r", "claytotal_r")}
-        tdf = pd.DataFrame(agg).dropna()
-        cen = poly.set_index("mukey").to_crs(4326).representative_point()
-        tdf = tdf.join(cen.x.rename("lon")).join(cen.y.rename("lat"))
-        tdf = tdf.join(areas.rename("area").astype(float)).dropna()
-        tdf = tdf.sort_values("lat", ascending=False)  # north at left
-        strip = tdf
     ncol = min(4, len(panels))
     nrow = int(np.ceil(len(panels) / ncol))
-    fig = plt.figure(figsize=(3.3 * ncol + 1.4, 3.9 * nrow + (1.7 if strip is not None else 0)))
-    gs = fig.add_gridspec(nrow + (1 if strip is not None else 0), ncol,
-                          height_ratios=[3.5] * nrow + ([1.4] if strip is not None else []),
+    fig = plt.figure(figsize=(3.3 * ncol + 1.4, 3.9 * nrow))
+    gs = fig.add_gridspec(nrow, ncol, height_ratios=[3.5] * nrow,
                           hspace=0.52, wspace=0.30)
     axes = np.array([fig.add_subplot(gs[r, c]) for r in range(nrow) for c in range(ncol)])
-    for ax, (title, cmap, p) in zip(axes, panels):
-        p.plot(column="v", ax=ax, cmap=cmap, legend=True, missing_kwds={"color": "#e5e7eb"},
-               linewidth=0.3, edgecolor="#9ca3af",
-               legend_kwds={"shrink": 0.55, "pad": 0.02})
+    for ax, (col, title, cmap, p, norm) in zip(axes, panels):
+        p.plot(column="v", ax=ax, cmap=cmap, norm=norm, legend=False,
+               missing_kwds={"color": "#e5e7eb"},
+               linewidth=0.3, edgecolor="#9ca3af")
+        cb = fig.colorbar(ax.collections[-1], ax=ax, fraction=0.046, pad=0.03)
+        cb.ax.tick_params(labelsize=6.5)
+        cb.set_label(UNIT_BY_COL.get(col, ""), fontsize=7)
         outline = p.dissolve().boundary
         outline.plot(ax=ax, color="#111827", lw=1.0)
         mean = float(p["v"].mean()) if p["v"].notna().any() else float("nan")
@@ -609,32 +688,8 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
                  fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
     for axx in axes[len(panels):]:
         axx.axis("off")
-    if strip is not None and not strip.empty:
-        ax_s = fig.add_subplot(gs[nrow, :])
-        total = float(strip["area"].sum())
-        x = 0.0
-        for _mu, row in strip.iterrows():
-            wseg = float(row["area"]) / total * 100.0
-            s, si, c = (float(np.clip(row[k], 0, 100)) for k in
-                        ("sandtotal_r", "silttotal_r", "claytotal_r"))
-            tot = s + si + c
-            s, si, c = (v / tot * 100 for v in (s, si, c))
-            ax_s.bar(x, s, width=wseg * 0.985, bottom=0, color="#d9a066", linewidth=0)
-            ax_s.bar(x, si, width=wseg * 0.985, bottom=s, color="#9aa5b1", linewidth=0)
-            ax_s.bar(x, c, width=wseg * 0.985, bottom=s + si, color="#b23a2f", linewidth=0)
-            x += wseg
-        ax_s.set_xlim(0, 100); ax_s.set_ylim(0, 100)
-        ax_s.set_xlabel("across the field, north \u2192 south   (each slice = one map unit, "
-                        "width \u221d that unit's share of the field)", fontsize=8)
-        ax_s.set_ylabel("% of texture\n(sum = 100)", fontsize=8)
-        ax_s.tick_params(labelbottom=False)
-        handles = [plt.Rectangle((0, 0), 1, 1, color=cc)
-                   for cc in ("#d9a066", "#9aa5b1", "#b23a2f")]
-        ax_s.legend(handles, ["sand", "silt", "clay"], fontsize=7.5, ncol=3,
-                    loc="upper center", bbox_to_anchor=(0.5, 1.35), frameon=False)
     fig.text(0.02, 0.005, "map-unit polygons weighted by their component mix — the area-weighted "
-             "field number, shown as a surface; texture strip ordered by latitude, north at left",
-             fontsize=6.8, color="#4b5563")
+             "field number, shown as a surface", fontsize=6.8, color="#4b5563")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=185, bbox_inches="tight", facecolor="white")
     plt.close(fig)

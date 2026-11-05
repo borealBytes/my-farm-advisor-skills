@@ -20,9 +20,11 @@ from paths import (  # pyright: ignore[reportMissingImports]
     farm_soil_polygons_ontario_path,
     farm_soil_sample_path,
     farm_ssurgo_full_path,
+    farm_ssurgo_restrictions_path,
     farm_ssurgo_summary_path,
     field_soil_full_path,
     field_soil_polygon_path,
+    field_soil_restrictions_path,
     field_soil_summary_path,
     shared_soil_ontario_dir,
 )
@@ -222,7 +224,7 @@ def _fallback_field_soil(fields: gpd.GeoDataFrame) -> pd.DataFrame:
         LEFT JOIN chorizon ch ON c.cokey = ch.cokey
         WHERE c.mukey IN ({", ".join(repr(m) for m in mukeys)})
           AND c.majcompflag = 'Yes'
-          AND (ch.hzdept_r < 30 OR ch.hzdept_r IS NULL)
+          AND (ch.hzdept_r < 150 OR ch.hzdept_r IS NULL)
         ORDER BY c.mukey, c.comppct_r DESC, ch.hzdept_r ASC
         """
         try:
@@ -348,6 +350,58 @@ def _write_field_polygon_caches(
         polygons.to_file(cache_path, driver="GeoJSON")
 
 
+def _write_restrictions(
+    soil_data: pd.DataFrame,
+    field_slug_map: dict,
+    grower_slug: str,
+    farm_slug: str,
+) -> None:
+    """Fetch SSURGO component restrictive features (corestrictions) for every
+    mukey touched by this farm and write farm- + per-field CSVs. A restrictive
+    layer (fragipan, claypan, bedrock, perched water table...) is exactly the
+    kind of fact a depth profile must show, so it rides beside ssurgo_full.csv
+    as ssurgo_restrictions.csv."""
+    if soil_data is None or soil_data.empty or "mukey" not in soil_data.columns:
+        return
+    mukeys = sorted(soil_data.loc[soil_data["mukey"].notna(), "mukey"].astype(str).unique())
+    if not mukeys:
+        return
+    sql = (
+        "SELECT c.mukey, c.compname, s.reskind, s.resdept_r, s.resdepb_r, s.reshard "
+        "FROM component c JOIN corestrictions s ON c.cokey = s.cokey "
+        f"WHERE c.mukey IN ({', '.join(repr(m) for m in mukeys)}) "
+        "ORDER BY c.mukey, s.resdept_r"
+    )
+    try:
+        rows = _query_sda(sql, timeout=120)
+    except Exception:
+        rows = []
+    cols = ["mukey", "compname", "reskind", "resdept_r", "resdepb_r", "reshard"]
+    rdf = pd.DataFrame([r for r in rows if r and len(r) >= 6], columns=cols)
+    if not rdf.empty:
+        rdf["mukey"] = rdf["mukey"].astype(str)
+        m2f = (soil_data.assign(mukey=soil_data["mukey"].astype(str))
+                          [["field_id", "mukey"]].drop_duplicates())
+        rdf = rdf.merge(m2f, on="mukey", how="inner")
+        rdf["field_slug"] = rdf["field_id"].map(
+            {str(k): v for k, v in field_slug_map.items()})
+        rdf = rdf[rdf["field_slug"].notna()]
+    else:
+        for extra in ("field_id", "field_slug"):
+            rdf[extra] = pd.Series(dtype=object)
+    farm_path = farm_ssurgo_restrictions_path(grower_slug, farm_slug)
+    farm_path.parent.mkdir(parents=True, exist_ok=True)
+    rdf.drop(columns=["field_id"], errors="ignore").to_csv(farm_path, index=False)
+    # every US field gets a (possibly empty) sidecar so the report can state
+    # "no restrictive features recorded", not just go silent
+    for slug in field_slug_map.values():
+        target = field_soil_restrictions_path(grower_slug, farm_slug, str(slug))
+        target.parent.mkdir(parents=True, exist_ok=True)
+        sub = rdf[rdf["field_slug"] == str(slug)] if not rdf.empty else rdf
+        sub.drop(columns=["field_id", "field_slug"], errors="ignore").to_csv(target, index=False)
+    print(f"  restrictive features: {len(rdf)} rows -> {farm_path.name} (+ per-field)")
+
+
 def main():
     print("=" * 60)
     print("Step 2: Download SSURGO Soil Data")
@@ -417,6 +471,7 @@ def main():
                     farm_slug=farm_slug,
                     force=False,
                 )
+                _write_restrictions(soil_data, field_slug_map, grower_slug, farm_slug)
                 _replay_ontario_polygon_caches(
                     field_slug_map=field_slug_map,
                     grower_slug=grower_slug,
@@ -468,7 +523,9 @@ def main():
     soil_data = download_soil(
         us_fields if not us_fields.empty else fields,
         field_id_column="field_id",
-        max_depth_cm=30,
+        # 150 cm, not 30: horizon tables and depth-interpolated profiles need
+        # the subsoil — and restrictive layers — to say anything true
+        max_depth_cm=150,
         output_path=str(farm_sample_output),
     ) if not us_fields.empty else pd.DataFrame()
 
@@ -486,7 +543,7 @@ def main():
     if not ontario_fields.empty and ontario_module is not None:
         try:
             ontario_rows = ontario_module.download_soil_ontario(
-                ontario_fields, shared_soil_ontario_dir(), max_depth_cm=30
+                ontario_fields, shared_soil_ontario_dir(), max_depth_cm=150
             )
         except Exception as exc:
             print(f"  warn  Ontario soil provider failed: {exc}")
@@ -550,6 +607,7 @@ def main():
                 farm_slug=farm_slug,
                 force=force,
             )
+            _write_restrictions(soil_data, field_slug_map, grower_slug, farm_slug)
             if ontario_polygons is not None and not ontario_polygons.empty:
                 farm_polygon_cache = farm_soil_polygons_ontario_path(grower_slug, farm_slug)
                 farm_polygon_cache.parent.mkdir(parents=True, exist_ok=True)

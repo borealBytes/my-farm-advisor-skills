@@ -44,11 +44,28 @@ understand at a glance:
   (design, placement, fieldbook, selection, mapping, QC diagnostics, terrain
   derivatives, planning layers) must have at least one plotted demo under
   `examples/**/output/`.
-- **Vision review before commit.** Render the figure, then inspect it with a
-  vision model (and your own eyes) checking: no empty/blank panels, masking
-  correct, legends and labels legible at README size, numbers consistent with
-  their source. A figure that fails review gets fixed or dropped — never
-  committed "as-is for now".
+- **Vision review before commit — a gate, not a courtesy.** Render the figure,
+  then inspect it with a vision model (and your own eyes) against this
+  checklist; record the verdict in the commit message:
+  1. no empty/blank or half-covered panels — if a panel is *supposed* to be
+     sparse (cloud gap, no-data), the caption/title must say so with a number;
+  2. **field maps**: axes in the field-local metre frame with the published
+     affine note, auto-rotation applied (footprints with no meaningful
+     orientation — center-pivot circles — stay unrotated but STILL get the
+     boxed true-north arrow + scale bar), north arrow/scale bar/callout free
+     of collisions with titles, boundaries, and each other;
+  3. rasters masked to the field: off-field fragments rendered as neutral
+     gray, never as apparent field data; buffer rule respected
+     (`lib/raster_rules.py` — clip extends > 1 full source cell);
+  4. colorbar semantics match the feature: categorical → official discrete
+     palettes/legend bands (ISRIC `soil.legends`, WorldCereal classes),
+     continuous → sequential/diverging with units, log scales labeled as
+     log, cyclic (aspect) on a hue wheel — see the standard table in
+     `my-farm-advisor/data-pipeline/references/field-map-frame.md`;
+  5. legends/labels legible at README size; numbers consistent with source.
+  A figure that fails review gets fixed or dropped — never committed
+  "as-is for now". A change to ANY renderer re-triggers review for every
+  gallery figure that renderer draws, not just the one you meant to change.
 - Figures must be the **best available version** of the view (overlays on,
   labels de-cluttered, honest caveats in the caption — caveats yes, bugs no).
 

@@ -94,19 +94,28 @@ class Frame:
 
 
 def frame_for(gdf: gpd.GeoDataFrame, panel_h_in: float, panel_w_in: float,
-              scale_len: float = SCALE_BAR_M) -> Frame:
-    """Project (if needed), auto-fit, re-pin. gdf: WGS84 or any CRS."""
+              scale_len: float = SCALE_BAR_M,
+              force_rot: float | None = None) -> Frame:
+    """Project (if needed), auto-fit, re-pin. gdf: WGS84 or any CRS.
+
+    force_rot pins the tilt (deg CW) instead of the min-rotated-rect fit —
+    use 0.0 for footprints where rotation is meaningless (circles, square
+    pivot parcels); the north arrow and re-pinned origin still apply.
+    """
     lonlat = gdf.to_crs(4326)
     epsg = utm_epsg(lonlat.geometry.union_all().centroid.x,
                     lonlat.geometry.union_all().centroid.y)
     gu = gdf.to_crs(epsg)
     union = gu.dissolve().geometry.iloc[0] if len(gu) > 1 else gu.geometry.iloc[0]
-    theta = _long_edge_bearing_deg(union)
-    # bearing from north -> tilt from east: edge angle from E is (90 - theta)
-    rot = (90.0 - theta) - (0.0 if panel_h_in < panel_w_in else 90.0)
-    rot = ((rot + 90.0) % 180.0) - 90.0
-    if abs(rot) < DEADZONE_DEG:
-        rot = 0.0
+    if force_rot is None:
+        theta = _long_edge_bearing_deg(union)
+        # bearing from north -> tilt from east: edge angle from E is (90 - theta)
+        rot = (90.0 - theta) - (0.0 if panel_h_in < panel_w_in else 90.0)
+        rot = ((rot + 90.0) % 180.0) - 90.0
+        if abs(rot) < DEADZONE_DEG:
+            rot = 0.0
+    else:
+        rot = ((force_rot + 90.0) % 180.0) - 90.0
     # translate, rotate about (0,0), re-translate to the ROTATED SW corner
     x0, y0, _, _ = gu.total_bounds
     gu = gu.assign(geometry=gu.geometry.translate(xoff=-x0, yoff=-y0))
@@ -162,7 +171,8 @@ def crs_note(f: Frame, full: bool = False) -> str:
             f"y=−(ΔE)sin{f.rot:.1f}°+(ΔN)cos{f.rot:.1f}°")
 
 
-def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None):
+def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
+                         resampling=None, dst_dtype=None, nodata=None, band=1):
     """RasterIO source dataset -> (masked array, extent) in this frame.
 
     One resample straight into the rotated grid via a rotated GDAL
@@ -189,14 +199,27 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None):
     h_pad = nr * dst_res
     dst_tr = Affine(a, b, f.e0 - h_pad * math.sin(r_),
                     b, -a, f.n0 + h_pad * math.cos(r_))
-    dst = np.full((nr, nc), np.nan, dtype="float64")
-    _src = ds.read(1, masked=True)
-    _src = np.ma.masked_invalid(_src.astype("float64"))
-    rasterio.warp.reproject(
-        _src.filled(np.nan), dst,
-        src_transform=ds.transform, src_crs=ds.crs,
-        dst_transform=dst_tr, dst_crs=f.epsg,
-        resampling=rasterio.warp.Resampling.bilinear)
+    if dst_dtype is not None and np.dtype(dst_dtype).kind in "iu":
+        # integer class grids: nearest (or mode) — bilinear would invent classes
+        fill = int(nodata) if nodata is not None else -1
+        dst = np.full((nr, nc), fill, dtype=dst_dtype)
+        _src = ds.read(band, masked=True)
+        rasterio.warp.reproject(
+            _src.filled(fill).astype(dst_dtype), dst,
+            src_transform=ds.transform, src_crs=ds.crs,
+            dst_transform=dst_tr, dst_crs=f.epsg,
+            resampling=resampling or rasterio.warp.Resampling.nearest)
+        out_mask = (dst == fill)
+    else:
+        dst = np.full((nr, nc), np.nan, dtype="float64")
+        _src = ds.read(band, masked=True)
+        _src = np.ma.masked_invalid(_src.astype("float64"))
+        rasterio.warp.reproject(
+            _src.filled(np.nan), dst,
+            src_transform=ds.transform, src_crs=ds.crs,
+            dst_transform=dst_tr, dst_crs=f.epsg,
+            resampling=resampling or rasterio.warp.Resampling.bilinear)
+        out_mask = np.isnan(dst)
     # Mask from the FRAME-coord polygon: exact by construction and independent
     # of the geographic anchor (passing a UTM polygon here reintroduces every
     # anchoring/convention bug into a step that has none). poly_metric is kept
@@ -208,6 +231,8 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None):
                        out_shape=(nr, nc),
                        transform=Affine(dst_res, 0, 0, 0, -dst_res, nr * dst_res),
                        invert=True)
+    if np.dtype(dst.dtype).kind in 'iu':
+        return np.ma.masked_where(out_mask | ~gm, dst), (0, nc * dst_res, 0, nr * dst_res)
     return np.ma.masked_where(~gm, np.ma.masked_invalid(dst)), (0, nc * dst_res, 0, nr * dst_res)
 
 
@@ -221,7 +246,7 @@ def _frame_height(f: Frame) -> float:
 
 def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
              callout: bool = True, scalebar: bool = True,
-             arrow_xy: tuple = (0.87, 0.845)) -> None:
+             arrow_xy: tuple = (0.87, 0.845), scale_y: float = 0.035) -> None:
     """Boxed true-north arrow (+ boxed N), rotation callout, scale bar.
 
     callout=False for dense grids where the xlabel already carries the tilt;
@@ -250,8 +275,8 @@ def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
         return
     tr = _mt.blended_transform_factory(ax.transData, ax.transAxes)
     x_lo = ax.get_xlim()[0]
-    ax.plot([x_lo + 60, x_lo + 60 + f.scale_len], [0.035, 0.035], transform=tr,
+    ax.plot([x_lo + 60, x_lo + 60 + f.scale_len], [scale_y, scale_y], transform=tr,
             color="#111827", lw=2.0, clip_on=False)
-    ax.text(x_lo + 60 + f.scale_len / 2, 0.055, f"{f.scale_len:.0f} m",
+    ax.text(x_lo + 60 + f.scale_len / 2, scale_y + 0.02, f"{f.scale_len:.0f} m",
             transform=tr, fontsize=6.6, ha="center", color="#111827",
             bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))

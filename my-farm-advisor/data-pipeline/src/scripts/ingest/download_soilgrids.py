@@ -210,7 +210,7 @@ def main():
         geometry = field.geometry
         # raster_rules: bbox margin >= one full source cell (250 m grid) — a
         # sub-cell bbox drops boundary cells and makes edge coverage unmeasurable
-        _eff_buf = max(args.buffer_meters, SG_CELL_M * 1.2)
+        _eff_buf = max(args.buffer_meters, SG_CELL_M * 2.0)  # > 1 full cell, raster_rules
         bbox = sg.field_bbox(geometry, buffer_meters=_eff_buf)
         for band in bands:
             for depth in depths:

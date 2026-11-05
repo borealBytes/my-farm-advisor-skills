@@ -95,17 +95,25 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
 
 ## Raster-buffer and legend conventions (2026-11, global-data-parity)
 
-- **Every raster clip** must extend beyond the true field boundary by at least
-  one source cell, so boundary pixels are complete and edge-effect statistics
-  (coverage %, filter neighborhoods) are computable. The single source of
-  truth is `src/scripts/lib/raster_rules.py`:
-  `buffer_meters(source_crs, cell_m, cells=EDGE_BUFFER_CELLS)` with
-  `EDGE_BUFFER_CELLS = 1` (absolute floor) and
-  `EDGE_BUFFER_CELLS_FILTER = 3` for clips feeding terrain filters
-  (slope/TWI kernels read up to 3 cells in). Ingest sites record
-  `coverage_pct` (field area inside valid pixels) in their provenance
-  manifests at download time — a boundary with >0 % no-data in the clip is
-  a visible, actionable flag, not a silent hole.
+- **Every raster clip** must be buffered by MORE THAN one full source cell in
+  x and y, so the field polygon is strictly interior to the raster everywhere
+  — including corner cells, where a 1-cell buffer leaves the corner diagonal
+  exactly flush with the clip edge. The single source of truth is
+  `src/scripts/lib/raster_rules.py`:
+  `buffer_meters(source_crs, cell_m, cells=…)`. Effective floors by clip use:
+
+  | Consumer clip | Floor | Why |
+  | --- | --- | --- |
+  | value clips (NDVI, class grids) | `EDGE_BUFFER_CELLS_MASK = 2` cells | >1 cell incl. corners |
+  | terrain-filter clips (slope/TWI/D8) | `EDGE_BUFFER_CELLS_FILTER = 3` cells | 3×3–5×5 kernels read 3 cells in |
+  | SoilGrids 250 m | 2 cells = 500 m | value clip |
+  | WorldCereal 10 m native | `WC_PAD_DEG = 0.0003°` ≈ 33 m ≈ 3 cells | value clip |
+  | CDL 30 m context | 2 000 m | regional context window |
+
+  Ingest sites record `coverage_pct` (field area inside valid pixels) in their
+  provenance manifests at download time — a boundary with >0 % no-data in the
+  clip is a visible, actionable flag, not a silent hole. Reraster any field
+  whose existing clip predates this rule (`AG_FORCE=1`).
 - **Grid-map panels share one identical frame rect** across every band:
   rasters are square-padded bottom-anchored (extra space east+north of the
   NW-pinned data), and a post-layout pass repositions all used axes onto one

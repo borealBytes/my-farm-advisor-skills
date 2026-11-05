@@ -99,7 +99,7 @@ def _field_bounds(fdir: Path, field_id: str):
     return gdf.geometry.union_all().bounds
 
 
-WC_PAD_DEG = 0.0003  # ~33 m at 10 m native = >=1 source cell; raster_rules margin
+WC_PAD_DEG = 0.0003  # ~33 m at 10 m native = 3+ source cells; raster_rules floor (>1 cell)
 
 
 def _pad_bbox(bbox):

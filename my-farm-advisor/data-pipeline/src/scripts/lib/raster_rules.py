@@ -27,7 +27,12 @@ import math
 from pathlib import Path
 from typing import Any
 
-EDGE_BUFFER_CELLS_MASK = 1     # clip consumed only as masked values (NDVI, class grids)
+EDGE_BUFFER_CELLS_MASK = 2     # clip consumed only as masked values (NDVI, class
+                               # grids). FLOOR IS 2 CELLS: the buffer must EXCEED
+                               # one full source cell in x and y so the field
+                               # polygon is interior to the raster everywhere,
+                               # including corners (1 cell leaves the corner
+                               # diagonal exactly at the edge).
 EDGE_BUFFER_CELLS_FILTER = 3   # clip fed into neighborhood filters (terrain derivatives)
 
 

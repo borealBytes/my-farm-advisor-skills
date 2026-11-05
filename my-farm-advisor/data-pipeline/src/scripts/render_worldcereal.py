@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Render WorldCereal verification figures: true color + NDVI + class maps."""
-import json, os, sys, urllib.request
+import json, math, os, sys, urllib.request
 import numpy as np
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_HERE, "lib"))
@@ -20,6 +20,7 @@ from matplotlib.colors import ListedColormap
 from matplotlib.patches import Patch
 import satellite_imagery as si
 import apply_worldcereal as aw
+import field_frame as ff
 
 _ROOT = os.environ.get("DATA_PIPELINE_DATA_ROOT")
 if not _ROOT:
@@ -32,6 +33,31 @@ from matplotlib import colormaps as _cm
 PALETTE = (list(_cm.get_cmap("tab20").colors)
            + list(_cm.get_cmap("tab20b").colors[:3])
            + ["#8d8d8d"])          # index 23 = no_crop (grey)
+
+
+def _field_frame_for(geom, panel_h_in, panel_w_in):
+    """Field-local frame for a class-map panel. Circular footprints (center
+    pivots) get force_rot=0 — rotation is meaningless on a circle, but the
+    re-pinned origin, scale bar and true-north arrow still apply.
+    """
+    gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326")
+    gu = gdf.to_crs(ff.utm_epsg(geom.centroid.x, geom.centroid.y))
+    g = gu.geometry.iloc[0]
+    q = 4 * math.pi * g.area / (g.length ** 2)          # isoperimetric quotient
+    force = 0.0 if q > 0.85 else None                   # >.85 ≈ disc
+    return ff.frame_for(gdf, panel_h_in, panel_w_in, force_rot=force)
+
+
+def _into_frame_coords(geoms, f):
+    """Zone (EPSG:f.epsg) geometries -> frame (x, y) per the published affine."""
+    import shapely.ops
+    r3 = math.radians(f.rot)
+    cs, sn = math.cos(r3), math.sin(r3)
+
+    def _f(x, y, *a):
+        dE, dN = x - f.e0, y - f.n0
+        return dE * cs + dN * sn, -dE * sn + dN * cs
+    return geoms.map(lambda g: shapely.ops.transform(_f, g))
 
 
 def find_run(farm, field, season, year=None):
@@ -115,6 +141,9 @@ def render_year_series(farm, field, years, season, fname, title):
         geom = shape(next(iter(src))["geometry"])
     legend_seen = {}
     _segs_by_ax: dict[int, tuple] = {}
+    frame = _field_frame_for(geom, 5.4, 4.6)
+    FW = float(frame.geometry.total_bounds[2])
+    FH = float(frame.geometry.total_bounds[3])
     for ax, y in zip(axes[0], years):
         run = runs[y]
         rel = _crop_tif(run)
@@ -140,15 +169,20 @@ def render_year_series(farm, field, years, season, fname, title):
             shown += 1
             if shown == 3:
                 break
-        class_panel(ax, tif, "crop")
-        ax.get_legend().remove()
+        class_panel(ax, tif, "crop", frame=frame, legend=False)
+        if ax.get_legend():
+            ax.get_legend().remove()
         _two_run_title(fig, ax, y, segs)
         _segs_by_ax.setdefault(id(ax), (ax, y, segs))
-        tfm = pyproj.Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}",
-                                         always_xy=True)
-        x0, y0 = tfm.transform(geom.bounds[0], geom.bounds[1])
-        x1, y1 = tfm.transform(geom.bounds[2], geom.bounds[3])
-        gdf.boundary.plot(ax=ax, lw=1.8, edgecolor="red")
+        frame.geometry.boundary.plot(ax=ax, lw=1.8, edgecolor="red")
+        ax.set_xlim(0, FW)
+        ax.set_ylim(0, FH)
+        ax.set_aspect("equal")
+        ax.set_xlabel(ff.crs_note(frame), fontsize=6.5)
+        ax.set_ylabel("field-local m", fontsize=7)
+        # narrow panels: arrow into the gray top-left corner; xlabel already
+        # carries the tilt, so no callout; scale bar lifted off the frame edge
+        ff.decorate(ax, frame, callout=False, arrow_xy=(0.09, 0.80), scale_y=0.075)
         for lab, pct in ranked[:3]:
             if pct >= 3.0 and lab not in ("no_crop", "\u25a1_unobserved"):
                 t = LABELS.index(lab)
@@ -204,33 +238,71 @@ def base_layer(item_id, bounds, epsg, out_w, out_h):
     return vis, ndvi
 
 
-def class_panel(ax, tif, kind):
+def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
+    """kind='crop' classification panel, optionally rendered IN THE FIELD
+    FRAME (field_frame.Frame): the class grid is reprojected into the rotated
+    metre frame in one nearest resample, axes read field-local metres, and
+    callers add ff.decorate() for the true-north arrow + callout. Everything
+    OUTSIDE the field is flat gray (an off-field tile fragment must never
+    read as field data); in-field unobserved (254) is WHITE inside the red
+    outline. Returns bincount of in-field classes (len 255).
+    """
+    from rasterio.features import rasterize
     with rasterio.open(tif) as s:
-        arr = s.read(1).astype("int32")
-        ext = list(s.bounds)
+        crs = s.crs
+        if frame is not None:
+            _res = s.res[0]
+            if s.crs.is_geographic:
+                _res *= 111320 * math.cos(math.radians(s.bounds.top))
+            w, ext = ff.reproject_into_frame(s, frame, _res,
+                                             dst_dtype="int32", nodata=-1)
+            inside = ~np.ma.getmaskarray(w)
+            arr = np.ma.getdata(w).astype("int32")
+            ext = [ext[0], ext[0] + (ext[1] - ext[0]), ext[2], ext[3]]
+            ext = (ext[0], ext[1], ext[2], ext[3])
+        else:
+            arr = s.read(1).astype("int32")
+            tfm = s.transform
+            ext = list(s.bounds)
+            if field_geom is not None:
+                gg = gpd.GeoDataFrame(geometry=[field_geom], crs="EPSG:4326").to_crs(crs)
+                inside = rasterize([(g, 1) for g in gg.geometry], out_shape=arr.shape,
+                                   transform=tfm, fill=0, all_touched=True).astype(bool)
+            else:
+                inside = np.ones(arr.shape, dtype=bool)
     if kind == "crop":
-        shown = np.ma.masked_where(arr == 254, arr)
-        cmap = ListedColormap(PALETTE[:24] + ["#c8b487"])
-        ax.imshow(shown, cmap=cmap, vmin=-0.5, vmax=24.5, extent=(ext[0], ext[2], ext[1], ext[3]),
-                  interpolation="nearest")
-        hist = np.bincount(arr.ravel(), minlength=25)
-        top = sorted(range(24), key=lambda t: -hist[t])[:3]
-        leg = [Patch(facecolor=PALETTE[t],
-                     label=f"{t} {LABELS[t]} ({hist[t]:,} px)")
-               for t in top if hist[t] > 0]
-        ax.legend(handles=leg, loc="lower left", fontsize=8, framealpha=.9)
+        import matplotlib.colors as mcolors
+        pal = mcolors.to_rgba_array(PALETTE[:24] + ["#c8b487"])
+        idx = np.clip(arr, 0, 24).astype(int)
+        rgba = np.dstack([pal[idx]])
+        rgba[..., 3] = 1.0
+        rgba[(~np.isin(arr, np.arange(25))) & inside] = (1, 1, 1, 1)   # 254/other = white
+        rgba[~inside] = (0.88, 0.88, 0.88, 1)                          # off-field = gray
+        e0, e1, e2, e3 = (ext if isinstance(ext, tuple) else (ext[0], ext[2], ext[1], ext[3]))
+        ax.imshow(rgba, extent=(e0, e1, e2, e3), interpolation="nearest")
+        hist = np.bincount(arr[inside], minlength=255)
+        if legend:
+            top = sorted(range(24), key=lambda t: -hist[t])[:3]
+            leg = [Patch(facecolor=PALETTE[t],
+                         label=f"{t} {LABELS[t]} ({hist[t]:,} px)")
+                   for t in top if hist[t] > 0]
+            ax.legend(handles=leg, loc="lower left", fontsize=8, framealpha=.9)
     else:
-        shown = np.ma.masked_where(arr == 254, arr)
+        shown = np.ma.masked_where((arr == 254) | (~inside), arr)
         cmap = ListedColormap(["#b0a08a", "#2e7d32"])
-        ax.imshow(shown, cmap=cmap, vmin=-0.5, vmax=1.5, extent=(ext[0], ext[2], ext[1], ext[3]),
+        e0, e1, e2, e3 = (ext if isinstance(ext, tuple) else (ext[0], ext[2], ext[1], ext[3]))
+        ax.imshow(shown, cmap=cmap, vmin=-0.5, vmax=1.5, extent=(e0, e1, e2, e3),
                   interpolation="nearest")
-        valid = arr[arr != 254]
-        ax.legend(handles=[
-            Patch(facecolor="#2e7d32",
-                  label=f"cropland ({int((valid==1).sum()):,} px)"),
-            Patch(facecolor="#b0a08a",
-                  label=f"not-cropland ({int((valid==0).sum()):,} px)")],
-            loc="lower left", fontsize=8, framealpha=.9)
+        valid = arr[inside & (arr != 254)]
+        if legend:
+            ax.legend(handles=[
+                Patch(facecolor="#2e7d32",
+                      label=f"cropland ({int((valid==1).sum()):,} px)"),
+                Patch(facecolor="#b0a08a",
+                      label=f"not-cropland ({int((valid==0).sum()):,} px)")],
+                loc="lower left", fontsize=8, framealpha=.9)
+        hist = np.bincount(valid, minlength=255)
+    return hist
 
 
 def render(farm, field, season, scene_month, title, fname, extra_note=""):
@@ -267,30 +339,63 @@ def render(farm, field, season, scene_month, title, fname, extra_note=""):
     d = item.split("_")[2]
     scene_date = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
 
+    # one field-local frame for all four panels (scene reprojected in-graph,
+    # class grids via class_panel's frame path) — field-map-frame.md contract
+    frame = _field_frame_for(geom, 5.5, 6.5)
+    from rasterio.io import MemoryFile
+    from rasterio.transform import Affine as _Af
+    _px_x = (bounds[2] - bounds[0]) / vis.shape[1]
+    _px_y = (bounds[3] - bounds[1]) / vis.shape[0]
+    _tr = _Af(_px_x, 0, bounds[0], 0, -_px_y, bounds[3])
+    _FW = float(frame.geometry.total_bounds[2])
+    _FH = float(frame.geometry.total_bounds[3])
+    _res = px
+    def _warp_bands(a):
+        a3 = a[..., None] if a.ndim == 2 else a
+        outs = []
+        with MemoryFile() as mf:
+            with mf.open(driver="GTiff", height=a3.shape[0], width=a3.shape[1],
+                          count=a3.shape[2], dtype=a3.dtype,
+                          crs=f"EPSG:{epsg}", transform=_tr) as ds0:
+                for bi in range(a3.shape[2]):
+                    ds0.write(np.ascontiguousarray(a3[..., bi]), bi + 1)
+            with mf.open() as ds1:
+                for bi in range(1, a3.shape[2] + 1):
+                    w, _e = ff.reproject_into_frame(ds1, frame, _res, band=bi)
+                    outs.append(w)
+        stack = np.dstack([np.ma.filled(o, np.nan) for o in outs])
+        return stack, (0, _FW, 0, _FH)
+
+    visf, _ = _warp_bands(vis)
+    ndvif, _ = _warp_bands(ndvi[..., None])
     fig, axes = plt.subplots(2, 2, figsize=(13, 11))
-    axes[0, 0].imshow(vis, extent=(bounds[0], bounds[2], bounds[1], bounds[3]))
+    axes[0, 0].imshow(np.clip(visf, 0, 1), extent=(0, _FW, 0, _FH))
     axes[0, 0].set_title(f"Sentinel-2 true color — {scene_date}\n"
                         "10 m, keyless Planetary Computer (no accounts)",
                         fontsize=10)
-    axes[1, 0].imshow(ndvi, extent=(bounds[0], bounds[2], bounds[1], bounds[3]), cmap="RdYlGn", vmin=0, vmax=0.9)
+    axes[1, 0].imshow(ndvif[..., 0], extent=(0, _FW, 0, _FH), cmap="RdYlGn", vmin=0, vmax=0.9)
     axes[1, 0].set_title("NDVI (same scene)", fontsize=10)
     fig.colorbar(axes[1, 0].images[0], ax=axes[1, 0], fraction=.046, pad=.02)
-    class_panel(axes[0, 1], crop_tif, "crop")
+    class_panel(axes[0, 1], crop_tif, "crop", frame=frame)
     axes[0, 1].set_title(f"WorldCereal crop-type, {season} season\n"
                         f"calendar window {run['season_window'][0]} → "
                         f"{run['season_window'][1]}", fontsize=10)
-    class_panel(axes[1, 1], land_tif, "land")
+    class_panel(axes[1, 1], land_tif, "land", frame=frame)
     axes[1, 1].set_title("WorldCereal cropland mask", fontsize=10)
 
-    gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326").to_crs(epsg)
+    _gs = frame.geometry
     for ax in axes.flat:
-        gdf.buffer(150).boundary.plot(ax=ax, lw=.8, edgecolor="red",
+        _gs.buffer(150).boundary.plot(ax=ax, lw=.8, edgecolor="red",
                                       linestyle=":")
-        gdf.boundary.plot(ax=ax, lw=2.2, edgecolor="red")
-        ax.set_xlim(bounds[0], bounds[2]); ax.set_ylim(bounds[1], bounds[3])
+        _gs.boundary.plot(ax=ax, lw=2.2, edgecolor="red")
+        ax.set_xlim(0, _FW); ax.set_ylim(0, _FH)
+        ax.set_aspect("equal")
         ax.set_xticks([]); ax.set_yticks([])
-    axes[0, 0].set_xlabel("red solid = field boundary; red dotted = +150 m",
-                          fontsize=8)
+        ax.set_xlabel(ff.crs_note(frame), fontsize=6.5)
+        ax.set_ylabel("field-local m", fontsize=7)
+        ff.decorate(ax, frame, callout=False, arrow_xy=(0.09, 0.80), scale_y=0.075)
+    axes[0, 0].set_xlabel(axes[0, 0].get_xlabel() + "   ·   red solid = boundary; dotted = +150 m",
+                          fontsize=6.5)
     fig.suptitle(title, fontsize=13, fontweight="bold")
     fig.text(.5, .012, extra_note or
              "backend=pc (zero accounts) · WorldCereal-PRESTO default v2.8.2 "
@@ -320,16 +425,13 @@ def render_rdm_overlay(farm, field, year, season, ref_geojson, fname, title,
     rel = run["files"].get(f"croptype_classification:{season}",
                            run["files"].get("croptype_classification"))["path"]
     tif = rel if os.path.isabs(rel) else os.path.join(ROOT, farm, rel)
-    class_panel(ax_l, tif, "crop")
-    with rasterio.open(tif) as _s:
-        _al = _s.read(1).astype("int32")
     with _fiona.open(os.path.join(ROOT, farm, "fields", field, "boundary",
                                   "field_boundary.geojson")) as src_:
         geom = shape(next(iter(src_))["geometry"])
-    gdf = gpd.GeoDataFrame(geometry=[geom], crs="EPSG:4326").to_crs(run["epsg"])
-    gdf.boundary.plot(ax=ax_l, lw=2.0, edgecolor="#111827")
-    ax_l.get_legend().remove()
-    _hist = np.bincount(_al.ravel(), minlength=25)
+    frame = _field_frame_for(geom, 5.2, 5.8)
+    _hist = class_panel(ax_l, tif, "crop", frame=frame, legend=False)
+    if ax_l.get_legend():
+        ax_l.get_legend().remove()
     _top = sorted(range(24), key=lambda t: -_hist[t])[:6]
     _h = [Patch(facecolor=PALETTE[t],
                 label=f"{_disp_name(t)} ({_hist[t]:,} px)")
@@ -346,16 +448,23 @@ def render_rdm_overlay(farm, field, year, season, ref_geojson, fname, title,
     sel = ref.cx[minx-buf_deg:maxx+buf_deg, miny-buf_deg:maxy+buf_deg]
     cats = sorted(sel[ref_label_col].unique())
     cmap = {c: PALETTE[i % 20] for i, c in enumerate(cats)}
-    sel_plot = sel.to_crs(run["epsg"])
+    _selz = sel.to_crs(run["epsg"])
+    _cols = [cmap[c] for c in _selz[ref_label_col]]
+    sel_plot = _into_frame_coords(_selz.geometry, frame)
     if (sel_plot.geom_type == "Point").all():
-        ax_r.scatter(sel_plot.geometry.x, sel_plot.geometry.y,
-                     c=[cmap[c] for c in sel_plot[ref_label_col]],
-                     s=30, edgecolor="#374151", linewidths=.4, zorder=3)
+        ax_r.scatter([g.x for g in sel_plot], [g.y for g in sel_plot],
+                     c=_cols, s=30, edgecolor="#374151", linewidths=.4, zorder=3)
     else:
-        sel_plot.plot(ax=ax_r,
-                      color=[cmap[c] for c in sel_plot[ref_label_col]],
-                      edgecolor="#374151", lw=.4)
-    gdf.boundary.plot(ax=ax_r, lw=2.2, edgecolor="#111827")
+        gpd.GeoDataFrame(geometry=sel_plot).plot(ax=ax_r, color=_cols,
+                                                 edgecolor="#374151", lw=.4)
+    frame.geometry.boundary.plot(ax=ax_l, lw=2.0, edgecolor="#111827")
+    frame.geometry.boundary.plot(ax=ax_r, lw=2.2, edgecolor="#111827")
+    _FW = float(frame.geometry.total_bounds[2]); _FH = float(frame.geometry.total_bounds[3])
+    for _a in (ax_l, ax_r):
+        _a.set_xlim(0, _FW); _a.set_ylim(0, _FH); _a.set_aspect("equal")
+        _a.set_xlabel(ff.crs_note(frame), fontsize=6.5)
+        _a.set_ylabel("field-local m", fontsize=7)
+        ff.decorate(_a, frame, callout=False, arrow_xy=(0.09, 0.80), scale_y=0.075)
     for _a in (ax_l, ax_r):
         _a.set_xticks([]); _a.set_yticks([]); _a.set_xlabel(""); _a.set_ylabel("")
         _a.spines["top"].set_visible(False); _a.spines["right"].set_visible(False)

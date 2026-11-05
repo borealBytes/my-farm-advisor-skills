@@ -211,36 +211,36 @@ def render(csv_path: Path | None, label: str, out: Path, source_note: str = "SSU
                 color="#3f2a26", style="italic",
                 path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
 
-    # three gridline families + edge tick strips on all three sides
-    import matplotlib.transforms as mtransforms
+    # percent scales on ALL THREE edges — classic NRCS layout:
+    #   % SAND below the base, increasing left -> right
+    #   % CLAY along the RIGHT edge (horizontal clay lines meet it), to the apex
+    #   % SILT along the LEFT edge (silt lines meet it), down to the silt corner
+    sq3 = math.sqrt(3)
     for pct in range(10, 100, 10):
         f = pct / 100.0
-        # sand lines (parallel to silt-clay edge = left edge)
         ax.plot(*zip(_to_xy(0, 1 - f, f), _to_xy(1, 0, 0)), color="#b08a7a", lw=0.3, alpha=0.6)
-        # clay lines (parallel to sand-silt base)
         ax.plot(*zip(_to_xy(f, 0, 1 - f), _to_xy(1, 0, 0)), color="#b08a7a", lw=0.3, alpha=0.6)
-        # silt lines (parallel to clay-sand right edge): baseline (1-f,0) -> left edge (0.5(1-f), .866(1-f))
-        ax.plot([1 - f, 0.5 * (1 - f)], [0, (math.sqrt(3) / 2) * (1 - f)], color="#b08a7a", lw=0.3, alpha=0.6)
-        # sand ticks below base (increasing left->right)
-        ax.plot([f, f], [-0.004, -0.016], color="#3f2a26", lw=0.7)
-        ax.text(f, -0.030, str(pct), fontsize=6, color="#3f2a26", ha="center", va="top")
-        # clay ticks out along left edge (0 at base -> 100 at apex)
-        n = (-math.sqrt(3) / 2, -0.5)  # outward normal of left edge
-        px, py = _to_xy(f, 0, 1 - f)
-        ax.plot([px, px + 0.012 * n[0]], [py, py + 0.012 * n[1]], color="#3f2a26", lw=0.7)
-        ax.text(px + 0.028 * n[0], py + 0.028 * n[1], str(pct), fontsize=6, color="#3f2a26",
+        ax.plot([1 - f, 0.5 * (1 - f)], [0, (sq3 / 2) * (1 - f)], color="#b08a7a", lw=0.3, alpha=0.6)
+        ax.plot([f, f], [-0.004, -0.018], color="#3f2a26", lw=0.8)
+        ax.text(f, -0.034, str(pct), fontsize=6.4, color="#3f2a26", ha="center", va="top")
+        px, py = 1 - f / 2, (sq3 / 2) * f
+        nx, ny = sq3 / 2, -0.5
+        ax.plot([px, px + 0.012 * nx], [py, py + 0.012 * ny], color="#3f2a26", lw=0.8)
+        ax.text(px + 0.030 * nx, py + 0.030 * ny, str(pct), fontsize=6.4, color="#3f2a26",
+                ha="center", va="center", rotation=-60)
+        px, py = (1 - f) / 2, (sq3 / 2) * (1 - f)
+        nx, ny = -sq3 / 2, -0.5
+        ax.plot([px, px + 0.012 * nx], [py, py + 0.012 * ny], color="#3f2a26", lw=0.8)
+        ax.text(px + 0.030 * nx, py + 0.030 * ny, str(pct), fontsize=6.4, color="#3f2a26",
                 ha="center", va="center", rotation=60)
-        # silt ticks as second row below base (100 at left -> 0 at right)
-        ax.plot([1 - f, 1 - f], [-0.040, -0.052], color="#3f2a26", lw=0.7)
-        ax.text(1 - f, -0.066, str(pct), fontsize=6, color="#3f2a26", ha="center", va="top")
 
-    # outer triangle + bold edge titles with direction cues
     ax.add_patch(MplPolygon([_to_xy(0, 1, 0), _to_xy(0, 0, 1), _to_xy(1, 0, 0)],
                             closed=True, fill=False, edgecolor="#3f2a26", lw=1.6))
-    ax.text(0.5, -0.092, "% SAND  \u2192", ha="center", fontsize=9.5, weight="bold", color="#3f2a26")
-    ax.text(0.5, -0.118, "% SILT  \u2190", ha="center", fontsize=9.5, weight="bold", color="#3f2a26")
-    ax.text(1.105, 0.36, "% CLAY  \u2197", fontsize=9.5, weight="bold", color="#3f2a26",
+    ax.text(0.5, -0.108, "% SAND  \u2192", ha="center", fontsize=10, weight="bold", color="#3f2a26")
+    ax.text(1.13, 0.30, "% CLAY  \u2197", fontsize=10, weight="bold", color="#3f2a26",
             rotation=-60, va="center")
+    ax.text(-0.13, 0.30, "% SILT  \u2199", fontsize=10, weight="bold", color="#3f2a26",
+            rotation=60, va="center")
 
     # component points, sized by comppct_r (grid cells: small translucent dots)
     sizes = 6 if grid_note else 18 + comp["comppct_r"] * 7.0
@@ -397,9 +397,59 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     ).sort_values(["comppct_r", "hzdept"], ascending=[False, True])
     g = g.head(14)
 
-    fig = plt.figure(figsize=(13.2, 0.44 * len(g) + 1.6))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.45, 1.0], wspace=0.12)
-    ax_t = fig.add_subplot(gs[0]); ax_t.axis("off")
+    # --- field map units, colored by dominant component, field-share legend ---
+    gj = csv_path.parent / "ssurgo_soil_types.geojson"
+    map_units = None
+    if gj.exists():
+        import geopandas as _gpd
+        _poly = _gpd.read_file(gj)
+        _poly["mukey"] = _poly["mukey"].astype(str)
+        _areas = (_poly.assign(a=_poly.to_crs(6933).geometry.area)
+                        .groupby("mukey")["a"].sum())
+        _d = df.dropna(subset=["comppct_r"]).copy()
+        _d["mukey"] = _d["mukey"].astype(str)
+        _dom = (_d.sort_values("comppct_r", ascending=False)
+                  .groupby("mukey")["compname"].first())
+        _top = _d[_d["hzdept_r"] == _d.groupby(["mukey", "compname"])["hzdept_r"].transform("min")]
+        _top = _top.dropna(subset=["comppct_r"])
+        _top = _top[_top["comppct_r"] > 0]
+        _top["share"] = _top["comppct_r"] / _top.groupby("mukey")["comppct_r"].transform("sum")
+        _top["field_share"] = _top["mukey"].map(_areas) * _top["share"]
+        _fs = _top.groupby("compname")["field_share"].sum()
+        _tot = float(_fs.sum())
+        if _tot > 0:
+            map_units = (_poly, _dom, _fs / _tot * 100.0)
+
+    _ratios = ([1.05] if map_units is not None else []) + [1.45, 1.0]
+    fig = plt.figure(figsize=(13.2 + (3.4 if map_units is not None else 0),
+                              0.44 * len(g) + 1.6))
+    gs = gridspec.GridSpec(1, len(_ratios), width_ratios=_ratios, wspace=0.12)
+    idx_t = 1 if map_units is not None else 0
+    ax_t = fig.add_subplot(gs[idx_t]); ax_t.axis("off")
+
+    if map_units is not None:
+        import matplotlib.patches as mpatches
+        from matplotlib import colormaps as _cm
+        _poly, _dom, _pct = map_units
+        _names = sorted(_dom.dropna().unique())
+        _cyc = _cm.get_cmap("tab20")
+        _col = {n: _cyc(i / max(len(_names), 1) % 1.0 if len(_names) > 1 else 0.1)
+                for i, n in enumerate(_names)}
+        _poly = _poly.assign(comp=_poly["mukey"].map(_dom),
+                             c=_poly["mukey"].map(_dom).map(_col))
+        ax_m = fig.add_subplot(gs[0])
+        _poly.plot(ax=ax_m, color=_poly["c"].fillna("#d1d5db"),
+                   linewidth=0.4, edgecolor="#4b5563")
+        _poly.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
+        ax_m.set_xticks([]); ax_m.set_yticks([])
+        ax_m.set_title("map units — dominant component", fontsize=8.6, weight="bold", pad=13)
+        _hand = [mpatches.Patch(facecolor=_col[n], edgecolor="#4b5563",
+                                label=f"{n} — {float(_pct.get(n, 0)):.1f}% of field")
+                 for n in _names if n in _col]
+        ax_m.set_aspect("equal", adjustable="datalim")
+        ax_m.legend(handles=_hand, fontsize=6.4, loc="upper left",
+                    bbox_to_anchor=(0.0, -0.04), ncol=2, frameon=True, framealpha=0.95,
+                    borderpad=0.5, labelspacing=0.4, columnspacing=0.9)
     cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "Clay %", "Sand %"]
     num_cols = {3: ("om", plt.get_cmap("Reds"), 0.6), 4: ("ph", plt.get_cmap("coolwarm_r"), 0.55),
                 5: ("awc", plt.get_cmap("Blues"), 0.6), 6: ("clay", plt.get_cmap("PuRd"), 0.6),
@@ -439,22 +489,22 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
             cell.set_facecolor("#f3f4f6")
         if col == 0:
             cell.set_text_props(ha="left")
-    ax_t.set_title(
+    fig.suptitle(
         f"{label} — soil horizon detail ({source_note.lower()})",
-        fontsize=11, weight="bold", loc="left", pad=26,
+        fontsize=11, weight="bold", x=0.02, ha="left", y=1.045,
     )
-    ax_t.text(0, 1.01, "cells color-coded within column | lines at right are the same table "
-              "interpolated to continuous depth", transform=ax_t.transAxes,
+    ax_t.text(0, 1.01, "cells color-coded within column | profiles at right: same table "
+              "interpolated to continuous depth from 0 cm", transform=ax_t.transAxes,
               fontsize=7.4, color="#4b5563")
 
     # --- interpolated profiles (comppct-weighted, 5 cm bins) ---
-    bins = np.arange(5, 101, 5.0)
+    bins = np.arange(0, 101, 5.0)  # profile starts at the surface (0 cm)
     panels = [("OM %", _interp_profile(df, "om_r", bins), plt.get_cmap("Reds")),
               ("pH", _interp_profile(df, "ph1to1h2o_r", bins), plt.get_cmap("coolwarm_r")),
               ("AWC (cm/cm)", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues")),
               ("Clay %", _interp_profile(df, "claytotal_r", bins), plt.get_cmap("PuRd"))]
     have = [(n, y, c) for n, y, c in panels if y is not None]
-    gs2 = gridspec.GridSpecFromSubplotSpec(1, len(have), subplot_spec=gs[1], wspace=0.08)
+    gs2 = gridspec.GridSpecFromSubplotSpec(1, len(have), subplot_spec=gs[-1], wspace=0.08)
     for i, (name, y, cmap) in enumerate(have):
         ax = fig.add_subplot(gs2[i])
         ax.plot(y, bins, color="#1f2937", lw=1.7)
@@ -479,6 +529,10 @@ _PROPERTY_SPECS = [
     ("ph1to1h2o_r", "pH (1:1 H2O)", "coolwarm_r"),
     ("awc_r", "Available water capacity", "Blues"),
     ("claytotal_r", "Clay %", "PuRd"),
+    ("silttotal_r", "Silt %", "YlGnBu"),
+    ("sandtotal_r", "Sand %", "Oranges"),
+    ("cec7_r", "CEC (cmol/kg)", "viridis"),
+    ("dbthirdbar_r", "Bulk density", "cividis"),
 ]
 
 
@@ -501,6 +555,7 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
         return
     poly = gpd.read_file(gj)
     poly["mukey"] = poly["mukey"].astype(str)
+    areas = poly.assign(a=poly.to_crs(6933).geometry.area).groupby("mukey")["a"].sum()
 
     panels = []
     for col, title, cmap in _PROPERTY_SPECS:
@@ -515,8 +570,30 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     if not panels:
         return
 
-    fig, axes = plt.subplots(1, len(panels), figsize=(3.3 * len(panels) + 1.4, 3.9))
-    axes = np.atleast_1d(axes)
+    # --- texture composition strip data: one slice per map unit, ordered
+    # north -> south, width = that unit's share of the field; the three
+    # texture fractions stack to 100 % so you watch sand/silt/clay trade off
+    # as you walk down the field ---
+    tex = top.dropna(subset=["claytotal_r", "silttotal_r", "sandtotal_r"])
+    strip = None
+    if not tex.empty and areas is not None:
+        tsub = tex.assign(w=tex["share"])
+        agg = {c: (tsub["w"] * tsub[c]).groupby(tsub["mukey"]).sum() /
+                  tsub.groupby("mukey")["w"].sum() for c in
+               ("sandtotal_r", "silttotal_r", "claytotal_r")}
+        tdf = pd.DataFrame(agg).dropna()
+        cen = poly.set_index("mukey").to_crs(4326).representative_point()
+        tdf = tdf.join(cen.x.rename("lon")).join(cen.y.rename("lat"))
+        tdf = tdf.join(areas.rename("area").astype(float)).dropna()
+        tdf = tdf.sort_values("lat", ascending=False)  # north at left
+        strip = tdf
+    ncol = min(4, len(panels))
+    nrow = int(np.ceil(len(panels) / ncol))
+    fig = plt.figure(figsize=(3.3 * ncol + 1.4, 3.9 * nrow + (1.7 if strip is not None else 0)))
+    gs = fig.add_gridspec(nrow + (1 if strip is not None else 0), ncol,
+                          height_ratios=[3.5] * nrow + ([1.4] if strip is not None else []),
+                          hspace=0.52, wspace=0.30)
+    axes = np.array([fig.add_subplot(gs[r, c]) for r in range(nrow) for c in range(ncol)])
     for ax, (title, cmap, p) in zip(axes, panels):
         p.plot(column="v", ax=ax, cmap=cmap, legend=True, missing_kwds={"color": "#e5e7eb"},
                linewidth=0.3, edgecolor="#9ca3af",
@@ -527,10 +604,37 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
         ax.set_title(f"{title}\nfield mean {mean:.2f}" if not np.isnan(mean) else title,
                      fontsize=8.6, weight="bold", pad=13)
         ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xlabel(""); ax.set_ylabel("")  # graticule labels only crowd the grid
     fig.suptitle(f"{label} — whole-field weighted soil properties (topsoil, {source_note.lower()})",
                  fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
+    for axx in axes[len(panels):]:
+        axx.axis("off")
+    if strip is not None and not strip.empty:
+        ax_s = fig.add_subplot(gs[nrow, :])
+        total = float(strip["area"].sum())
+        x = 0.0
+        for _mu, row in strip.iterrows():
+            wseg = float(row["area"]) / total * 100.0
+            s, si, c = (float(np.clip(row[k], 0, 100)) for k in
+                        ("sandtotal_r", "silttotal_r", "claytotal_r"))
+            tot = s + si + c
+            s, si, c = (v / tot * 100 for v in (s, si, c))
+            ax_s.bar(x, s, width=wseg * 0.985, bottom=0, color="#d9a066", linewidth=0)
+            ax_s.bar(x, si, width=wseg * 0.985, bottom=s, color="#9aa5b1", linewidth=0)
+            ax_s.bar(x, c, width=wseg * 0.985, bottom=s + si, color="#b23a2f", linewidth=0)
+            x += wseg
+        ax_s.set_xlim(0, 100); ax_s.set_ylim(0, 100)
+        ax_s.set_xlabel("across the field, north \u2192 south   (each slice = one map unit, "
+                        "width \u221d that unit's share of the field)", fontsize=8)
+        ax_s.set_ylabel("% of texture\n(sum = 100)", fontsize=8)
+        ax_s.tick_params(labelbottom=False)
+        handles = [plt.Rectangle((0, 0), 1, 1, color=cc)
+                   for cc in ("#d9a066", "#9aa5b1", "#b23a2f")]
+        ax_s.legend(handles, ["sand", "silt", "clay"], fontsize=7.5, ncol=3,
+                    loc="upper center", bbox_to_anchor=(0.5, 1.35), frameon=False)
     fig.text(0.02, 0.005, "map-unit polygons weighted by their component mix — the area-weighted "
-             "field number, shown as a surface", fontsize=6.8, color="#4b5563")
+             "field number, shown as a surface; texture strip ordered by latitude, north at left",
+             fontsize=6.8, color="#4b5563")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=185, bbox_inches="tight", facecolor="white")
     plt.close(fig)

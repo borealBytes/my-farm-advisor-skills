@@ -394,7 +394,10 @@ def _render_raster_card(
             "edgecolor": "#cbd5e1",
         },
     )
-    fig.colorbar(image, cax=color_ax, label="NDVI")
+    fig.colorbar(
+        image, cax=color_ax, label="NDVI",
+        ticks=[t for t in (0.2, 0.4, 0.6, 0.8) if vmin <= t <= vmax],
+    )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(

@@ -102,11 +102,14 @@ def _dst_res_for(f: ff.Frame, target_px: int = 1100) -> float:
 
 # ---------------------------------------------------------------- panels
 
-def hillshade(dem: np.ndarray, dx: float = 2.0, az=315.0, alt=45.0) -> np.ndarray:
-    """Hillshade on the uniform metre grid (frame coords -> isotropic dx)."""
+def hillshade(dem: np.ndarray, dx: float = 2.0, az=315.0, alt=45.0,
+              exag: float = 1.0) -> np.ndarray:
+    """Hillshade on the uniform metre grid (frame coords -> isotropic dx).
+    ``exag`` vertically exaggerates the gradient: x2-x3 on tile land where
+    micro-relief is the signal, x1 on orographic relief (Esri practice)."""
     filled = np.where(np.isfinite(dem), dem, np.nanmedian(dem[np.isfinite(dem)])
                       if np.isfinite(dem).any() else 0.0)
-    yy, xx = np.gradient(filled, dx, dx)
+    yy, xx = np.gradient(filled, dx * (1.0 / exag), dx * (1.0 / exag))
     slope = np.pi / 2.0 - np.arctan(np.hypot(xx, yy))
     aspect = np.arctan2(-xx, yy)
     azr, altr = math.radians(az), math.radians(alt)
@@ -158,9 +161,17 @@ def panel_terrain(ax, field_dir: Path, f: ff.Frame, dst_res: float):
     out, extent = _read_tif_in_frame(dems[0], f, dst_res)
     arr = np.ma.filled(out, np.nan).astype(float)
     ax.set_facecolor("#e5e7eb")
-    hs = hillshade(arr, dx=dst_res)
+    import palettes
+    _ecm, _enorm, _relief, _klass = (palettes.dem_scale(arr[np.isfinite(arr)])
+                                     if np.isfinite(arr).any()
+                                     else (None, None, 0.0, "low"))
+    hs = hillshade(arr, dx=dst_res, exag=2.5 if _relief < 10 else
+                   (1.5 if _relief < 50 else 1.0))
     ax.imshow(hs, cmap="gray", extent=(0, extent[1], 0, extent[3]),
               vmin=0, vmax=1, origin="upper", zorder=1)
+    if _ecm is not None:
+        ax.imshow(np.ma.masked_invalid(arr), cmap=_ecm, norm=_enorm, alpha=0.55,
+                  extent=(0, extent[1], 0, extent[3]), origin="upper", zorder=2)
     if np.isfinite(arr).any():
         lo, hi = np.nanmin(arr), np.nanmax(arr)
         if hi - lo > 1.0:  # contours only where relief is mappable
@@ -172,8 +183,8 @@ def panel_terrain(ax, field_dir: Path, f: ff.Frame, dst_res: float):
             ax.clabel(cs, fmt="%.0f m", fontsize=5)
     _draw_frame_boundary(ax, f)
     ff.decorate(ax, f, arrow_xy=(0.86, 0.70), callout=False)
-    ax.set_title(f"Terrain — hillshade + elevation contours ({_dem_source_label(field_dir)})",
-                 fontsize=8)
+    ax.set_title(f"Terrain — hillshade + {_klass}-relief tint, {_relief:.0f} m relief "
+                 f"({_dem_source_label(field_dir)})", fontsize=8)
     _frame_axes(ax, f, extent)
     return True
 
@@ -201,7 +212,9 @@ def panel_soil(ax, field_dir: Path, f: ff.Frame, lakes_gdf):
         else:
             names = ["soil"] * len(gdf)
         uniq = sorted(set(names))
-        cmap = matplotlib.colormaps["tab20"].resampled(max(len(uniq), 3))
+        import palettes as _pal
+        _cols = _pal.categorical(len(uniq))
+        cmap = matplotlib.colors.ListedColormap(_cols)
         idx = {n: i for i, n in enumerate(uniq)}
         fgdf = _to_frame_coords(gdf, f)
         f.geometry.plot(ax=ax, facecolor="#e5e7eb", edgecolor="none", zorder=0)
@@ -226,13 +239,21 @@ def panel_soil(ax, field_dir: Path, f: ff.Frame, lakes_gdf):
         return True
     if rasters:
         data, extent = _read_tif_in_frame(rasters[0], f, _dst_res_for(f))
-        im = ax.imshow(np.ma.masked_invalid(data), cmap="YlOrBr",
+        import palettes as _pal
+        _d = np.ma.masked_invalid(data)
+        if np.nanmax(_d) > 120:  # ISRIC integer storage = % x10
+            _d = _d / 10.0
+        _cm, _norm, _ticks = _pal.soil_scale("clay", _d)
+        im = ax.imshow(_d, cmap=_cm, norm=_norm,
                        extent=(0, extent[1], 0, extent[3]), origin="upper", zorder=1)
         _draw_frame_boundary(ax, f)
         fig = ax.get_figure()
         cax = fig.add_axes([ax.get_position().x1 + 0.01, ax.get_position().y0,
                             0.02, ax.get_position().height])
-        plt.colorbar(im, cax=cax).ax.tick_params(labelsize=6)
+        _cb = plt.colorbar(im, cax=cax,
+                           **({"ticks": _ticks} if _ticks else {}))
+        _cb.set_label("clay %", fontsize=6)
+        _cb.ax.tick_params(labelsize=6)
         ax.set_title("Soil clay % (0–5 cm, national atlas)", fontsize=8)
         ff.decorate(ax, f, arrow_xy=(0.86, 0.70), callout=False)
         return True

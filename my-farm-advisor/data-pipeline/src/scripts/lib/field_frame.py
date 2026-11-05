@@ -246,7 +246,8 @@ def _frame_height(f: Frame) -> float:
 
 def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
              callout: bool = True, scalebar: bool = True,
-             arrow_xy: tuple = (0.87, 0.845), scale_y: float = 0.035) -> None:
+             arrow_xy: tuple = (0.87, 0.845), scale_y: float = 0.035,
+             scale_x: float = 60.0) -> None:
     """Boxed true-north arrow (+ boxed N), rotation callout, scale bar.
 
     callout=False for dense grids where the xlabel already carries the tilt;
@@ -275,9 +276,9 @@ def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
         return
     tr = _mt.blended_transform_factory(ax.transData, ax.transAxes)
     x_lo = ax.get_xlim()[0]
-    ax.plot([x_lo + 60, x_lo + 60 + f.scale_len], [scale_y, scale_y], transform=tr,
-            color="#111827", lw=2.0, clip_on=False)
-    ax.text(x_lo + 60 + f.scale_len / 2, scale_y + 0.02, f"{f.scale_len:.0f} m",
+    ax.plot([x_lo + scale_x, x_lo + scale_x + f.scale_len], [scale_y, scale_y],
+            transform=tr, color="#111827", lw=2.0, clip_on=False)
+    ax.text(x_lo + scale_x + f.scale_len / 2, scale_y + 0.02, f"{f.scale_len:.0f} m",
             transform=tr, fontsize=6.6, ha="center", color="#111827",
             bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))
 

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Render WorldCereal verification figures: true color + NDVI + class maps."""
 import json, math, os, sys, urllib.request
+from pathlib import Path
 import numpy as np
 _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_HERE, "lib"))
@@ -116,6 +117,57 @@ def _two_run_title(fig, ax, y, segs, renderer=None):
     ax._wc_runs = (t0, t1)
 
 
+# AAFC ACI class code -> WorldCereal CROPTYPE24 index; non-ag cover folds to
+# no_crop (23); cloud (10) and nodata (0/255) become unobserved (254).
+_ACI_TO_WC24 = {}
+for _c in (140, 145, 146, 139): _ACI_TO_WC24[_c] = 0      # wheat + triticale
+for _c in (133, 138): _ACI_TO_WC24[_c] = 1                 # barley, spelt
+for _c in (134,): _ACI_TO_WC24[_c] = 2                     # (unused spelt slot)
+for _c in (136,): _ACI_TO_WC24[_c] = 3                     # oats
+for _c in (147,): _ACI_TO_WC24[_c] = 4                     # corn/maize
+for _c in (142,): _ACI_TO_WC24[_c] = 5                     # sorghum
+for _c in (135,): _ACI_TO_WC24[_c] = 8                     # millet
+for _c in (175, 176, 177): _ACI_TO_WC24[_c] = 9            # vegetables
+for _c in (178,): _ACI_TO_WC24[_c] = 10                    # sugarbeets
+for _c in (160, 161, 162, 163, 167, 168, 174): _ACI_TO_WC24[_c] = 11  # pulses
+for _c in (157,): _ACI_TO_WC24[_c] = 12                    # sunflower
+for _c in (158,): _ACI_TO_WC24[_c] = 13                    # soybeans
+for _c in (153, 155): _ACI_TO_WC24[_c] = 14                # canola, mustard
+for _c in (143, 148, 149, 151, 156, 159, 180, 181, 182, 183, 185, 188,
+           189, 190, 191, 192, 193, 194, 195, 199):
+    _ACI_TO_WC24[_c] = 7                                   # fruit/veg/other
+for _c in (152, 154, 196): _ACI_TO_WC24[_c] = 15           # camelina, flax, canaryseed
+for _c in (197,): _ACI_TO_WC24[_c] = 17                    # hemp (fibre)
+for _c in (110, 122, 132, 141, 198): _ACI_TO_WC24[_c] = 21 # grass/pasture/fodder
+for _c in (130, 131): _ACI_TO_WC24[_c] = 23                # fallow/idle
+
+
+def _aci_year_wc(farm, field, year):
+    """Remap the field-level AAFC ACI export to a WC-24 coded GeoTIFF (cached)."""
+    from paths import shared_cdl_dir
+    src = shared_cdl_dir() / "aci" / str(year) / f"{field}.tif"
+    if not src.exists():
+        raise SystemExit(f"missing ACI export for {field} {year}: {src} "
+                         f"(run ingest/download_cdl.py)")
+    out = Path(ROOT) / farm / "fields" / field / "landcover" / f"aci24_{year}.tif"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    if not out.exists():
+        with rasterio.open(src) as s:
+            arr = s.read(1).astype("int32")
+            prof = dict(s.profile, dtype="int32", nodata=254, count=1)
+        rep = np.full(256, 23, dtype="uint8")   # default: named-but-unknown -> no_crop
+        rep[0] = 254; rep[10] = 254; rep[255] = 254
+        rep[20] = 23; rep[30] = 23; rep[34] = 23; rep[35] = 23; rep[50] = 23
+        rep[60] = 23; rep[80] = 23; rep[85] = 23; rep[200] = 23; rep[210] = 23
+        rep[220] = 23; rep[230] = 23
+        for c, w in _ACI_TO_WC24.items():
+            rep[c] = w
+        with rasterio.open(out, "w", **prof) as s:
+            s.write(rep[np.clip(arr, 0, 255)].astype("int32"), 1)
+    return {"epsg": 4326,
+            "files": {"croptype_classification": {"path": str(out)}}}
+
+
 def render_year_series(farm, field, years, season, fname, title):
     """Per-year WorldCereal crop-type classification for one field.
 
@@ -126,7 +178,10 @@ def render_year_series(farm, field, years, season, fname, title):
     usually a boundary problem, not a rotation.
     """
     from rasterio.features import rasterize
-    runs = {y: find_run(farm, field, season, year=y) for y in years}
+    if season == "aci":
+        runs = {y: _aci_year_wc(farm, field, y) for y in years}
+    else:
+        runs = {y: find_run(farm, field, season, year=y) for y in years}
 
     def _crop_tif(run):
         for k in (f"croptype_classification:{season}", "croptype_classification"):
@@ -183,7 +238,8 @@ def render_year_series(farm, field, years, season, fname, title):
         ax.set_ylabel("field-local m", fontsize=7)
         # narrow panels: arrow into the gray top-left corner; xlabel already
         # carries the tilt, so no callout; scale bar lifted off the frame edge
-        ff.decorate(ax, frame, callout=False, arrow_xy=(0.09, 0.80), scale_y=0.075)
+        ff.decorate(ax, frame, callout=False, arrow_xy=(0.075, 0.945),
+                          scale_y=0.045, scale_x=FW * 0.40)
         for lab, pct in ranked[:3]:
             if pct >= 3.0 and lab not in ("no_crop", "\u25a1_unobserved"):
                 t = LABELS.index(lab)
@@ -508,10 +564,10 @@ if __name__ == "__main__":
                        "br-r1 — Rio Verde, Goiás · sugarcane↔maize rotation, "
                        "read year-by-year (layer has no cane class: cane years "
                        "read as no crop)")
-    render_year_series("demo-ca", "on-r1", [2021, 2022, 2023], "tc-s2",
+    render_year_series("demo-ca", "on-r2", [2019, 2021, 2023], "aci",
                        "wc_year_series_on.png",
-                       "on-r1 — Ontario · soy↔maize↔wheat rotation recovered "
-                       "year-by-year (AAFC ACI as reference)")
+                       "on-r2 — Ontario · soybean↔corn rotation recovered "
+                       "year-by-year (AAFC ACI cloud-free mosaic, 30 m)")
     render_rdm_overlay(
         "demo-ca", "on-r1", 2022, "tc-s2",
         os.path.join(ROOT, "demo-ca", "fields", "on-r1", "worldcereal_rdm",

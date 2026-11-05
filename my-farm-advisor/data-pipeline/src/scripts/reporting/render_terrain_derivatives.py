@@ -93,7 +93,38 @@ def main() -> int:
             d = np.array(np.ma.filled(m, np.nan), dtype="float64", copy=True).ravel()
             d = d[np.isfinite(d)]
             return (np.percentile(d, 2), np.percentile(d, 98)) if d.size else (0, 1)
-        vmin, vmax = _vminmax(show)
+        import math as _math
+        import palettes
+        _cb_ticks = None
+        _norm_obj = None
+        if fn == "dem_conditioned.tif":
+            _ecm, _enorm, _relief, _klass = palettes.dem_scale(show)
+            cmap = _ecm
+            vmin, vmax = _enorm.vmin, _enorm.vmax
+            title = (f"Elevation ({_klass} stretch P2\u2013P98, "
+                     f"{_relief:.0f} m relief)")
+        elif fn == "topographic_wetness_index.tif":
+            _tc, _tn, _tt = palettes.twi_scale(show)
+            cmap, vmin, vmax, _cb_ticks = _tc, _tn.vmin, _tn.vmax, _tt
+        elif fn == "slope_degrees.tif":
+            # plot slope in % (the management unit); % class ticks stay round
+            show = np.ma.masked_array(100.0 * np.tan(np.radians(np.ma.getdata(show))),
+                                      mask=np.ma.getmaskarray(show))
+            title, unit = "Slope", "%"
+            _sc, _sn, _st = palettes.slope_scale(show)
+            cmap = _sc
+            vmin, vmax = _sn.vmin, _sn.vmax
+            _cb_ticks = _st
+        elif fn in ("tpi.tif", "relative_elevation.tif"):
+            # signed about 0 -> diverging norm centered on 0 (standard rule:
+            # a diverging map needs its neutral at the meaningful midpoint)
+            _mag = np.abs(np.ma.filled(show, np.nan))
+            _mag = _mag[np.isfinite(_mag)]
+            _cap = max(float(np.percentile(_mag, 99)), 0.5) if _mag.size else 1.0
+            _norm_obj = matplotlib.colors.TwoSlopeNorm(vcenter=0.0,
+                                                       vmin=-_cap, vmax=_cap)
+            vmin = vmax = None
+            title = f"{title} (±{_cap:.1f} m at P99)"
         if log:
             show = np.ma.masked_where(show <= 0, show)
             if show.count():
@@ -103,9 +134,15 @@ def main() -> int:
             im = ax.imshow(show, cmap="hsv", vmin=0, vmax=360,
                            extent=list(ext), origin="upper")
         else:
-            im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax,
-                           extent=list(ext), origin="upper")
-        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
+            _kw = {}
+            if _norm_obj is not None:
+                _kw["norm"] = _norm_obj
+            else:
+                _kw["vmin"], _kw["vmax"] = vmin, vmax
+            im = ax.imshow(show, cmap=cmap, extent=list(ext), origin="upper",
+                           **_kw)
+        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03,
+                          **({"ticks": _cb_ticks} if _cb_ticks else {}))
         cb.set_label(unit, fontsize=6); cb.ax.tick_params(labelsize=5)
         _L, _R, _B, _T = _fflib.view_extent(*ext)
         ax.set_xlim(_L, _R); ax.set_ylim(_B, _T)

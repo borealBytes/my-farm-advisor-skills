@@ -8,6 +8,9 @@ Soil provider selection by boundary `country`:
 Per-year crop rotation/crop-type sources by country (CDL, AAFC ACI, and the
 keyless WorldCereal default-model path for every other country):
 [references/crop-rotation-sources.md](references/crop-rotation-sources.md).
+- Field-scale maps (any figure drawing one field polygon) use the field-local
+  UTM frame, origin-at-SW-corner axes and boxed north arrow, with optional
+  viewport rotation — [references/field-map-frame.md](references/field-map-frame.md).
 ## Example renders
 
 Vision-QC'd sample figures ship under [`examples/`](examples/) — one

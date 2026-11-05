@@ -427,6 +427,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     idx_t = 1 if map_units is not None else 0
     ax_t = fig.add_subplot(gs[idx_t]); ax_t.axis("off")
 
+    _col: dict = {}
     if map_units is not None:
         import matplotlib.patches as mpatches
         from matplotlib import colormaps as _cm
@@ -437,23 +438,40 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
                 for i, n in enumerate(_names)}
         _poly = _poly.assign(comp=_poly["mukey"].map(_dom),
                              c=_poly["mukey"].map(_dom).map(_col))
+        # field-local UTM metres, (0,0) pinned to the SW corner of the field
+        # bounding box — degrees are noise at field scale
+        _lon0 = float(_poly.dissolve().geometry.iloc[0].centroid.x)
+        _lat0 = float(_poly.dissolve().geometry.iloc[0].centroid.y)
+        _zone = int((_lon0 + 180) // 6) + 1
+        _epsg = (32600 if _lat0 >= 0 else 32700) + _zone
+        _gu = _poly.to_crs(_epsg)
+        _x0, _y0, _, _ = _gu.total_bounds
+        _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
         ax_m = fig.add_subplot(gs[0])
-        _poly.plot(ax=ax_m, color=_poly["c"].fillna("#d1d5db"),
-                   linewidth=0.4, edgecolor="#4b5563")
-        _poly.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
-        ax_m.set_xticks([]); ax_m.set_yticks([])
+        _gu.plot(ax=ax_m, color=_gu["c"].fillna("#d1d5db"),
+                 linewidth=0.4, edgecolor="#4b5563")
+        _gu.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
+        ax_m.set_xlabel(f"m E from SW corner (UTM {_zone})", fontsize=6.8)
+        ax_m.set_ylabel("m N", fontsize=6.8)
+        ax_m.tick_params(labelsize=6.4)
+        ax_m.grid(alpha=0.18, lw=0.4)
+        # north arrow, top-right, boxed for contrast
+        ax_m.annotate("", xy=(0.90, 0.965), xytext=(0.90, 0.74),
+                      xycoords="axes fraction",
+                      arrowprops=dict(arrowstyle="-|>", lw=2.4, color="#111827",
+                                      mutation_scale=16))
+        ax_m.text(0.90, 0.985, "N", transform=ax_m.transAxes, fontsize=13,
+                  fontweight="bold", ha="center", va="bottom", color="#111827",
+                  bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#111827", lw=1.0))
         ax_m.set_title("map units — dominant component", fontsize=8.6, weight="bold", pad=13)
         _hand = [mpatches.Patch(facecolor=_col[n], edgecolor="#4b5563",
                                 label=f"{n} — {float(_pct.get(n, 0)):.1f}% of field")
                  for n in _names if n in _col]
         ax_m.set_aspect("equal", adjustable="datalim")
         ax_m.legend(handles=_hand, fontsize=6.4, loc="upper left",
-                    bbox_to_anchor=(0.0, -0.04), ncol=2, frameon=True, framealpha=0.95,
+                    bbox_to_anchor=(0.0, -0.115), ncol=2, frameon=True, framealpha=0.95,
                     borderpad=0.5, labelspacing=0.4, columnspacing=0.9)
     cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "Clay %", "Sand %"]
-    num_cols = {3: ("om", plt.get_cmap("Reds"), 0.6), 4: ("ph", plt.get_cmap("coolwarm_r"), 0.55),
-                5: ("awc", plt.get_cmap("Blues"), 0.6), 6: ("clay", plt.get_cmap("PuRd"), 0.6),
-                7: ("sand", plt.get_cmap("YlOrBr"), 0.6)}
     cells = [
         [r.compname, f"{r.comppct_r:.0f}", r.slice,
          "" if pd.isna(r.om) else f"{r.om:.1f}",
@@ -463,46 +481,38 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         for r in g.itertuples()
     ]
     tbl = ax_t.table(cellText=cells, colLabels=cols, loc="upper left", cellLoc="center")
-    tbl.auto_set_font_size(False); tbl.set_fontsize(8.2)
+    tbl.auto_set_font_size(False); tbl.set_fontsize(7.7)
     tbl.auto_set_column_width(col=(0, 2))
-    tbl.scale(1, 1.34)
-    spans = {}
-    for ci, (key, _, _) in num_cols.items():
-        vals = pd.to_numeric(pd.Series([row[ci] for row in cells]), errors="coerce").dropna()
-        if len(vals):
-            spans[ci] = (vals.min(), vals.max())
+    tbl.scale(0.97, 1.28)
     for (row, col), cell in tbl.get_celld().items():
         cell.set_edgecolor("#d1d5db")
         if row == 0:
             cell.set_facecolor("#1f2937"); cell.set_text_props(color="white", weight="bold")
             continue
-        if col in num_cols and cells[row - 1][col]:
-            key, cmap, strength = num_cols[col]
-            lo, hi = spans[col]
-            v = float(cells[row - 1][col])
-            f = 0.5 if hi == lo else (v - lo) / (hi - lo)
-            if key == "ph":  # diverging: neutral mid keeps lightness honest
-                f = abs(v - float(np.mean([lo, hi]))) / max((hi - lo) / 2, 1e-9)
-            cell.set_facecolor(_hex_blend(1 - strength * f, tuple(int(x * 255) for x in cmap(f)[:3])))
-            cell.set_text_props(path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
+        comp = cells[row - 1][0]
+        if col == 0 and comp in _col:
+            # row chips carry the map's own component colors — table rows and
+            # polygons are one glance apart, same hue
+            cell.set_facecolor(_col[comp])
+            cell.set_text_props(ha="left", color="white", weight="bold",
+                                path_effects=[pe.withStroke(linewidth=1.4, foreground="#111827")])
         elif row % 2 == 0:
             cell.set_facecolor("#f3f4f6")
-        if col == 0:
+        elif col == 0:
             cell.set_text_props(ha="left")
     fig.suptitle(
         f"{label} — soil horizon detail ({source_note.lower()})",
         fontsize=11, weight="bold", x=0.02, ha="left", y=1.045,
     )
-    ax_t.text(0, 1.01, "cells color-coded within column | profiles at right: same table "
-              "interpolated to continuous depth from 0 cm", transform=ax_t.transAxes,
+    ax_t.text(0, 1.01, "component colors match the map at left | profiles at right: same "
+              "table interpolated to continuous depth from 0 cm", transform=ax_t.transAxes,
               fontsize=7.4, color="#4b5563")
 
     # --- interpolated profiles (comppct-weighted, 5 cm bins) ---
     bins = np.arange(0, 101, 5.0)  # profile starts at the surface (0 cm)
     panels = [("OM %", _interp_profile(df, "om_r", bins), plt.get_cmap("Reds")),
               ("pH", _interp_profile(df, "ph1to1h2o_r", bins), plt.get_cmap("coolwarm_r")),
-              ("AWC (cm/cm)", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues")),
-              ("Clay %", _interp_profile(df, "claytotal_r", bins), plt.get_cmap("PuRd"))]
+              ("AWC", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues"))]
     have = [(n, y, c) for n, y, c in panels if y is not None]
     # fifth profile: sand+silt+clay interpolated the same way, normalized to a
     # 100 % stack down the profile — you watch texture change with depth
@@ -539,7 +549,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     ratios2 = [1] * (len(have) + (1 if has_tex else 0))
     if has_restr or known_restr:
         ratios2.append(0.62)
-    gs2 = gridspec.GridSpecFromSubplotSpec(1, n_cols2, subplot_spec=gs[-1], wspace=0.08,
+    gs2 = gridspec.GridSpecFromSubplotSpec(1, n_cols2, subplot_spec=gs[-1], wspace=0.30,
                                            width_ratios=ratios2)
     for i, (name, y, cmap) in enumerate(have):
         ax = fig.add_subplot(gs2[i])
@@ -547,10 +557,12 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
         ax.set_ylim(100, 0); ax.set_xlim(y.min() - (y.max()-y.min())*0.15 - 1e-9,
                                          y.max() + (y.max()-y.min())*0.15 + 1e-9)
-        ax.set_title(name, fontsize=8.2, weight="bold", pad=4)
+        ax.text(0.5, 0.985, name, transform=ax.transAxes, ha="center", va="top",
+                fontsize=7.6, weight="bold", color="#111827")
         ax.tick_params(labelsize=6.6)
+        from matplotlib.ticker import MaxNLocator
+        ax.xaxis.set_major_locator(MaxNLocator(3))
         ax.grid(alpha=0.25, lw=0.4)
-        ax.set_xlabel("interp @ 5 cm", fontsize=6.2)
     if has_tex:
         M = np.vstack([tex_curves["sand"], tex_curves["silt"], tex_curves["clay"]])
         M = np.clip(M, 0, None)
@@ -560,21 +572,25 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         axx.fill_betweenx(bins, 0, s, color="#d9a066")
         axx.fill_betweenx(bins, s, s + si, color="#9aa5b1")
         axx.fill_betweenx(bins, s + si, 100, color="#b23a2f")
-        for depth, frac, txt, cc in ((88, s[-3] / 2, "sand", "#7c4a12"),
-                                     (88, (s[-3] + si[-3] / 2), "silt", "#374151"),
-                                     (88, (s[-3] + si[-3] + c[-3] / 2), "clay", "#fef2f2")):
+        # key sits mid-profile; use the fraction AT that depth, not the deepest bin
+        for depth, frac, txt, cc in ((46, s[9] / 2, "sand", "#7c4a12"),
+                                     (46, (s[9] + si[9] / 2), "silt", "#374151"),
+                                     (46, (s[9] + si[9] + c[9] / 2), "clay", "#fef2f2")):
             axx.text(frac, depth, txt, fontsize=6.2, color=cc, ha="center", va="center",
                      path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
         axx.set_ylim(100, 0); axx.set_xlim(0, 100)
-        axx.set_title("texture (100 %)", fontsize=8.2, weight="bold", pad=4)
+        from matplotlib.ticker import MaxNLocator as _M
+        axx.xaxis.set_major_locator(_M(3))
+        axx.text(0.5, 0.985, "texture", transform=axx.transAxes, ha="center", va="top",
+                 fontsize=7.6, weight="bold", color="#111827")
         axx.tick_params(labelsize=6.6)
-        axx.set_xlabel("% of texture @ 5 cm", fontsize=6.2)
     if has_restr or known_restr:
         axr = fig.add_subplot(gs2[n_cols2 - 1])
         axr.set_ylim(100, 0); axr.set_xlim(0, 1)
         axr.set_yticks([0, 20, 40, 60, 80, 100]); axr.tick_params(labelsize=6.6)
         axr.set_xticks([])
-        axr.set_title("restrictions", fontsize=8.2, weight="bold", pad=4)
+        axr.text(0.5, 0.985, "restrictions", transform=axr.transAxes, ha="center",
+                 va="top", fontsize=7.6, weight="bold", color="#111827")
         if has_restr:
             for kind, top, bot in restricts:
                 bot = min(bot, 100.0)
@@ -586,39 +602,62 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
                 axr.text(0.5, max(top, (top + bot) / 2 - 3), kind, rotation=90, fontsize=5.6,
                          color=_restr_color(kind), ha="center", va="center", weight="bold",
                          path_effects=[pe.withStroke(linewidth=1.4, foreground="white")])
-            axr.set_xlabel("hatched = restrictive\nlayer depth range", fontsize=5.8)
+            axr.text(0.5, 0.015, "hatched = restrictive layer",
+                     transform=axr.transAxes, ha="center", va="bottom", fontsize=5.8)
         else:
             axr.text(0.5, 50, "no restrictive\nfeatures \u2264 100 cm", rotation=90,
                      fontsize=6.0, color="#6b7280", ha="center", va="center")
-    ax_t.text(0.99, 0.02, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
-              "constant beyond table | texture panel: same interpolation, normalized to 100 %",
-              transform=ax_t.transAxes, fontsize=6.0,
-              color="#6b7280", ha="right")
+    fig.text(0.99, 0.004, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
+             "constant beyond table | AWC cm water/cm soil; texture: same interpolation "
+             "normalized to 100 %, 5 cm bins from 0 cm",
+             fontsize=6.0, color="#6b7280", ha="right")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     print(f"saved {out}")
 
 
-# Soil-meaningful ramps: warm tans/greens for texture + organic matter, blue-
-# greens for water-related storage, BrBG pH diverging centred on neutral 7.0
-# (brown = acid, teal = alkaline — the convention in soil survey reports),
-# perceptually uniform sequential for the physical/chemical quantities.
+# Domain-standard choropleth ramps: the ISRIC/SoilGrids `soil.legends`
+# palettes (vendored under data/isric_legends/ — see SOURCE.md). Published
+# units differ from SSURGO, so each spec carries a scale factor into legend
+# space and a colorbar formatter back into the units growers read.
+# (col, title, legend file stem, value->legend scale, colorbar cb_label, tick fmt)
 _PROPERTY_SPECS = [
-    ("om_r", "Organic matter %", "YlGn", None),
-    ("ph1to1h2o_r", "pH (1:1 H2O)", "BrBG", 7.0),
-    ("awc_r", "Available water capacity", "YlGnBu", None),
-    ("claytotal_r", "Clay %", "Blues", None),
-    ("silttotal_r", "Silt %", "Purples", None),
-    ("sandtotal_r", "Sand %", "YlOrBr", None),
-    ("cec7_r", "CEC (cmol/kg)", "viridis", None),
-    ("dbthirdbar_r", "Bulk density", "cividis", None),
+    ("om_r", "Soil organic carbon", "ORCDRC", 5.8, "g C/kg (OM x 0.58)", None),
+    ("ph1to1h2o_r", "pH (1:1 H2O)", "PHIHOX", 10.0, "pH units", lambda x, _: f"{x/10:.1f}"),
+    ("awc_r", "Available water capacity", "CECSOL", 100.0, "cm water / cm soil",
+     lambda x, _: f"{x/100:.2f}"),
+    ("claytotal_r", "Clay %", "CLYPPT", 1.0, "%", None),
+    ("silttotal_r", "Silt %", "SLTPPT", 1.0, "%", None),
+    ("sandtotal_r", "Sand %", "SNDPPT", 1.0, "%", None),
+    ("cec7_r", "CEC (cmol/kg)", "CECSOL", 1.0, "cmol(c+)/kg", None),
+    ("dbthirdbar_r", "Bulk density", "BLDFINE", 1000.0, "g/cm\u00b3",
+     lambda x, _: f"{x/1000:.2f}"),
 ]
-UNIT_BY_COL = {
-    "om_r": "% by weight", "ph1to1h2o_r": "pH units", "awc_r": "cm water / cm soil",
-    "claytotal_r": "%", "silttotal_r": "%", "sandtotal_r": "%",
-    "cec7_r": "cmol(c+)/kg", "dbthirdbar_r": "g/cm³",
-}
+
+_ISRIC_CACHE: dict = {}
+
+
+def _isric_cmap(code: str):
+    """Continuous matplotlib colormap interpolated through the published
+    ISRIC legend stops (class midpoints, piecewise-linear in RGB)."""
+    import csv
+    if code in _ISRIC_CACHE:
+        return _ISRIC_CACHE[code]
+    path = Path(__file__).resolve().parent.parent / "data" / "isric_legends" / f"{code}.txt"
+    xs, cols = [], []
+    with open(path, newline="") as fh:
+        for row in csv.DictReader(fh, delimiter="\t"):
+            c = int(row["COLOR"])
+            lo, hi = float(row["MINIMUM"]), float(row["MAXIMUM"])
+            xs.append((lo + hi) / 2.0)
+            cols.append(((c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255))
+    lo, hi = xs[0], xs[-1]
+    from matplotlib.colors import LinearSegmentedColormap
+    cm = LinearSegmentedColormap.from_list(
+        code, list(zip([(x - lo) / (hi - lo) for x in xs], cols)))
+    _ISRIC_CACHE[code] = (cm, lo, hi)
+    return _ISRIC_CACHE[code]
 
 
 def render_property_map(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO") -> None:
@@ -643,24 +682,16 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     areas = poly.assign(a=poly.to_crs(6933).geometry.area).groupby("mukey")["a"].sum()
 
     panels = []
-    import matplotlib.colors as _mc
-    for col, title, cmap, vcenter in _PROPERTY_SPECS:
+    for col, title, code, scale, cb_label, tick_fmt in _PROPERTY_SPECS:
         sub = top.dropna(subset=[col])
         if sub.empty:
             continue
         wsum = sub.groupby("mukey")["share"].transform("sum")
         sub = sub.assign(w=sub["share"] / wsum)
-        vals = (sub["w"] * sub[col]).groupby(sub["mukey"]).sum()
+        vals = (sub["w"] * sub[col]).groupby(sub["mukey"]).sum() * scale
         p = poly.merge(vals.rename("v"), on="mukey", how="left")
-        norm = None
-        if vcenter is not None and p["v"].notna().any():
-            lo, hi = float(p["v"].min()), float(p["v"].max())
-            if lo < vcenter < hi:
-                pad = 0.5
-                norm = _mc.TwoSlopeNorm(
-                    vcenter=vcenter,
-                    vmin=min(lo, vcenter - pad), vmax=max(hi, vcenter + pad))
-        panels.append((col, title, cmap, p, norm))
+        cmap, _, _ = _isric_cmap(code)
+        panels.append((title, cmap, p, cb_label, tick_fmt, scale))
     if not panels:
         return
 
@@ -670,16 +701,24 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     gs = fig.add_gridspec(nrow, ncol, height_ratios=[3.5] * nrow,
                           hspace=0.52, wspace=0.30)
     axes = np.array([fig.add_subplot(gs[r, c]) for r in range(nrow) for c in range(ncol)])
-    for ax, (col, title, cmap, p, norm) in zip(axes, panels):
-        p.plot(column="v", ax=ax, cmap=cmap, norm=norm, legend=False,
+    from matplotlib import ticker as _ticker
+    for ax, (title, cmap, p, cb_label, tick_fmt, scale) in zip(axes, panels):
+        p.plot(column="v", ax=ax, cmap=cmap, legend=False,
                missing_kwds={"color": "#e5e7eb"},
                linewidth=0.3, edgecolor="#9ca3af")
         cb = fig.colorbar(ax.collections[-1], ax=ax, fraction=0.046, pad=0.03)
         cb.ax.tick_params(labelsize=6.5)
-        cb.set_label(UNIT_BY_COL.get(col, ""), fontsize=7)
+        if tick_fmt is not None:
+            cb.ax.yaxis.set_major_formatter(_ticker.FuncFormatter(tick_fmt))
+        cb.set_label(cb_label, fontsize=7)
         outline = p.dissolve().boundary
         outline.plot(ax=ax, color="#111827", lw=1.0)
-        mean = float(p["v"].mean()) if p["v"].notna().any() else float("nan")
+        # field mean in whatever units the colorbar displays: tick_fmt panels
+        # are converted back by the formatter, so divide; None-formatter panels
+        # show legend-space values directly (e.g. SOC g/kg), so keep the mean
+        # in legend units
+        mean = (float(p["v"].mean() / scale) if tick_fmt is not None
+                else float(p["v"].mean())) if p["v"].notna().any() else float("nan")
         ax.set_title(f"{title}\nfield mean {mean:.2f}" if not np.isnan(mean) else title,
                      fontsize=8.6, weight="bold", pad=13)
         ax.set_xticks([]); ax.set_yticks([])
@@ -688,8 +727,9 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
                  fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
     for axx in axes[len(panels):]:
         axx.axis("off")
-    fig.text(0.02, 0.005, "map-unit polygons weighted by their component mix — the area-weighted "
-             "field number, shown as a surface", fontsize=6.8, color="#4b5563")
+    fig.text(0.02, 0.005, "polygons weighted by component mix — area-weighted field values as a "
+             "surface | ramps: ISRIC/SoilGrids standard soil.legends palettes (vendored, "
+             "files.isric.org)", fontsize=6.8, color="#4b5563")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=185, bbox_inches="tight", facecolor="white")
     plt.close(fig)

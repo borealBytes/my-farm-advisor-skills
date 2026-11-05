@@ -94,7 +94,7 @@ national atlases where they do, and the global 250 m floor everywhere:
 | Iowa (SSURGO) | Ontario (DSS) |
 | --- | --- |
 | ![ia weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_weighted_property_map.png) | ![on weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_weighted_property_map.png) |
-| 8 attributes — OM, pH, AWC, clay, silt, sand, CEC, bulk density — each map-unit polygon colored by **its component mix's topsoil value** (comppct-weighted within the unit), weighted mean printed per panel; below them a **100 % sand+silt+clay strip** across map units ordered north → south, width ∝ field share — watch the texture trade off as you walk down the field | Same schema, same math: Ontario census of Brookston/Perth/Kintyre, eight surfaces + the same texture strip |
+| 8 attributes — SOC, pH, AWC, clay, silt, sand, CEC, bulk density — each map-unit polygon colored by **its component mix's topsoil value** (comppct-weighted within the unit), weighted mean printed per panel; ramps are the **ISRIC/SoilGrids standard `soil.legends`** palettes (vendored, domain-standard for property ranges), colorbars in real units (pH, g C/kg, cm/cm, g/cm³) | Same schema, same math: Ontario census of Brookston/Perth/Kintyre, eight surfaces on the same standard ramps |
 
 **Horizon detail — the rows behind every map, triangle and weighted panel above.**
 All of it — property maps, triangles, horizon tables, interpolated profiles — fires
@@ -105,7 +105,7 @@ triangle for raster providers):
 | US — SSURGO horizons | Canada — ON-DSS horizons |
 | --- | --- |
 | ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) |
-| Left: the field itself — map units colored by **dominant component**, legend lists every series with its % of field area (sums to 100) — so the table rows tie straight to where they sit. Middle: color-coded horizon table. Right: the same table **interpolated to continuous depth** (piecewise-linear across horizon midpoints, comppct-weighted, 5 cm bins, starting at 0 cm) — the classic SSURGO interval interpolation, honest about being constant beyond measured | Same schema, same renderer: Ontario series (Brookston 82.8 %, Perth 13.2 %, Normandale 3.9 % of field) with real horizon splits, the same map, and profiles from the surface down |
+| Left: the field itself — map units colored by **dominant component** on a **field-local UTM frame** (metres from the SW corner, boxed north arrow; see `references/field-map-frame.md`), legend lists every series with its % of field area (sums to 100). Middle: horizon table whose **component chips reuse the map colors** — row ↔ polygon at a glance; numeric cells plain. Right: same table **interpolated to continuous depth** from 0 cm (comppct-weighted, 5 cm bins) + a **100 % sand·silt·clay texture stack** down the profile + a restrictions column (SSURGO `corestrictions`) | Same schema, same renderer: Ontario series (Brookston 82.8 %, Perth 13.2 %, Normandale 3.9 %) — UTM 17 frame, chips matched, profiles from the surface down |
 
 ### Terrain derivatives — ready the moment the DEM lands
 

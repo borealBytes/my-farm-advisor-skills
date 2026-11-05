@@ -114,14 +114,14 @@ one flag (`--country canada|north-america`).
 
 ### Per-year crop classification anywhere — keyless satellite imagery
 
-Rendered by [`render_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/render_worldcereal.py)
+Rendered by [`render_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/render_worldcereal.py) and [`render_worldcereal_cdl.py`](my-farm-advisor/data-pipeline/src/scripts/render_worldcereal_cdl.py)
 using the open WorldCereal default models on Microsoft Planetary Computer
-Sentinel-2 (no accounts, no keys).
+Sentinel-2 (no accounts, no keys), cross-checked against the USDA CDL.
 
-| Iowa soy verification | Narrabri, dry season | Narrabri, summer season |
+| Iowa — WorldCereal vs USDA CDL, side by side | Narrabri, dry season | Narrabri, summer season |
 | --- | --- | --- |
-| ![Iowa WorldCereal check](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_ia_soy.png) | ![Narrabri tc-s2](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc2.png) | ![Narrabri tc-s1](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc1.png) |
-| True color, NDVI, cropland mask, crop type — model called soybean with no label input | Correctly sees the fallow dry-season window (La Niña 2023) | Honest caveat: un-fine-tuned model mislabels cotton as oilseed — regional accuracy stated, not oversold |
+| ![Iowa CDL comparator](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_ia_soy_cdl.png) | ![Narrabri tc-s2](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc2.png) | ![Narrabri tc-s1](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc1.png) |
+| Six panels: imagery, NDVI, cropland mask, WorldCereal crop type **and USDA CDL 2023** on identical extents — in-field shares printed, verdict **AGREE** (CDL 96.7% soybeans vs WorldCereal 98.9%) | Correctly sees the fallow dry-season window (La Niña 2023) | Honest caveat: un-fine-tuned model mislabels cotton as oilseed — regional accuracy stated, not oversold |
 
 ### Breeding operations — designs, fieldbooks, and selection
 

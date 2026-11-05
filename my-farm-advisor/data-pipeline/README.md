@@ -25,7 +25,9 @@ detailed survey (CA), Australia's Soil Atlas via Gaia-DAP (AU), or SoilGrids
 250 m as the global floor; rotation history from CDL (US), AAFC ACI (CA), or
 the WorldCereal default crop models applied per year on keyless Microsoft
 Planetary Computer Sentinel-2 (`scripts/ingest/apply_worldcereal.py`,
-verification figures via `scripts/render_worldcereal.py`); terrain from the
+verification figures via `scripts/render_worldcereal.py`, plus a USDA CDL
+comparator panel via `scripts/render_worldcereal_cdl.py` — in-field class
+shares and an explicit agree/disagree verdict); terrain from the
 resolution-ranked DEM resolver (USGS 3DEP/TNM where mapped — up to 1 m — with
 Copernicus 30 m, NASADEM, and ALOS as the global floor); weather from NASA
 POWER public Zarr; admin boundaries and choropleths from geoadmin plus GADM

@@ -318,6 +318,9 @@ def main() -> None:
         ("reporting/generate_field_posters.py", "Field posters", (), False),
         ("reporting/generate_aggregate_poster.py", "Farm portfolio poster", (), False),
         ("reporting/generate_ssurgo_cards.py", "SSURGO soil profile cards", (), False),
+        ("reporting/generate_soil_texture_triangles.py",
+         "Soil texture triangles, horizon tables, area-weighted property maps (--all-fields)",
+         ("--all-fields",), False),
         ("reporting/generate_farm_html.py", "Self-contained HTML report", (), False),
         ("reporting/generate_farm_markdown.py", "Markdown report", (), False),
     ]

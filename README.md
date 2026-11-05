@@ -79,10 +79,28 @@ national atlases where they do, and the global 250 m floor everywhere:
 
 | US — SSURGO survey polygons | Canada — Ontario Detailed Soil Survey (polygon) | Australia — national Soil Atlas | Global floor — SoilGrids 250 m (Brazil) |
 | --- | --- | --- | --- |
-| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![USDA texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png)<br>![Ontario texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png)<br>![AU texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r4_texture_triangle.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png)<br>![BR texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_texture_triangle.png) |
-| 16 mapped components inside one boundary — map **and** USDA texture triangle: one point per component (size = abundance), star = comppct-weighted mean (loam, clay 27 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package, not eyeballed ([`generate_soil_texture_triangles.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)) | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey — and classified onto the very same triangle, one renderer for every survey that speaks the SSURGO schema | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6 — and its raster cells classified onto the same triangle (81 cells, cell-weighted mean: clay). The triangle is a **derivation**, not a survey-only luxury: grid → points → class | Cerrado field where no national layer exists: 6 properties + relief at 250 m — and the same triangle derived from SoilGrids cells (clay 32 / silt 18 / sand 50 → sandy clay loam). Four provenance levels, one texture classifier |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
+| 16 mapped components inside one boundary, one color per soil map | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) from the cached national survey | The continent's official soil map as the survey tier — raster clip inside the field | Anywhere no national layer exists: 6 properties + relief at 250 m, the universal floor |
 
-**Horizon detail — the rows behind every map and triangle above:**
+**Texture triangles — field-area weighted, one per provenance ([`generate_soil_texture_triangles.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)):**
+
+| SSURGO (US) | Ontario DSS (CA) | Soil Atlas raster cells (AU) | SoilGrids 250 m cells (BR) |
+| --- | --- | --- | --- |
+| ![ia triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![on triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![au triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r4_texture_triangle.png) | ![br triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_texture_triangle.png) |
+| Every pin = one mukey×component: **series name + % of the field** (map-unit polygon area × within-unit component share), exact-class duplicates merged, labels collision-placed, star = the area-weighted field mean (loam, clay 26 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package | The Ontario survey speaks the same schema — same renderer, same triangle | The triangle as a **derivation** for gridded sources: every 100 m atlas cell inside the boundary is one point (30 displayed max), star = cell-weighted mean | The global floor too: SoilGrids sand/silt/clay cells of a Cerrado field → sandy clay loam mean. Four provenance levels, one classifier |
+
+**Whole-field weighted property maps — the area-weighted field number, drawn as a surface:**
+
+| Iowa (SSURGO) | Ontario (DSS) |
+| --- | --- |
+| ![ia weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_weighted_property_map.png) | ![on weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_weighted_property_map.png) |
+| Each map-unit polygon colored by **its component mix's topsoil value** (comppct-weighted within the unit): OM, pH, AWC, clay as continuous surfaces instead of dominant-component tiles — the weighted mean printed on every panel | Same schema, same math: Ontario census of Brookston/Perth/Kintyre weighted averages rendered per polygon |
+
+**Horizon detail — the rows behind every map, triangle and weighted panel above.**
+All of it — property maps, triangles, horizon tables, interpolated profiles — fires
+automatically for **every field** in `run_farm_pipeline.py` (`--all-fields` mode:
+survey triangle + horizon table + weighted map where polygons exist, the grid
+triangle for raster providers):
 
 | US — SSURGO horizons | Canada — ON-DSS horizons |
 | --- | --- |

@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import math
+import os
 from pathlib import Path
 
 import matplotlib
@@ -109,6 +110,36 @@ def _topsoil_components(csv_path: Path) -> pd.DataFrame:
     g = g[g["comppct_r"] > 0]
     total = g["claytotal_r"] + g["silttotal_r"] + g["sandtotal_r"]
     g["clay"], g["silt"], g["sand"] = g["claytotal_r"] / total, g["silttotal_r"] / total, g["sandtotal_r"] / total
+    # field-area share: comppct_r is WITHIN its map unit, so weight each
+    # component by its mukey's clipped polygon area (equal weight where the
+    # polygon table lacks a mukey). This turns rel-%-of-map-unit into % of field.
+    g["share_in_mukey"] = g["comppct_r"] / g.groupby("mukey")["comppct_r"].transform("sum")
+    areas = None
+    gj = csv_path.parent / "ssurgo_soil_types.geojson"
+    if gj.exists():
+        try:
+            import geopandas as _gpd
+            poly = _gpd.read_file(gj).to_crs(6933)
+            poly["mukey"] = poly["mukey"].astype(str)
+            areas = poly.assign(a=poly.geometry.area).groupby("mukey")["a"].sum()
+        except Exception:
+            areas = None
+    g["mukey"] = g["mukey"].astype(str)
+    if areas is not None and g["mukey"].isin(areas.index).all():
+        g["mukey_w"] = g["mukey"].map(areas)
+    else:
+        g["mukey_w"] = 1.0
+        print("  (polygon areas unavailable for some mukeys — equal mukey weights)")
+    g["field_share"] = g["mukey_w"] * g["share_in_mukey"]
+    g["field_share"] = 100.0 * g["field_share"] / g["field_share"].sum()
+    # one pin per series x texture cell (0.5 % grid): identical/adjacent
+    # duplicates merge and their shares add
+    g["_k"] = list(zip(g["compname"], (g["clay"] * 200).round(),
+                       (g["silt"] * 200).round(), (g["sand"] * 200).round()))
+    g = g.groupby("_k", as_index=False).agg(
+        compname=("compname", "first"), mukey=("mukey", "first"),
+        comppct_r=("field_share", "sum"),
+        clay=("clay", "mean"), silt=("silt", "mean"), sand=("sand", "mean"))
     g["class"] = [texture_class(c, s, sa) for c, s, sa in zip(g["clay"], g["silt"], g["sand"])]
     return g
 
@@ -152,7 +183,7 @@ def _grid_components(soil_dir: Path) -> tuple[pd.DataFrame, str]:
     return grid, f"{depth}|{mean['clay']}|{mean['silt']}|{mean['sand']}|{n_all}"
 
 
-def render(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO",
+def render(csv_path: Path | None, label: str, out: Path, source_note: str = "SSURGO",
            soil_dir: Path | None = None) -> None:
     grid_note = None
     if soil_dir is not None:
@@ -180,31 +211,52 @@ def render(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO",
                 color="#3f2a26", style="italic",
                 path_effects=[pe.withStroke(linewidth=2.4, foreground="white")])
 
-    # gridlines: sand % along base, clay % along left edge
+    # three gridline families + edge tick strips on all three sides
+    import matplotlib.transforms as mtransforms
     for pct in range(10, 100, 10):
         f = pct / 100.0
-        x0, y0 = _to_xy(0, 1 - f, f)
-        x1, y1 = _to_xy(1, 0, 0)
-        ax.plot([x0, x1], [y0, y1], color="#b08a7a", lw=0.3, alpha=0.6)  # sand lines
-        xa, ya = _to_xy(f, 0, 1 - f)
-        xb, yb = _to_xy(1, 0, 0)
-        ax.plot([xa, xb], [ya, yb], color="#b08a7a", lw=0.3, alpha=0.6)  # clay lines
-        ax.text(xa + 0.015, ya + 0.02, str(pct), fontsize=5.5, color="#8a665a")
+        # sand lines (parallel to silt-clay edge = left edge)
+        ax.plot(*zip(_to_xy(0, 1 - f, f), _to_xy(1, 0, 0)), color="#b08a7a", lw=0.3, alpha=0.6)
+        # clay lines (parallel to sand-silt base)
+        ax.plot(*zip(_to_xy(f, 0, 1 - f), _to_xy(1, 0, 0)), color="#b08a7a", lw=0.3, alpha=0.6)
+        # silt lines (parallel to clay-sand right edge): baseline (1-f,0) -> left edge (0.5(1-f), .866(1-f))
+        ax.plot([1 - f, 0.5 * (1 - f)], [0, (math.sqrt(3) / 2) * (1 - f)], color="#b08a7a", lw=0.3, alpha=0.6)
+        # sand ticks below base (increasing left->right)
+        ax.plot([f, f], [-0.004, -0.016], color="#3f2a26", lw=0.7)
+        ax.text(f, -0.030, str(pct), fontsize=6, color="#3f2a26", ha="center", va="top")
+        # clay ticks out along left edge (0 at base -> 100 at apex)
+        n = (-math.sqrt(3) / 2, -0.5)  # outward normal of left edge
+        px, py = _to_xy(f, 0, 1 - f)
+        ax.plot([px, px + 0.012 * n[0]], [py, py + 0.012 * n[1]], color="#3f2a26", lw=0.7)
+        ax.text(px + 0.028 * n[0], py + 0.028 * n[1], str(pct), fontsize=6, color="#3f2a26",
+                ha="center", va="center", rotation=60)
+        # silt ticks as second row below base (100 at left -> 0 at right)
+        ax.plot([1 - f, 1 - f], [-0.040, -0.052], color="#3f2a26", lw=0.7)
+        ax.text(1 - f, -0.066, str(pct), fontsize=6, color="#3f2a26", ha="center", va="top")
 
-    # outer triangle + corner axis titles
+    # outer triangle + bold edge titles with direction cues
     ax.add_patch(MplPolygon([_to_xy(0, 1, 0), _to_xy(0, 0, 1), _to_xy(1, 0, 0)],
-                            closed=True, fill=False, edgecolor="#3f2a26", lw=1.4))
-    ax.text(0.5, -0.045, "% SAND", ha="center", fontsize=8, weight="bold", color="#3f2a26")
-    ax.text(-0.055, 0.30, "% CLAY", fontsize=8, weight="bold", color="#3f2a26", rotation=60, va="center")
-    ax.text(1.045, 0.30, "% SILT", fontsize=8, weight="bold", color="#3f2a26", rotation=-60, va="center")
+                            closed=True, fill=False, edgecolor="#3f2a26", lw=1.6))
+    ax.text(0.5, -0.092, "% SAND  \u2192", ha="center", fontsize=9.5, weight="bold", color="#3f2a26")
+    ax.text(0.5, -0.118, "% SILT  \u2190", ha="center", fontsize=9.5, weight="bold", color="#3f2a26")
+    ax.text(1.105, 0.36, "% CLAY  \u2197", fontsize=9.5, weight="bold", color="#3f2a26",
+            rotation=-60, va="center")
 
     # component points, sized by comppct_r (grid cells: small translucent dots)
-    sizes = 6 if grid_note else 30 + comp["comppct_r"] * 1.9
+    sizes = 6 if grid_note else 18 + comp["comppct_r"] * 7.0
+    _ = None  # placeholder
     xs, ys = zip(*(_to_xy(c, s, sa) for c, s, sa in zip(comp["clay"], comp["silt"], comp["sand"])))
     if grid_note:
         ax.scatter(xs, ys, s=34, c="#1d4ed8", zorder=5, alpha=0.55, linewidths=0)
     else:
         ax.scatter(xs, ys, s=sizes, c="#1d4ed8", edgecolors="white", linewidths=0.8, zorder=5, alpha=0.88)
+        occupied = []
+        for nm, (idx, _) in _CLASSES.items():
+            cx0, cy0 = _poly_verts(idx).mean(axis=0)
+            ww, hh = 0.0125 * len(nm) + 0.014, 0.032
+            occupied.append((cx0 - ww / 2, cy0 - hh / 2, cx0 + ww / 2, cy0 + hh / 2))
+        occupied.append((0.70, 0.66, 1.18, 0.98))  # star callout zone (top-right)
+        _label_pins(ax, comp, sizes, occupied)
 
     # weighted field mean (comps: comppct-weighted; grid: all-cell weighted)
     if grid_note:
@@ -223,15 +275,17 @@ def render(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO",
         (mx, my), xytext=(0.985, 0.995), textcoords="axes fraction", fontsize=7.6,
         weight="bold", color="#78350f", zorder=8, ha="right", va="top",
         bbox=dict(boxstyle="round,pad=0.35", fc="#fffbeb", ec="#78350f", lw=0.8),
-        arrowprops=dict(arrowstyle="->", color="#78350f", lw=0.9),
+        arrowprops=dict(arrowstyle="->", color="#78350f", lw=0.9,
+                        connectionstyle="arc3,rad=-0.28"),
     )
 
     if grid_note:
         unit = "one point per raster cell (thin-stride shown), star = weighted mean of all cells"
         n_note = f"{grid_note[4]} cells at {grid_note[0]}"
     else:
-        unit = "one point per component (size = relative abundance), star = comppct-weighted mean"
-        n_note = f"{len(comp)} components"
+        unit = ("pins labelled soil series + % of FIELD area (map-unit polygons \u00d7 component share); "
+                "size = field area; star = area-weighted mean")
+        n_note = f"{len(comp)} pins"
     ax.set_title(
         f"{label} — soil texture classes (topsoil, {source_note.lower()})",
         fontsize=10.5, weight="bold", pad=14, loc="left",
@@ -241,8 +295,8 @@ def render(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO",
         f"{unit} | {n_note}",
         transform=ax.transAxes, fontsize=7.4, color="#4b5563",
     )
-    ax.set_xlim(-0.12, 1.14)
-    ax.set_ylim(-0.08, 0.95)
+    ax.set_xlim(-0.16, 1.16)
+    ax.set_ylim(-0.145, 0.95)
     ax.set_aspect("equal")
     ax.axis("off")
     fig.tight_layout()
@@ -282,6 +336,50 @@ def _interp_profile(df: pd.DataFrame, col: str, bins: np.ndarray) -> np.ndarray 
         return None
     w = np.asarray(weights, dtype=float)
     return (np.vstack(series) * w[:, None]).sum(axis=0) / w.sum()
+
+
+def _label_pins(ax, comp: pd.DataFrame, sizes, occupied: list[tuple[float, float, float, float]]) -> None:
+    """Series name + field-area % beside each pin. Radial candidate search at
+    two distances x eight directions; boxes never land on a class name, the
+    mean callout, or another label (falls back to least-overlapping)."""
+    order = np.argsort(-comp["comppct_r"].values)
+    boxes = list(occupied)
+
+    def overlap(b):
+        s = 0.0
+        for q in boxes:
+            s += max(0.0, min(b[2], q[2]) - max(b[0], q[0])) * max(0.0, min(b[3], q[3]) - max(b[1], q[1]))
+        return s
+
+    for i in order:
+        r = comp.iloc[i]
+        x, y = _to_xy(r.clay, r.silt, r.sand)
+        share = float(r.comppct_r)
+        label = f"{r.compname} {share:.1f}%" if share < 10 else f"{r.compname} {share:.0f}%"
+        w, h = 0.0128 * len(label) + 0.022, 0.044
+        rad0 = 0.014 + (float(sizes.values[i]) ** 0.5) * 0.0026
+        best, best_score = None, np.inf
+        for d in (rad0 + 0.014, rad0 + 0.058, rad0 + 0.105, rad0 + 0.155, rad0 + 0.21):
+            for ang in (0, 30, 330, 60, 300, 90, 270, 15, 345, 75, 285, 120, 240, 150, 210, 180):
+                a = math.radians(ang)
+                bx, by = x + d * math.cos(a) - (w / 2 if ang in (90, 270, 80, 100, 260, 280) else (w if ang > 180 else 0)), \
+                         y + d * math.sin(a) - h / 2
+                box = (bx, by, bx + w, by + h)
+                sc = overlap(box)
+                if sc == 0.0:
+                    best = box
+                    break
+                if sc < best_score:
+                    best, best_score = box, sc
+            if best and overlap(best) == 0.0:
+                break
+        boxes.append(best)
+        ax.annotate(
+            label, (x, y), xytext=(best[0], best[3]), fontsize=6.6, color="#111827",
+            zorder=7, va="top", ha="left",
+            bbox=dict(boxstyle="square,pad=0.16", fc="white", ec="#9ca3af", lw=0.4, alpha=0.93),
+            arrowprops=dict(arrowstyle="-", color="#6b7280", lw=0.5, shrinkA=1, shrinkB=3),
+        )
 
 
 def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO") -> None:
@@ -376,18 +474,145 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     print(f"saved {out}")
 
 
+_PROPERTY_SPECS = [
+    ("om_r", "Organic matter %", "Reds"),
+    ("ph1to1h2o_r", "pH (1:1 H2O)", "coolwarm_r"),
+    ("awc_r", "Available water capacity", "Blues"),
+    ("claytotal_r", "Clay %", "PuRd"),
+]
+
+
+def render_property_map(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO") -> None:
+    """Whole-field weighted-average property maps: each map-unit polygon colored
+    by its component mix's topsoil value, area-weighted (comppct within the
+    mukey) — the field-level number most reports quote, drawn as a surface."""
+    import geopandas as gpd
+
+    df = pd.read_csv(csv_path)
+    df["mukey"] = df["mukey"].astype(str)
+    top = df[df["hzdept_r"] == df.groupby(["mukey", "compname"])["hzdept_r"].transform("min")]
+    top = top.dropna(subset=["comppct_r"])
+    top = top[top["comppct_r"] > 0]
+    top["share"] = top["comppct_r"] / top.groupby("mukey")["comppct_r"].transform("sum")
+
+    gj = csv_path.parent / "ssurgo_soil_types.geojson"
+    if not gj.exists():
+        print(f"  (no polygon file beside {csv_path}; skipping property map)")
+        return
+    poly = gpd.read_file(gj)
+    poly["mukey"] = poly["mukey"].astype(str)
+
+    panels = []
+    for col, title, cmap in _PROPERTY_SPECS:
+        sub = top.dropna(subset=[col])
+        if sub.empty:
+            continue
+        wsum = sub.groupby("mukey")["share"].transform("sum")
+        sub = sub.assign(w=sub["share"] / wsum)
+        vals = (sub["w"] * sub[col]).groupby(sub["mukey"]).sum()
+        p = poly.merge(vals.rename("v"), on="mukey", how="left")
+        panels.append((title, cmap, p))
+    if not panels:
+        return
+
+    fig, axes = plt.subplots(1, len(panels), figsize=(3.3 * len(panels) + 1.4, 3.9))
+    axes = np.atleast_1d(axes)
+    for ax, (title, cmap, p) in zip(axes, panels):
+        p.plot(column="v", ax=ax, cmap=cmap, legend=True, missing_kwds={"color": "#e5e7eb"},
+               linewidth=0.3, edgecolor="#9ca3af",
+               legend_kwds={"shrink": 0.55, "pad": 0.02})
+        outline = p.dissolve().boundary
+        outline.plot(ax=ax, color="#111827", lw=1.0)
+        mean = float(p["v"].mean()) if p["v"].notna().any() else float("nan")
+        ax.set_title(f"{title}\nfield mean {mean:.2f}" if not np.isnan(mean) else title,
+                     fontsize=8.6, weight="bold", pad=13)
+        ax.set_xticks([]); ax.set_yticks([])
+    fig.suptitle(f"{label} — whole-field weighted soil properties (topsoil, {source_note.lower()})",
+                 fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
+    fig.text(0.02, 0.005, "map-unit polygons weighted by their component mix — the area-weighted "
+             "field number, shown as a surface", fontsize=6.8, color="#4b5563")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out, dpi=185, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+    print(f"saved {out}")
+
+
+def _all_fields(args) -> None:
+    """Normal-pipeline mode: every field of the farm gets whatever its soil
+    source supports — survey triangle + horizon table + weighted property map,
+    or the grid triangle for gridded providers."""
+    import pandas as _pd
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from lib.paths import farm_dir, field_dir, field_feature_path
+
+    grower = os.environ.get("AG_GROWER_SLUG", "default-grower")
+    farm = os.environ.get("AG_FARM_SLUG", "default-farm")
+    inv = os.environ.get("AG_INVENTORY_CSV")
+    if inv:
+        ids = _pd.read_csv(inv)["field_slug"].tolist()
+    else:
+        ids = [q.name for q in sorted((farm_dir(grower, farm) / "fields").iterdir()) if q.is_dir()]
+    for slug in ids:
+        soil = field_dir(grower, farm, slug) / "soil"
+        csv = soil / "ssurgo_full.csv"
+        label = slug
+        if csv.exists():
+            try:
+                render(csv, label, field_feature_path(grower, farm, slug, "soil_texture_triangle.png"))
+            except BaseException as exc:  # noqa: BLE001 — per-field resilience
+                print(f"  (triangle skipped for {slug}: {exc})")
+            try:
+                render_horizon_table(csv, label,
+                                     field_feature_path(grower, farm, slug, "soil_horizon_table.png"))
+            except BaseException as exc:  # noqa: BLE001
+                print(f"  (horizon table skipped for {slug}: {exc})")
+            try:
+                render_property_map(csv, label,
+                                    field_feature_path(grower, farm, slug, "soil_weighted_property_map.png"))
+            except BaseException as exc:  # noqa: BLE001
+                print(f"  (property map skipped for {slug}: {exc})")
+        else:
+            import sys as _sys
+            _sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+            from lib.paths import shared_soilgrids_field_dir  # gridded floor lives in shared/
+            candidates = [soil]
+            cand = shared_soilgrids_field_dir(slug)
+            if cand.is_dir():
+                candidates.append(cand)
+            done = False
+            for cand in candidates:
+                try:
+                    render(None, label,
+                           field_feature_path(grower, farm, slug, "soil_texture_triangle.png"),
+                           source_note="grid soil layers", soil_dir=cand)
+                    done = True
+                    break
+                except BaseException:  # noqa: BLE001 — try next candidate
+                    continue
+            if not done:
+                print(f"  (no usable soil for {slug})")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--soil-csv", type=Path,
                     help="field soil table (ssurgo_full.csv / national-survey equivalent)")
     ap.add_argument("--soil-dir", type=Path,
                     help="gridded soil directory (clay_/silt_/sand_<depth>.tif — SoilGrids, AU atlas)")
-    ap.add_argument("--label", required=True, help="field id shown in the title")
+    ap.add_argument("--label", help="field id shown in the title")
     ap.add_argument("--source", default="SSURGO", help="survey name for the title line")
-    ap.add_argument("--out", required=True, type=Path)
+    ap.add_argument("--out", type=Path)
     ap.add_argument("--horizon-table", action="store_true",
                     help="render the component x horizon table instead of the triangle")
+    ap.add_argument("--all-fields", action="store_true",
+                    help="normal-pipeline mode: every field of the farm gets the full soil set")
     args = ap.parse_args()
+    if args.all_fields:
+        _all_fields(args)
+        return
+    if args.label is None or args.out is None:
+        ap.error("--label and --out are required unless --all-fields")
     if args.horizon_table:
         if args.soil_csv is None:
             ap.error("--horizon-table requires --soil-csv")

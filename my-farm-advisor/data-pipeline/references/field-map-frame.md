@@ -72,3 +72,23 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
 - Live implementation: `src/scripts/reporting/generate_soil_texture_triangles.py`
   (`render_horizon_table` map panel: UTM pin + boxed N arrow; rotation helper
   above is the extension contract).
+
+## Ship checklist (vision-QC enforced, 2026-11-05)
+
+- Rotation canonicalized to (-90, +90] with a **0.5° dead-zone** — a −0° field
+  is an unrotated field; it gets the plain `m E from SW corner` label, a
+  straight arrow, and NO callout.
+- When rotated: italic callout inside the panel, top-left,
+  `field rotated ±NN° to fit — N shown by arrow`; axis states the same angle.
+- **500 m scale bar** always (blended data-x/axes-y transform so the length is
+  honest after aspect equal + datalim).
+- Arrow: r=0.135 axes-fraction, lw 3.0, boxed N at fontsize 16, tip at
+  (cx + r·sin rot, cy + r·cos rot).
+- Table: `auto_set_column_width(all)` then **×1.35 width on every numeric
+  column via `cell.set_width`** (mpl ≥ 3.11 moved widths onto cells;
+  `Table.alter`/`_argW` are gone). Without the slack, adjacent values read as
+  merged columns ("6.50.18").
+- Depth axis lives on the FIRST profile panel only (ticks 20/60, no bottom
+  100 label — it collides with xtick labels); texture strip carries a real
+  3-swatch sand/silt/clay legend below the panel; the method footnote is
+  LEFT-aligned at x=0.40 so it never runs under that legend.

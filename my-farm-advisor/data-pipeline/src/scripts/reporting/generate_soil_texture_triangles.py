@@ -287,7 +287,7 @@ def render(csv_path: Path | None, label: str, out: Path, source_note: str = "SSU
                 "size = field area; star = area-weighted mean")
         n_note = f"{len(comp)} pins"
     ax.set_title(
-        f"{label} — soil texture classes (topsoil, {source_note.lower()})",
+        f"{label} — soil texture classes (topsoil, {source_note})",
         fontsize=10.5, weight="bold", pad=14, loc="left",
     )
     ax.text(
@@ -468,7 +468,9 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         # canonical tilt in (-90, 90]: a longer rotation would apply the same
         # long-edge alignment but flip north below the horizon
         _rot = ((_rot + 90.0) % 180.0) - 90.0
-        if abs(_rot) > 0.5:
+        if abs(_rot) < 0.5:
+            _rot = 0.0
+        if _rot != 0.0:
             _gu = _gu.assign(geometry=_gu.geometry.map(lambda g: _aff.rotate(g, -_rot, origin=(0, 0))))
             _x0, _y0, _, _ = _gu.total_bounds
             _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
@@ -479,30 +481,43 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         _gu.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
         _axlab = (f"m E from SW corner (UTM {_zone})" if _rot == 0.0 else
                   f"field-local m (rotated {_rot:+.0f}\u00b0 from E, UTM {_zone})")
-        ax_m.set_xlabel(_axlab, fontsize=6.8)
-        ax_m.set_ylabel("m N" if _rot == 0.0 else "m (rotated frame)", fontsize=6.8)
+        ax_m.set_xlabel(_axlab, fontsize=7.6)
+        ax_m.set_ylabel("m N" if _rot == 0.0 else "m (rotated frame)", fontsize=7.6)
+        ax_m.tick_params(labelsize=7.2)
         ax_m.tick_params(labelsize=6.4)
         ax_m.grid(alpha=0.18, lw=0.4)
         # north arrow, top-right, boxed for contrast; the geometry was rotated
         # CW by _rot, so true north in the panel points (sin rot, cos rot)
         _rad = _math.radians(_rot)
         _dx, _dy = _math.sin(_rad), _math.cos(_rad)
-        _cx, _cy, _r = 0.885, 0.855, 0.105
+        _cx, _cy, _r = 0.87, 0.845, 0.135
         ax_m.annotate("", xy=(_cx + _r * _dx, _cy + _r * _dy),
                       xytext=(_cx - _r * 0.72 * _dx, _cy - _r * 0.72 * _dy),
                       xycoords="axes fraction",
-                      arrowprops=dict(arrowstyle="-|>", lw=2.4, color="#111827",
-                                      mutation_scale=16))
-        ax_m.text(_cx + _r * 1.34 * _dx, _cy + _r * 1.34 * _dy, "N",
-                  transform=ax_m.transAxes, fontsize=13, fontweight="bold",
+                      arrowprops=dict(arrowstyle="-|>", lw=3.0, color="#111827",
+                                      mutation_scale=20))
+        ax_m.text(_cx + _r * 1.30 * _dx, _cy + _r * 1.30 * _dy, "N",
+                  transform=ax_m.transAxes, fontsize=16, fontweight="bold",
                   ha="center", va="center", color="#111827",
                   bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#111827", lw=1.0))
+        if _rot != 0.0:
+            ax_m.text(0.02, 0.98, f"field rotated {_rot:+.0f}\u00b0 to fit — N shown by arrow",
+                      transform=ax_m.transAxes, fontsize=6.8, style="italic",
+                      color="#374151", va="top")
+        # 500 m scale bar (axes-x / data-y blend so the tick length is honest)
+        import matplotlib.transforms as _mt
+        _tr = _mt.blended_transform_factory(ax_m.transData, ax_m.transAxes)
+        _x_lo = ax_m.get_xlim()[0]
+        ax_m.plot([_x_lo + 60, _x_lo + 560], [0.035, 0.035], transform=_tr,
+                  color="#111827", lw=2.0, clip_on=False)
+        ax_m.text(_x_lo + 310, 0.055, "500 m", transform=_tr, fontsize=6.6,
+                  ha="center", color="#111827")
         ax_m.set_title("map units — dominant component", fontsize=8.6, weight="bold", pad=13)
         _hand = [mpatches.Patch(facecolor=_col[n], edgecolor="#4b5563",
                                 label=f"{n} — {float(_pct.get(n, 0)):.1f}% of field")
                  for n in _names if n in _col]
         ax_m.set_aspect("equal", adjustable="datalim")
-        ax_m.legend(handles=_hand, fontsize=6.4, loc="upper left",
+        ax_m.legend(handles=_hand, fontsize=7.4, loc="upper left",
                     bbox_to_anchor=(0.0, -0.115), ncol=2, frameon=True, framealpha=0.95,
                     borderpad=0.5, labelspacing=0.4, columnspacing=0.9)
     cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "Clay %", "Sand %"]
@@ -516,7 +531,13 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     ]
     tbl = ax_t.table(cellText=cells, colLabels=cols, loc="upper left", cellLoc="center")
     tbl.auto_set_font_size(False); tbl.set_fontsize(7.7)
-    tbl.auto_set_column_width(col=(0, 2))
+    tbl.auto_set_column_width(col=tuple(range(len(cols))))
+    # autosize fits the TEXT exactly — numbers touching column borders read as
+    # merged columns; every numeric column gets 35 % slack (mpl>=3.11: widths
+    # live on the cells, not on the Table)
+    for (row, _c), cell in tbl.get_celld().items():
+        if _c >= 3:
+            cell.set_width(cell.get_width() * 1.35)
     tbl.scale(0.97, 1.28)
     for (row, col), cell in tbl.get_celld().items():
         cell.set_edgecolor("#d1d5db")
@@ -535,7 +556,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         elif col == 0:
             cell.set_text_props(ha="left")
     fig.suptitle(
-        f"{label} — soil horizon detail ({source_note.lower()})",
+        f"{label} — soil horizon detail ({source_note})",
         fontsize=11, weight="bold", x=0.02, ha="left", y=1.045,
     )
     ax_t.text(0, 1.01, "component colors match the map at left | profiles at right: same "
@@ -582,7 +603,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     n_cols2 = len(have) + (1 if has_tex else 0) + (1 if (has_restr or known_restr) else 0)
     ratios2 = [1] * (len(have) + (1 if has_tex else 0))
     if has_restr or known_restr:
-        ratios2.append(0.62)
+        ratios2.append(0.80)
     gs2 = gridspec.GridSpecFromSubplotSpec(1, n_cols2, subplot_spec=gs[-1], wspace=0.30,
                                            width_ratios=ratios2)
     for i, (name, y, cmap) in enumerate(have):
@@ -594,9 +615,14 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         ax.set_yticks([0, 20, 40, 60, 80])  # 100 label collides with xticks
         ax.text(0.5, 0.985, name, transform=ax.transAxes, ha="center", va="top",
                 fontsize=7.6, weight="bold", color="#111827")
-        ax.tick_params(labelsize=6.6)
+        ax.tick_params(labelsize=6.8)
+        ax.set_yticks([20, 60])
+        if i > 0:
+            ax.set_yticklabels([])
+        else:
+            ax.set_ylabel("depth (cm)", fontsize=6.4)
         from matplotlib.ticker import MaxNLocator
-        ax.xaxis.set_major_locator(MaxNLocator(3))
+        ax.xaxis.set_major_locator(MaxNLocator(2))
         ax.grid(alpha=0.25, lw=0.4)
     if has_tex:
         M = np.vstack([tex_curves["sand"], tex_curves["silt"], tex_curves["clay"]])
@@ -607,23 +633,25 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         axx.fill_betweenx(bins, 0, s, color="#d9a066")
         axx.fill_betweenx(bins, s, s + si, color="#9aa5b1")
         axx.fill_betweenx(bins, s + si, 100, color="#b23a2f")
-        # key sits mid-profile; use the fraction AT that depth, not the deepest bin
-        for depth, frac, txt, cc in ((46, s[9] / 2, "sand", "#7c4a12"),
-                                     (46, (s[9] + si[9] / 2), "silt", "#374151"),
-                                     (46, (s[9] + si[9] + c[9] / 2), "clay", "#fef2f2")):
-            axx.text(frac, depth, txt, fontsize=6.2, color=cc, ha="center", va="center",
-                     path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
         axx.set_ylim(100, 0); axx.set_xlim(0, 100)
-        axx.set_yticks([0, 20, 40, 60, 80])
+        axx.set_yticks([20, 60]); axx.set_yticklabels([])
         from matplotlib.ticker import MaxNLocator as _M
-        axx.xaxis.set_major_locator(_M(3))
+        axx.xaxis.set_major_locator(_M(2))
+        from matplotlib.patches import Patch as _P
+        axx.legend(handles=[_P(facecolor="#d9a066", label="sand"),
+                            _P(facecolor="#9aa5b1", label="silt"),
+                            _P(facecolor="#b23a2f", label="clay")],
+                   fontsize=6.2, loc="upper left", bbox_to_anchor=(0.5, -0.10),
+                   ncol=3, handlelength=1.0, columnspacing=0.6, borderpad=0.35,
+                   frameon=True, framealpha=0.95)
         axx.text(0.5, 0.985, "texture", transform=axx.transAxes, ha="center", va="top",
                  fontsize=7.6, weight="bold", color="#111827")
         axx.tick_params(labelsize=6.6)
     if has_restr or known_restr:
         axr = fig.add_subplot(gs2[n_cols2 - 1])
         axr.set_ylim(100, 0); axr.set_xlim(0, 1)
-        axr.set_yticks([0, 20, 40, 60, 80]); axr.tick_params(labelsize=6.6)
+        axr.set_yticks([20, 60]); axr.tick_params(labelsize=6.8)
+        axr.set_yticklabels([])  # depth numbers live on the first profile panel only
         axr.set_xticks([])
         axr.text(0.5, 0.985, "restrictions", transform=axr.transAxes, ha="center",
                  va="top", fontsize=7.6, weight="bold", color="#111827")
@@ -640,7 +668,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
                 _xl = {0: 0.30, 1: 0.70}.get(_i % 2, 0.5)
                 _lab = f"{kind} {top:.0f}–{bot:.0f} cm"
                 axr.text(_xl, max(top, (top + bot_disp) / 2 - 3), _lab, rotation=90,
-                         fontsize=5.4, color=_restr_color(kind), ha="center",
+                         fontsize=6.0, color=_restr_color(kind), ha="center",
                          va="center", weight="bold",
                          path_effects=[pe.withStroke(linewidth=1.4, foreground="white")])
                 if bot > 100:  # band continues below the chart
@@ -648,14 +676,14 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
                                  arrowprops=dict(arrowstyle="-|>", lw=1.0,
                                                  color=_restr_color(kind)))
             axr.text(0.5, 0.015, "hatched = restrictive layer",
-                     transform=axr.transAxes, ha="center", va="bottom", fontsize=5.8)
+                     transform=axr.transAxes, ha="center", va="bottom", fontsize=5.9)
         else:
-            axr.text(0.5, 50, "no restrictive\nfeatures \u2264 100 cm", rotation=90,
-                     fontsize=6.0, color="#6b7280", ha="center", va="center")
-    fig.text(0.99, 0.004, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
+            axr.text(0.5, 50, "no restrictive features \u2264 100 cm", rotation=90,
+                     fontsize=6.6, color="#6b7280", ha="center", va="center")
+    fig.text(0.40, 0.004, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
              "constant beyond table | AWC cm water/cm soil; texture: same interpolation "
              "normalized to 100 %, 5 cm bins from 0 cm",
-             fontsize=6.0, color="#6b7280", ha="right")
+             fontsize=6.8, color="#6b7280", ha="left")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(fig)
@@ -768,7 +796,7 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
                      fontsize=8.6, weight="bold", pad=13)
         ax.set_xticks([]); ax.set_yticks([])
         ax.set_xlabel(""); ax.set_ylabel("")  # graticule labels only crowd the grid
-    fig.suptitle(f"{label} — whole-field weighted soil properties (topsoil, {source_note.lower()})",
+    fig.suptitle(f"{label} — whole-field weighted soil properties (topsoil, {source_note})",
                  fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
     for axx in axes[len(panels):]:
         axx.axis("off")

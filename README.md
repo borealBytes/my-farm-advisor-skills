@@ -28,6 +28,21 @@ Every figure below was rendered by a script in this repository from public,
 keyless data sources (verification fixtures; regenerate them with the
 commands in each example's README).
 
+### The images are the demo; the raw data is the product
+
+**Download once, keep forever.** Everything you see rendered below is a thin
+matplotlib drawing over a private, growing local archive: GeoTIFFs (terrain,
+soil rasters, per-year crop classification, imagery), parquet tables (weather,
+admin lookups, maturity grids), and GeoJSON polygons (boundaries, soil survey
+map units) — one folder tree per field under `$DATA_PIPELINE_DATA_ROOT`. The
+figures are the *simple* presentation format so examples can be committed and
+verified offline; they are emphatically not the final form. Your agent knows
+where every raw artifact lives, what produced it, and how to traverse the tree
+(manifests and provenance JSON sit next to every output), so your actual
+deliverable — a web map, a dashboard, an app, a slide, a scouting tool — reads
+those same sources and draws them the way *you* need. The pipeline's unit of
+value is the durable raw layer, not the PNG.
+
 ### Farm data stacks — terrain, soil, and crop type for one field boundary
 
 Rendered by [`render_field_maps.py`](my-farm-advisor/data-pipeline/src/scripts/render_field_maps.py)

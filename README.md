@@ -62,24 +62,25 @@ is the product; the download is just step one.
 ### Farm data stacks — terrain, soil, and crop type for one field boundary
 
 Rendered by [`render_field_maps.py`](my-farm-advisor/data-pipeline/src/scripts/render_field_maps.py)
-from a demo grower's runtime data: Copernicus DEM hillshade, national soil
-surveys, and per-year WorldCereal crop inference, co-registered to the field
-boundary (red).
+from a demo grower's runtime data: auto-resolved DEM hillshade (1 m LiDAR
+where the resolver finds it, global 30 m elsewhere — each panel names the
+source the manifest actually recorded), national soil surveys, and per-year
+WorldCereal crop inference, co-registered to the field boundary (red).
 
-| Iowa, US — 172 ha | Ontario, CA — 593 ha | Namoi Valley, AU — 44 ha pivot |
-| --- | --- | --- |
-| ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r4_field_map.png) |
-| SSURGO map units; terrain auto-resolved to USGS 3DEP **1 m LiDAR**; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF, real values); WorldCereal called **rapeseed on 93 %** of this irrigated pivot — near-complete field coverage at 384 px |
+| Iowa, US — 172 ha | Ontario, CA — 593 ha | Namoi Valley, AU — 44 ha pivot | Goiás, BR — 103 ha (global floor) |
+| --- | --- | --- | --- |
+| ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r4_field_map.png) | ![Brazil field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/br-r1_field_map.png) |
+| SSURGO map units; terrain auto-resolved to USGS 3DEP **1 m LiDAR**; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF, real values); WorldCereal called **rapeseed on 93 %** of this irrigated pivot — near-complete field coverage at 384 px | No Brazilian fine-coverage source exists in the registry, so the resolver fell back to NASADEM 30 m + SoilGrids 250 m: the **global floor** demo — the pipeline still delivers the full stack; whole 103-ha field ingest cost 1.4 MB |
 
 ### Soil intelligence at three resolution tiers
 
 Same renderer, three provenance levels — survey polygons where they exist,
 national atlases where they do, and the global 250 m floor everywhere:
 
-| US — SSURGO survey polygons | Canada — SoilGrids global floor | Australia — national Soil Atlas |
-| --- | --- | --- |
-| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_soilgrids_maps.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) |
-| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | 7 properties + relief on a 3-column grid, field-mean annotated per panel (pH 6.8, CEC 21.2 cmol/kg) | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units |
+| US — SSURGO survey polygons | Canada — Ontario Detailed Soil Survey (polygon) | Australia — national Soil Atlas | Global floor — SoilGrids 250 m (Brazil) |
+| --- | --- | --- | --- |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
+| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey, no USDA query, dataset named honestly in the title | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units | Cerrado field where no national layer exists: 6 properties + relief at 250 m (clay 32.2 %, pH 5.38) — the floor every country gets |
 
 ### Terrain derivatives — ready the moment the DEM lands
 
@@ -97,7 +98,7 @@ same 9-layer view for each demo field, masked to the boundary. Iowa is the
 | Corn relative maturity (model-derived) | Soybean MG (model-derived) |
 | --- | --- |
 | ![Corn RM North America](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_northamerica_2023.png) | ![Soybean MG North America](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_northamerica_2023.png) |
-| County GDD from our POWER pipeline → RM surface; recomputed per year; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
+| County GDD from our POWER pipeline → RM surface; recomputed per year; black country border + grey state/province lines drawn from the cached L0/L1 layers; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
 
 Both maps are the admin-geometry demo at every level: **L0 countries, L1
 states/provinces, L2 counties and Canadian census divisions** feed the

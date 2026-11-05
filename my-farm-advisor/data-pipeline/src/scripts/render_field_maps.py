@@ -123,6 +123,24 @@ def hillshade(dem: np.ndarray, dx: float = 30.0, az=315.0, alt=45.0) -> np.ndarr
     return np.clip(hs, 0, 1)
 
 
+
+def _dem_source_label(field_dir: Path) -> str:
+    """Name the DEM the resolver actually selected (recorded in the terrain
+    manifest) instead of a hard-coded provider string."""
+    try:
+        import json
+
+        manifest = field_dir / "manifests" / "dem_terrain_manifest.json"
+        if not manifest.exists():
+            return "DEM"
+        sel = json.loads(manifest.read_text()).get("selected_source") or {}
+        name = str(sel.get("source_name") or sel.get("adapter_name") or "DEM")
+        res = sel.get("resolution_m")
+        return f"{name} ({res:g} m)" if isinstance(res, (int, float)) else name
+    except Exception:  # noqa: BLE001 — cosmetic label
+        return "DEM"
+
+
 def panel_terrain(ax, field_dir: Path, boundary):
     dems = sorted(field_dir.glob("terrain/dem/dem_clipped.tif"))
     if not dems:
@@ -139,7 +157,7 @@ def panel_terrain(ax, field_dir: Path, boundary):
     cs = ax.contour(xs, ys, out, levels=levels, colors="0.25", linewidths=0.5, alpha=0.6)
     ax.clabel(cs, fmt="%.0f m", fontsize=6)
     draw_polys(ax, boundary)
-    ax.set_title("Terrain — hillshade + elevation contours (Copernicus DEM 30 m)", fontsize=8)
+    ax.set_title(f"Terrain — hillshade + elevation contours ({_dem_source_label(field_dir)})", fontsize=8)
     return True
 
 

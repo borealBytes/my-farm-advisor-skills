@@ -71,7 +71,46 @@ def _render_map(
             lakes.plot(ax=ax, facecolor="#bfdbfe", edgecolor="#93c5fd", linewidth=0.3, zorder=3)
     except Exception:
         pass
-    ax.set_title(f"{title}\n{subtitle}", fontsize=14, fontweight="bold")
+    # Country (L0) and state/province (L1) borders, clipped to the plotted
+    # extent, so a multi-country choropleth says what is US and what is
+    # Canada without needing a basemap.
+    minx, miny, maxx, maxy = counties.total_bounds
+    vis_bbox = (minx - 1, miny - 1, maxx + 1, maxy + 1)
+    try:
+        from paths import shared_geoadmin_dir
+
+        # Natural Earth country polygons exceed pyogrio's default GeoJSON
+        # object size cap; lift it for these reads.
+        os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
+        gd_root = shared_geoadmin_dir()
+        for rel, lw, color in (
+            ("l1_states/states_usa.geojson", 0.6, "#374151"),
+            ("l1_states/states_canada.geojson", 0.6, "#374151"),
+            ("l0_countries/countries.geojson", 1.3, "#000000"),
+        ):
+            border_path = gd_root / rel
+            if not border_path.exists():
+                continue
+            _b = gpd.read_file(border_path).to_crs("EPSG:4326")
+            lines = _b.cx[vis_bbox[0]:vis_bbox[2], vis_bbox[1]:vis_bbox[3]]
+            if not lines.empty:
+                lines.boundary.plot(ax=ax, color=color, linewidth=lw, zorder=4)
+        ax.set_xlim(minx - 0.4, maxx + 0.4)
+        ax.set_ylim(miny - 0.4, maxy + 0.4)
+    except Exception:  # noqa: BLE001 — borders are cosmetic
+        pass
+    # Keep the title narrower than the map so the tight-bbox crop does not
+    # stretch the canvas into white side margins.
+    import textwrap
+
+    ax.set_title(
+        "\n".join(textwrap.wrap(title, 58)) + "\n" + subtitle,
+        fontsize=13,
+        fontweight="bold",
+    )
+    ax.tick_params(labelbottom=False, labelleft=False, bottom=False, left=False)
+    for s in ax.spines.values():
+        s.set_visible(False)
     ax.axis("off")
     fig.tight_layout()
     fig.savefig(output_path, dpi=180, bbox_inches="tight")

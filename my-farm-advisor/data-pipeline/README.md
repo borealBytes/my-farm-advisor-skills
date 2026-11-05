@@ -12,7 +12,7 @@ keyless WorldCereal default-model path for every other country):
 
 Vision-QC'd sample figures ship under [`examples/`](examples/) — one
 subfolder per output family (`field-maps/`, `soil-maps/`, `maturity/`,
-`field-poster/`, `weather-eda/`, `worldcereal/`). PNGs only; regenerated
+`field-components/`, `weather-eda/`, `worldcereal/`). PNGs only; regenerated
 runtime artifacts stay outside the repo under `DATA_PIPELINE_DATA_ROOT`
 (see `ASSET_POLICY.md` at the repo root).
 

@@ -163,6 +163,8 @@ High-value pipeline and bootstrap entrypoints include:
 - reporting bootstrap: [`data-pipeline/src/scripts/reporting_bootstrap.py`](data-pipeline/src/scripts/reporting_bootstrap.py)
 - farm markdown/html outputs: [`data-pipeline/src/scripts/reporting/generate_farm_markdown.py`](data-pipeline/src/scripts/reporting/generate_farm_markdown.py), [`data-pipeline/src/scripts/reporting/generate_farm_html.py`](data-pipeline/src/scripts/reporting/generate_farm_html.py)
 - field posters: [`data-pipeline/src/scripts/reporting/generate_field_posters.py`](data-pipeline/src/scripts/reporting/generate_field_posters.py)
+- soil texture triangles + horizon tables (any survey or grid): [`data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py`](data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)
+- standalone weather charts: [`data-pipeline/src/scripts/reporting/generate_weather_charts.py`](data-pipeline/src/scripts/reporting/generate_weather_charts.py)
 
 The most important high-level orchestration docs are:
 

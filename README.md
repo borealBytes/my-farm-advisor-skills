@@ -79,8 +79,15 @@ national atlases where they do, and the global 250 m floor everywhere:
 
 | US — SSURGO survey polygons | Canada — Ontario Detailed Soil Survey (polygon) | Australia — national Soil Atlas | Global floor — SoilGrids 250 m (Brazil) |
 | --- | --- | --- | --- |
-| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![USDA texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png)<br>![Ontario texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
-| 16 mapped components inside one boundary — map **and** USDA texture triangle: one point per component (size = abundance), star = comppct-weighted mean (loam, clay 27 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package, not eyeballed ([`generate_soil_texture_triangles.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)) | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey — and classified onto the very same triangle, one renderer for every survey that speaks the SSURGO schema | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units | Cerrado field where no national layer exists: 6 properties + relief at 250 m (clay 32.2 %, pH 5.38) — the floor every country gets |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![USDA texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png)<br>![Ontario texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png)<br>![AU texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r4_texture_triangle.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png)<br>![BR texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_texture_triangle.png) |
+| 16 mapped components inside one boundary — map **and** USDA texture triangle: one point per component (size = abundance), star = comppct-weighted mean (loam, clay 27 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package, not eyeballed ([`generate_soil_texture_triangles.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)) | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey — and classified onto the very same triangle, one renderer for every survey that speaks the SSURGO schema | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6 — and its raster cells classified onto the same triangle (81 cells, cell-weighted mean: clay). The triangle is a **derivation**, not a survey-only luxury: grid → points → class | Cerrado field where no national layer exists: 6 properties + relief at 250 m — and the same triangle derived from SoilGrids cells (clay 32 / silt 18 / sand 50 → sandy clay loam). Four provenance levels, one texture classifier |
+
+**Horizon detail — the rows behind every map and triangle above:**
+
+| US — SSURGO horizons | Canada — ON-DSS horizons |
+| --- | --- |
+| ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) |
+| Component × horizon: OM, pH, AWC, texture by depth slice — 18 rows here, the full table sits in the field's cached soil CSV | Same schema, same renderer: named Ontario series (Brookston, Perth, Normandale) with their real horizon splits |
 
 ### Terrain derivatives — ready the moment the DEM lands
 
@@ -98,7 +105,7 @@ same 9-layer view for each demo field, masked to the boundary. Iowa is the
 | Corn relative maturity (model-derived) | Soybean MG (model-derived) |
 | --- | --- |
 | ![Corn RM North America](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_northamerica_2023.png) | ![Soybean MG North America](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_northamerica_2023.png) |
-| County GDD from our POWER pipeline → RM surface; recomputed per year; black country border + grey state/province lines drawn from the cached L0/L1 layers; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
+| County GDD from our POWER pipeline → RM surface; recomputed per year; white L0/L1 borders with dark casing drawn from the cached admin layers (legible on the dark-green south); subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
 
 Both maps are the admin-geometry demo at every level: **L0 countries, L1
 states/provinces, L2 counties and Canadian census divisions** feed the
@@ -108,17 +115,14 @@ the border — the Prairie corn/soy belt is in, the boreal void isn't, so the
 picture stays about what actually grows. US-only, Canada-only, and combined
 views all render from one flag (`--country usa|canada|north-america`).
 
-### One page per field — and every component readable on its own
+### Field intelligence, component by component
 
-[`generate_field_posters.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_field_posters.py)
-assembles the whole page; every panel it composites also emits as a
-standalone figure, so nothing is only legible under a magnifying glass.
-
-![Full-season field report](my-farm-advisor/data-pipeline/examples/field-poster/output/ia-r1_field_report.png)
-
-Identity, rotation history, soil horizons, frost windows, five-season weather,
-five-season NDVI (86 keyless Sentinel-2/Landsat scenes behind it) — every
-number traceable to its cached source layer.
+Every panel below stands alone at readable size — identity, rotation, soil,
+frost windows, five-season weather, five-season NDVI (86 keyless
+Sentinel-2/Landsat scenes behind it), every number traceable to its cached
+source layer. The whole-page poster assembler
+([`generate_field_posters.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_field_posters.py))
+still ships for dashboards; the gallery shows its components, not the poster.
 
 **Weather — [`generate_weather_charts.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_weather_charts.py), every title derived from the data it plots:**
 

@@ -87,7 +87,7 @@ national atlases where they do, and the global 250 m floor everywhere:
 | US — SSURGO horizons | Canada — ON-DSS horizons |
 | --- | --- |
 | ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) |
-| Component × horizon: OM, pH, AWC, texture by depth slice — 18 rows here, the full table sits in the field's cached soil CSV | Same schema, same renderer: named Ontario series (Brookston, Perth, Normandale) with their real horizon splits |
+| Cells color-coded within column; at right the same table **interpolated to continuous depth** (piecewise-linear across horizon midpoints, comppct-weighted, 5 cm bins, 0–100 cm) — the classic SSURGO interval interpolation, honest about being constant beyond measured table | Same schema, same renderer: Ontario series (Brookston, Perth, Normandale, Kintyre) with real horizon splits and the same interpolated profiles |
 
 ### Terrain derivatives — ready the moment the DEM lands
 

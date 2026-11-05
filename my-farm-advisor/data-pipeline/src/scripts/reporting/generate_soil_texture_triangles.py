@@ -252,8 +252,44 @@ def render(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO",
     print(f"saved {out}")
 
 
+def _hex_blend(white_frac: float, rgb) -> str:
+    r, g, b = rgb
+    r = round(255 * white_frac + r * (1 - white_frac))
+    g = round(255 * white_frac + g * (1 - white_frac))
+    b = round(255 * white_frac + b * (1 - white_frac))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _interp_profile(df: pd.DataFrame, col: str, bins: np.ndarray) -> np.ndarray | None:
+    """Depth profile for one property: per component, piecewise-linear across
+    horizon midpoints (constant beyond the first/last midpoint); components
+    averaged weighted by comppct_r. The standard SSURGO interval interpolation."""
+    series, weights = [], []
+    for (_c, pct), sub in df.groupby(["compname", "comppct_r"]):
+        sub = sub.dropna(subset=[col]).sort_values("hzdept_r")
+        if sub.empty:
+            continue
+        mid = (sub["hzdept_r"] + sub["hzdepb_r"]) / 2.0
+        val = sub[col]
+        order = np.argsort(mid.values)
+        mid, val = mid.values[order], val.values[order]
+        keep = ~np.isnan(val)
+        if keep.sum() == 0:
+            continue
+        series.append(np.interp(bins, mid[keep], val[keep]))
+        weights.append(pct)
+    if not series:
+        return None
+    w = np.asarray(weights, dtype=float)
+    return (np.vstack(series) * w[:, None]).sum(axis=0) / w.sum()
+
+
 def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str = "SSURGO") -> None:
-    """Horizon detail table: one row per component x depth slice, topsoil first."""
+    """Color-coded component x horizon table with comppct-weighted,
+    interval-interpolated 0-100 cm depth profiles beside it."""
+    import matplotlib.gridspec as gridspec
+    import matplotlib.patheffects as pe
+
     df = pd.read_csv(csv_path)
     df = df.dropna(subset=["claytotal_r"]).copy()
     df["slice"] = df["hzdept_r"].astype(int).astype(str) + "-" + df["hzdepb_r"].astype(int).astype(str) + " cm"
@@ -261,40 +297,79 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         hzdept=("hzdept_r", "min"), om=("om_r", "mean"), ph=("ph1to1h2o_r", "mean"),
         awc=("awc_r", "mean"), clay=("claytotal_r", "mean"), sand=("sandtotal_r", "mean"),
     ).sort_values(["comppct_r", "hzdept"], ascending=[False, True])
-    g = g.head(18)
+    g = g.head(14)
 
-    fig, ax = plt.subplots(figsize=(8.6, 0.42 * len(g) + 1.5))
-    ax.axis("off")
+    fig = plt.figure(figsize=(13.2, 0.44 * len(g) + 1.6))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[1.45, 1.0], wspace=0.12)
+    ax_t = fig.add_subplot(gs[0]); ax_t.axis("off")
     cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "Clay %", "Sand %"]
+    num_cols = {3: ("om", plt.get_cmap("Reds"), 0.6), 4: ("ph", plt.get_cmap("coolwarm_r"), 0.55),
+                5: ("awc", plt.get_cmap("Blues"), 0.6), 6: ("clay", plt.get_cmap("PuRd"), 0.6),
+                7: ("sand", plt.get_cmap("YlOrBr"), 0.6)}
     cells = [
         [r.compname, f"{r.comppct_r:.0f}", r.slice,
-         "-" if pd.isna(r.om) else f"{r.om:.1f}",
-         "-" if pd.isna(r.ph) else f"{r.ph:.1f}",
-         "-" if pd.isna(r.awc) else f"{r.awc:.2f}",
-         f"{r.clay:.0f}", "-" if pd.isna(r.sand) else f"{r.sand:.0f}"]
+         "" if pd.isna(r.om) else f"{r.om:.1f}",
+         "" if pd.isna(r.ph) else f"{r.ph:.1f}",
+         "" if pd.isna(r.awc) else f"{r.awc:.2f}",
+         f"{r.clay:.0f}", "" if pd.isna(r.sand) else f"{r.sand:.0f}"]
         for r in g.itertuples()
     ]
-    tbl = ax.table(cellText=cells, colLabels=cols, loc="center", cellLoc="center")
-    tbl.auto_set_font_size(False)
-    tbl.set_fontsize(8.2)
-    tbl.scale(1, 1.32)
+    tbl = ax_t.table(cellText=cells, colLabels=cols, loc="upper left", cellLoc="center")
+    tbl.auto_set_font_size(False); tbl.set_fontsize(8.2)
+    tbl.auto_set_column_width(col=(0, 2))
+    tbl.scale(1, 1.34)
+    spans = {}
+    for ci, (key, _, _) in num_cols.items():
+        vals = pd.to_numeric(pd.Series([row[ci] for row in cells]), errors="coerce").dropna()
+        if len(vals):
+            spans[ci] = (vals.min(), vals.max())
     for (row, col), cell in tbl.get_celld().items():
         cell.set_edgecolor("#d1d5db")
         if row == 0:
-            cell.set_facecolor("#1f2937")
-            cell.set_text_props(color="white", weight="bold")
+            cell.set_facecolor("#1f2937"); cell.set_text_props(color="white", weight="bold")
+            continue
+        if col in num_cols and cells[row - 1][col]:
+            key, cmap, strength = num_cols[col]
+            lo, hi = spans[col]
+            v = float(cells[row - 1][col])
+            f = 0.5 if hi == lo else (v - lo) / (hi - lo)
+            if key == "ph":  # diverging: neutral mid keeps lightness honest
+                f = abs(v - float(np.mean([lo, hi]))) / max((hi - lo) / 2, 1e-9)
+            cell.set_facecolor(_hex_blend(1 - strength * f, tuple(int(x * 255) for x in cmap(f)[:3])))
+            cell.set_text_props(path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
         elif row % 2 == 0:
             cell.set_facecolor("#f3f4f6")
-        if col == 0 and row > 0:
+        if col == 0:
             cell.set_text_props(ha="left")
-    ax.set_title(
+    ax_t.set_title(
         f"{label} — soil horizon detail ({source_note.lower()})",
-        fontsize=11, weight="bold", loc="left", pad=16,
+        fontsize=11, weight="bold", loc="left", pad=26,
     )
-    ax.text(0, 1.0, "component × horizon from the cached survey table — the rows behind "
-            "every soil map and texture triangle", transform=ax.transAxes,
-            fontsize=7.4, color="#4b5563")
-    fig.tight_layout()
+    ax_t.text(0, 1.01, "cells color-coded within column | lines at right are the same table "
+              "interpolated to continuous depth", transform=ax_t.transAxes,
+              fontsize=7.4, color="#4b5563")
+
+    # --- interpolated profiles (comppct-weighted, 5 cm bins) ---
+    bins = np.arange(5, 101, 5.0)
+    panels = [("OM %", _interp_profile(df, "om_r", bins), plt.get_cmap("Reds")),
+              ("pH", _interp_profile(df, "ph1to1h2o_r", bins), plt.get_cmap("coolwarm_r")),
+              ("AWC (cm/cm)", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues")),
+              ("Clay %", _interp_profile(df, "claytotal_r", bins), plt.get_cmap("PuRd"))]
+    have = [(n, y, c) for n, y, c in panels if y is not None]
+    gs2 = gridspec.GridSpecFromSubplotSpec(1, len(have), subplot_spec=gs[1], wspace=0.08)
+    for i, (name, y, cmap) in enumerate(have):
+        ax = fig.add_subplot(gs2[i])
+        ax.plot(y, bins, color="#1f2937", lw=1.7)
+        ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
+        ax.set_ylim(100, 0); ax.set_xlim(y.min() - (y.max()-y.min())*0.15 - 1e-9,
+                                         y.max() + (y.max()-y.min())*0.15 + 1e-9)
+        ax.set_title(name, fontsize=8.2, weight="bold", pad=4)
+        ax.tick_params(labelsize=6.6)
+        ax.grid(alpha=0.25, lw=0.4)
+        ax.set_xlabel("interp @ 5 cm", fontsize=6.2)
+    ax_t.text(0.99, 0.02, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
+              "constant beyond table", transform=ax_t.transAxes, fontsize=6.0,
+              color="#6b7280", ha="right")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight", facecolor="white")
     plt.close(fig)

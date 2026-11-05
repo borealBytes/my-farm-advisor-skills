@@ -54,6 +54,8 @@ def _disp_name(t):
     lab = LABELS[t] if isinstance(t, int) else t
     if lab == "no_crop":
         return "no crop"
+    if lab == "\u25a1_unobserved":
+        return "unobserved"
     return _NICE.get(lab, lab.replace("_", " "))
 
 
@@ -127,7 +129,8 @@ def render_year_series(farm, field, years, season, fname, title):
         hist = np.bincount(arr[inside], minlength=255)
         total = max(int(inside.sum()), 1)
         share = {LABELS[t]: 100.0 * hist[t] / total for t in range(23)}
-        share["no_crop"] = 100.0 * (hist[23] + hist[254]) / total
+        share["no_crop"] = 100.0 * hist[23] / total
+        share["\u25a1_unobserved"] = 100.0 * hist[254] / total
         ranked = sorted(share.items(), key=lambda kv: -kv[1])
         segs, shown = [], 0
         for lab, pct in ranked:
@@ -147,13 +150,13 @@ def render_year_series(farm, field, years, season, fname, title):
         x1, y1 = tfm.transform(geom.bounds[2], geom.bounds[3])
         gdf.boundary.plot(ax=ax, lw=1.8, edgecolor="red")
         for lab, pct in ranked[:3]:
-            if pct >= 3.0 and lab != "no_crop":
+            if pct >= 3.0 and lab not in ("no_crop", "\u25a1_unobserved"):
                 t = LABELS.index(lab)
                 legend_seen[t] = f"{t} {_disp_name(lab)}"
     handles = [Patch(facecolor=PALETTE[t], label=legend_seen[t])
                for t in sorted(legend_seen)]
     handles.append(Patch(facecolor="#ffffff", edgecolor="#8d8d8d",
-                         label="no crop / no data"))
+                         label="unobserved / no crop"))
     fig.legend(handles=handles, loc="lower center", ncol=min(len(handles) + 1, 7),
                fontsize=8, framealpha=.95)
     fig.suptitle(title, fontsize=12, y=.99)
@@ -332,7 +335,7 @@ def render_rdm_overlay(farm, field, year, season, ref_geojson, fname, title,
                 label=f"{_disp_name(t)} ({_hist[t]:,} px)")
           for t in _top if _hist[t] > 0]
     _h.append(Patch(facecolor="#f8f9fa", edgecolor="#9ca3af",
-                    label=f"no crop / no data ({_hist[23] + _hist[254]:,} px)"))
+                    label=f"unobserved / no crop ({_hist[23] + _hist[254]:,} px)"))
     ax_l.legend(handles=_h, fontsize=6.2, loc="center left",
                 bbox_to_anchor=(1.01, .5), framealpha=.95)
     ax_l.set_title(f"model default ({season} {year}, keyless Planetary Computer)",

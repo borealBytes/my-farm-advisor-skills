@@ -317,7 +317,9 @@ def render_field(
             cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
         cb.set_label(unit, fontsize=6)
         cb.ax.tick_params(labelsize=5.6)
-        mean_v = float(np.nanmean(arr))
+        _d = np.array(np.ma.getdata(arr), copy=True, dtype="float64")
+        _d[np.ma.getmaskarray(arr)] = np.nan
+        mean_v = float(np.nanmean(_d))
         ax.set_title(f"{label} — mean {mean_v:.1f}", fontsize=8.5)
         ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.4)
         _panel_frame_labels(ax, ff, _fflib)

@@ -32,11 +32,11 @@ LAYER_ORDER = [
     ("hillshade.tif", "Hillshade", "", "gray", False),
     ("slope_degrees.tif", "Slope", "\u00b0", "YlOrBr", False),
     ("aspect_degrees.tif", "Aspect", "\u00b0 (0=N, cw)", None, False),
-    ("flow_accumulation.tif", "Flow accumulation (D8)", "upstream cells", "viridis", True),
+    ("flow_accumulation.tif", "Flow accumulation (D8)", "log\u2081\u2080 upstream cells", "viridis", True),
     ("topographic_wetness_index.tif", "Wetness index (TWI)", "", "YlGnBu", False),
     ("tpi.tif", "Topographic position", "m", "RdBu_r", False),
     ("relative_elevation.tif", "Relative elevation", "m", "RdBu_r", False),
-    ("erosion_proxy.tif", "Erosion proxy (LS)", "", "YlOrRd", True),
+    ("erosion_proxy.tif", "Erosion proxy (LS)", "log\u2081\u2080 index", "YlOrRd", True),
 ]
 
 
@@ -101,10 +101,10 @@ def main() -> int:
                 vmin, vmax = _vminmax(show)
         if cmap is None:  # aspect: cyclic
             im = ax.imshow(show, cmap="hsv", vmin=0, vmax=360,
-                           extent=[ext[0], ext[2], ext[1], ext[3]], origin="upper")
+                           extent=list(ext), origin="upper")
         else:
             im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax,
-                           extent=[ext[0], ext[2], ext[1], ext[3]], origin="upper")
+                           extent=list(ext), origin="upper")
         cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
         cb.set_label(unit, fontsize=6); cb.ax.tick_params(labelsize=5)
         ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.2)
@@ -114,10 +114,10 @@ def main() -> int:
         ax.tick_params(labelsize=5.8)
         _fflib.decorate(ax, ff, arrow_r=0.10, arrow_fs=10, callout=False)
     fig.suptitle(f"{args.field} — terrain derivatives ({src_note})", fontsize=11)
-    fig.text(0.01, 0.006, "rasters warped into the field-local frame in one resample \u2014 "
+    fig.text(0.0, -0.012, "rasters warped into the field-local frame in one resample \u2014 "
              "hillshade lighting rotates with the frame", fontsize=6, color="#6b7280")
     args.out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(args.out, dpi=170)
+    fig.savefig(args.out, dpi=170, bbox_inches="tight")
     plt.close(fig)
     print(f"wrote {args.out}")
     return 0

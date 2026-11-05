@@ -114,8 +114,14 @@ def frame_for(gdf: gpd.GeoDataFrame, panel_h_in: float, panel_w_in: float,
         gu = gu.assign(geometry=gu.geometry.map(lambda g: affinity.rotate(g, -rot, origin=(0, 0))))
     x0r, y0r, _, _ = gu.total_bounds
     gu = gu.assign(geometry=gu.geometry.translate(xoff=-x0r, yoff=-y0r))
-    # (x0r, y0r) in zone coords = the framed (0,0) corner; inverse-project it
-    e0, n0 = x0 + x0r, y0 + y0r
+    # The framed (0,0) corner sits at (x0r, y0r) IN ROTATED SPACE. Inverting
+    # the framing v = shift + R_ccw(f + rmin) gives the zone-coord anchor
+    #   e0,n0 = (x0,y0) + R_ccw(x0r, y0r)
+    # — rotating the re-pin offset back is mandatory (omitting it shears the
+    # anchor off by ~rot_rad * |rmin|, i.e. km at rot 50+).
+    rpin = math.radians(rot)
+    e0 = x0 + x0r * math.cos(rpin) - y0r * math.sin(rpin)
+    n0 = y0 + x0r * math.sin(rpin) + y0r * math.cos(rpin)
     corner = gpd.GeoDataFrame(geometry=[gpd.points_from_xy([e0], [n0])[0]],
                               crs=epsg).to_crs(4326).geometry.iloc[0]
     # TRUE north in frame coords, numerically (captures grid convergence)
@@ -172,10 +178,17 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None):
     from rasterio.transform import Affine
 
     r_ = math.radians(f.rot)
-    nr, nc = int(_frame_height(f) / dst_res) + 1, int(_frame_width(f) / dst_res) + 1
+    H = _frame_height(f)
+    nr, nc = int(H / dst_res) + 1, int(_frame_width(f) / dst_res) + 1
     a, b = math.cos(r_) * dst_res, math.sin(r_) * dst_res
-    dst_tr = Affine(a, b, f.e0 - nr * dst_res * math.sin(r_),
-                    b, -a, f.n0 + nr * dst_res * math.cos(r_))
+    # Frame->UTM inverse: E = e0 + x*cos r - y*sin r, N = n0 + x*sin r + y*cos r,
+    # with x = col*res, y = H - row*res (row 0 = north edge). Expanding:
+    #   E = (e0 - H*sin r) + col*(res cos r) + row*(res sin r)
+    #   N = (n0 + H*cos r) + col*(res sin r) + row*(-res cos r)
+    # -> top-left corner in UTM is (e0 - H*sin r, n0 + H*cos r).
+    h_pad = nr * dst_res
+    dst_tr = Affine(a, b, f.e0 - h_pad * math.sin(r_),
+                    b, -a, f.n0 + h_pad * math.cos(r_))
     dst = np.full((nr, nc), np.nan, dtype="float64")
     _src = ds.read(1, masked=True)
     _src = np.ma.masked_invalid(_src.astype("float64"))
@@ -184,15 +197,17 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None):
         src_transform=ds.transform, src_crs=ds.crs,
         dst_transform=dst_tr, dst_crs=f.epsg,
         resampling=rasterio.warp.Resampling.bilinear)
-    if poly_metric is None:
-        import geopandas as gpd
-        poly_metric = f.geometry.dissolve().geometry.iloc[0]  # already frame coords
-        gm = geometry_mask([poly_metric.__geo_interface__], out_shape=(nr, nc),
-                           transform=Affine(dst_res, 0, 0, 0, -dst_res, nr * dst_res),
-                           invert=True)
-    else:
-        gm = geometry_mask([poly_metric.__geo_interface__], out_shape=(nr, nc),
-                           transform=dst_tr, invert=True)
+    # Mask from the FRAME-coord polygon: exact by construction and independent
+    # of the geographic anchor (passing a UTM polygon here reintroduces every
+    # anchoring/convention bug into a step that has none). poly_metric is kept
+    # in the signature for callers; it is currently unused for masking.
+    _ = poly_metric
+    gm = geometry_mask([f.geometry.dissolve().union_all().__geo_interface__]
+                       if hasattr(f.geometry, "dissolve") else
+                       [f.geometry.__geo_interface__],
+                       out_shape=(nr, nc),
+                       transform=Affine(dst_res, 0, 0, 0, -dst_res, nr * dst_res),
+                       invert=True)
     return np.ma.masked_where(~gm, np.ma.masked_invalid(dst)), (0, nc * dst_res, 0, nr * dst_res)
 
 

@@ -121,3 +121,28 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
 - Restriction callouts on horizon tables live in a matplotlib **legend box**
   (hatched Patch handles, one entry per band) right of the texture stack —
   hand-placed gutter text provably collides when depth windows nest.
+
+## Continuous vs categorical — the scale standard for every map we publish
+
+Each figure declares its feature type and gets the scale class the literature
+uses for it (no rainbow on continuous fields, no continuous gradient on
+banded soil classes):
+
+| Feature | Type | Scale (standard adopted) |
+| --- | --- | --- |
+| Soil clay/silt/sand %, pH, CEC, OC (gridded) | banded soil classes | **ISRIC SoilGrids `soil.legends` discrete steps** (`BoundaryNorm`, vendored TSVs) — the same breaks ISRIC maps itself |
+| Soil texture class (triangle panel) | categorical (12 classes) | USDA texture-triangle fills, categorical |
+| Crop type / land class | categorical | WorldCereal official palette codes; unknown = white swatch with grey edge |
+| Elevation (DEM) | continuous | `terrain` (green→brown→white→blue) — relief convention, perceptually ordered |
+| Hillshade | continuous | grayscale |
+| Slope, TWI | continuous, positive-skew | sequential (`YlOrBr`, `YlGnBu`) |
+| Flow accumulation, LS | continuous, power-law | sequential on **log10** — axis says so (`log₁₀ upstream cells`) |
+| TPI, relative elevation | continuous, signed about 0 | diverging `RdBu_r`, midpoint at 0 |
+| Aspect | **cyclic** | HSV hue wheel, vmin/vmax fixed 0–360 (a sequential map on a cyclic quantity fakes a seam at N) |
+| NDVI | continuous −1…1 | diverging green↔tan (RdYlGn family), zero at the neutral break |
+
+Rule of thumb encoded in the renderers: if the value can be averaged
+meaningfully and orders spatially → sequential/diverging continuous; if it
+names something → categorical palette from the governing standard; if it is
+already published with official breaks (SoilGrids) → reuse the breaks,
+verbatim. Colorbars then carry units and (for log scales) the transform.

@@ -117,6 +117,6 @@ This skill is the operational breeding layer. It is what you use before or along
 - Progressive router: [`INDEX.md`](INDEX.md)
 - Unified CLI: `python scripts/breeding_cli.py <design|fieldbook|germplasm|select|cross> --help`
 - Trial design examples: [`examples/design/rcbd-design/`](examples/design/rcbd-design/)
-- Field placement example: [`examples/field-trial-placement/`](examples/field-trial-placement/)
+- Field placement example (with rendered demo map): [`examples/field-trial-placement/`](examples/field-trial-placement/) — boundary-aware RCBD placement on a real Iowa field boundary; default output honors `DATA_PIPELINE_DATA_ROOT`
 - Selection and crossing examples: [`examples/select/selection-index/`](examples/select/selection-index/) and [`examples/cross/crossing-plan/`](examples/cross/crossing-plan/)
 - Simulation notes: [`examples/select/breeding-simulation-simple-cycle/README.md`](examples/select/breeding-simulation-simple-cycle/README.md)

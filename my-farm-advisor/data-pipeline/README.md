@@ -8,6 +8,14 @@ Soil provider selection by boundary `country`:
 Per-year crop rotation/crop-type sources by country (CDL, AAFC ACI, and the
 keyless WorldCereal default-model path for every other country):
 [references/crop-rotation-sources.md](references/crop-rotation-sources.md).
+## Example renders
+
+Vision-QC'd sample figures ship under [`examples/`](examples/) — one
+subfolder per output family (`field-maps/`, `soil-maps/`, `maturity/`,
+`field-poster/`, `weather-eda/`, `worldcereal/`). PNGs only; regenerated
+runtime artifacts stay outside the repo under `DATA_PIPELINE_DATA_ROOT`
+(see `ASSET_POLICY.md` at the repo root).
+
 
 ## Global parity in one paragraph
 

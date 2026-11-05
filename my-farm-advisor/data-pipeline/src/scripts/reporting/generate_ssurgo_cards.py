@@ -77,7 +77,7 @@ def plot_soil_properties_card(
     categories = ["OM (%)", "pH", "Clay (%)", "Sand (%)"]
     values = [
         row.get("avg_om_pct", 0) or 0,
-        (row.get("avg_ph", 7) or 7) - 5,  # Scale pH to 0-2 range for visualization
+        row.get("avg_ph", 7) or 7,  # raw value: a rescaled bar with a raw label once printed pH 1.7 for a 6.7 soil
         row.get("avg_clay_pct", 0) or 0,
         row.get("avg_sand_pct", 0) or 0,
     ]

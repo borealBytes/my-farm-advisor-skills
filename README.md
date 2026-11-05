@@ -79,7 +79,7 @@ national atlases where they do, and the global 250 m floor everywhere:
 
 | US — SSURGO survey polygons | Canada — Ontario Detailed Soil Survey (polygon) | Australia — national Soil Atlas | Global floor — SoilGrids 250 m (Brazil) |
 | --- | --- | --- | --- |
-| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![Soil card](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_soil_properties_grid.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
 | 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey, no USDA query, dataset named honestly in the title | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units | Cerrado field where no national layer exists: 6 properties + relief at 250 m (clay 32.2 %, pH 5.38) — the floor every country gets |
 
 ### Terrain derivatives — ready the moment the DEM lands
@@ -108,12 +108,35 @@ the border — the Prairie corn/soy belt is in, the boreal void isn't, so the
 picture stays about what actually grows. US-only, Canada-only, and combined
 views all render from one flag (`--country usa|canada|north-america`).
 
-### One page per field, and weather you can audit
+### One page per field — and every component readable on its own
 
-| Full-season field report | GDD accumulation (derived) | Year-over-year precipitation |
+[`generate_field_posters.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_field_posters.py)
+assembles the whole page; every panel it composites also emits as a
+standalone figure, so nothing is only legible under a magnifying glass.
+
+![Full-season field report](my-farm-advisor/data-pipeline/examples/field-poster/output/ia-r1_field_report.png)
+
+Identity, rotation history, soil horizons, frost windows, five-season weather,
+five-season NDVI (86 keyless Sentinel-2/Landsat scenes behind it) — every
+number traceable to its cached source layer.
+
+**Weather — [`generate_weather_charts.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_weather_charts.py), every title derived from the data it plots:**
+
+| Daily temperature + frost windows | Cumulative GDD (base 10) | Monthly precipitation |
 | --- | --- | --- |
-| ![Field report poster](my-farm-advisor/data-pipeline/examples/field-poster/output/ia-r1_field_report.png) | ![GDD](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_weather_gdd.png) | ![Precip](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_monthly_precip.png) |
-| Identity, rotation history, soil horizons, frost windows, five-season curves — every number traceable to its cached source layer | Cumulative + per-season GDD base-10 from raw daily weather | Every point recomputable from the daily parquet |
+| ![Temperature](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_daily_temperature_frost.png) | ![GDD](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_weather_gdd.png) | ![Precip](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_monthly_precip.png) |
+| Raw daily + 7-day mean, frost windows computed from the same CSV | Per-season curves + totals, one call | Last two complete years, every bar recomputable |
+
+**Canopy — NDVI by crop and year, from the cached imagery archive:**
+
+| Cumulative NDVI by crop and year | Crop-average NDVI | Peak NDVI (95th pct) |
+| --- | --- | --- |
+| ![Cumulative NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_cumulative.png) | ![Average NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_crop_average.png) | ![Peak NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_peak95_corn.png) |
+| Per-crop subplots, mean lines with 5th–95th percentile envelopes, only years whose CDL crop-year label matches | Field-masked mean over all crop-year scenes | Mid-season peak window — the biomass ceiling |
+
+A fixed-field soil card (properties, water & CEC, complexity counts, drainage
+summary) sits beside the SSURGO component map under the soil tiers above —
+[`generate_ssurgo_cards.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_ssurgo_cards.py).
 
 ### Per-year crop classification anywhere — keyless satellite imagery
 

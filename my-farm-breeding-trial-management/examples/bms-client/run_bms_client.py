@@ -8,27 +8,6 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def draw_light_geopolitical_context(ax, lon, lat):
-    min_lon, max_lon = float(min(lon)), float(max(lon))
-    min_lat, max_lat = float(min(lat)), float(max(lat))
-    dx = max(0.35, (max_lon - min_lon) * 0.6)
-    dy = max(0.25, (max_lat - min_lat) * 0.6)
-    ax.set_facecolor("#f7fbff")
-    ax.set_xlim(min_lon - dx, max_lon + dx)
-    ax.set_ylim(min_lat - dy, max_lat + dy)
-    for x in [min_lon - 0.15, (min_lon + max_lon) / 2, max_lon + 0.15]:
-        ax.axvline(x, color="#d9e2ec", linewidth=0.8, linestyle="--", zorder=0)
-    for y in [min_lat - 0.1, (min_lat + max_lat) / 2, max_lat + 0.1]:
-        ax.axhline(y, color="#d9e2ec", linewidth=0.8, linestyle="--", zorder=0)
-    ax.text(
-        min_lon - dx + 0.05,
-        max_lat + dy - 0.08,
-        "Regional context",
-        fontsize=8,
-        color="#6b7280",
-    )
-
-
 def main():
     out = Path(__file__).parent / "output"
     out.mkdir(exist_ok=True)
@@ -64,19 +43,40 @@ def main():
 
     colors = np.where(sites["status"] == "created", "#ff7f0e", "#2ca02c")
     fig, ax = plt.subplots(figsize=(6.8, 4.8))
-    draw_light_geopolitical_context(ax, sites["lon"], sites["lat"])
-    ax.scatter(sites["lon"], sites["lat"], c=colors, s=130, zorder=2)
-    for _, r in sites.iterrows():
+    # Real satellite basemap instead of decorative gridlines + a text label
+    # claiming "Regional context": plot in Web Mercator and tile underneath.
+    import contextily as ctx
+    import geopandas as gpd
+
+    g = gpd.GeoDataFrame(
+        sites, geometry=gpd.points_from_xy(sites["lon"], sites["lat"]), crs="EPSG:4326"
+    ).to_crs("EPSG:3857")
+    x, y = g.geometry.x, g.geometry.y
+    ax.scatter(x, y, c=colors, s=130, zorder=3, edgecolors="white", linewidths=0.8)
+    for _, r in g.iterrows():
         ax.annotate(
             str(r["trial_id"]),
-            (float(r["lon"]), float(r["lat"])),
-            xytext=(4, 4),
+            (r.geometry.x, r.geometry.y),
+            xytext=(6, 6),
             textcoords="offset points",
-            fontsize=8,
+            fontsize=9,
+            fontweight="bold",
+            color="white",
+            zorder=4,
+            bbox=dict(boxstyle="round,pad=0.18", fc="#1f2937", ec="none", alpha=0.72),
         )
+    # Set the view extent BEFORE fetching tiles, otherwise contextily only
+    # tiles the old extent and a white strip appears along the edges.
+    ax.set_xlim(x.min() - 25000, x.max() + 25000)
+    ax.set_ylim(y.min() - 22000, y.max() + 22000)
+    ctx.add_basemap(
+        ax,
+        source=ctx.providers.Esri.WorldImagery,
+        crs="EPSG:3857",
+    )
     ax.set_title("BMS Trial Footprint")
-    ax.set_xlabel("Longitude")
-    ax.set_ylabel("Latitude")
+    ax.set_xlabel("Web Mercator X (m)")
+    ax.set_ylabel("Web Mercator Y (m)")
     ax.grid(alpha=0.18)
     fig.tight_layout()
     fig.savefig(out / "bms_trial_site_map.png", dpi=150)

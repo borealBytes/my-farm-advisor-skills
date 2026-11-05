@@ -164,7 +164,7 @@ Sentinel-2 (no accounts, no keys), cross-checked against the USDA CDL.
 | Multi-year genomic values | Trial site footprint (BMS) |
 | --- | --- |
 | ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) | ![BMS sites](my-farm-breeding-trial-management/examples/bms-client/output/bms_trial_site_map.png) |
-| Top-15 genotypes with 95 % CIs after BLUP | Where trials live, straight from a breeding-management-system client |
+| Top-15 genotypes with 95 % CIs after BLUP | Trial sites on a real satellite basemap — green = read from the client, orange = written through it |
 
 ### Quantitative genetics — mapping and diagnostics
 

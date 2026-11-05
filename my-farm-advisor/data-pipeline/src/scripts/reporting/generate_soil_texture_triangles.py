@@ -465,20 +465,22 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         (_x1, _y1), (_x2, _y2) = max(_edges, key=lambda e: (e[1][0]-e[0][0])**2 + (e[1][1]-e[0][1])**2)
         _theta = _math.degrees(_math.atan2(_y2 - _y1, _x2 - _x1))
         _rot = (_theta - 90.0) if _long_axis == "vertical" else _theta
+        # canonical tilt in (-90, 90]: a longer rotation would apply the same
+        # long-edge alignment but flip north below the horizon
+        _rot = ((_rot + 90.0) % 180.0) - 90.0
         if abs(_rot) > 0.5:
             _gu = _gu.assign(geometry=_gu.geometry.map(lambda g: _aff.rotate(g, -_rot, origin=(0, 0))))
             _x0, _y0, _, _ = _gu.total_bounds
             _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
-        _rot %= 360.0
-        if _rot >= 359.75:
+        if abs(_rot) <= 0.05:
             _rot = 0.0
         _gu.plot(ax=ax_m, color=_gu["c"].fillna("#d1d5db"),
                  linewidth=0.4, edgecolor="#4b5563")
         _gu.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
-        _axlab = (f"m E from SW corner (UTM {_zone})" if _rot < 0.5 else
-                  f"field-local m (rotated {_rot:.0f}° from E, UTM {_zone})")
+        _axlab = (f"m E from SW corner (UTM {_zone})" if _rot == 0.0 else
+                  f"field-local m (rotated {_rot:+.0f}\u00b0 from E, UTM {_zone})")
         ax_m.set_xlabel(_axlab, fontsize=6.8)
-        ax_m.set_ylabel("m N" if _rot < 0.5 else "m (rotated frame)", fontsize=6.8)
+        ax_m.set_ylabel("m N" if _rot == 0.0 else "m (rotated frame)", fontsize=6.8)
         ax_m.tick_params(labelsize=6.4)
         ax_m.grid(alpha=0.18, lw=0.4)
         # north arrow, top-right, boxed for contrast; the geometry was rotated
@@ -589,6 +591,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
         ax.set_ylim(100, 0); ax.set_xlim(y.min() - (y.max()-y.min())*0.15 - 1e-9,
                                          y.max() + (y.max()-y.min())*0.15 + 1e-9)
+        ax.set_yticks([0, 20, 40, 60, 80])  # 100 label collides with xticks
         ax.text(0.5, 0.985, name, transform=ax.transAxes, ha="center", va="top",
                 fontsize=7.6, weight="bold", color="#111827")
         ax.tick_params(labelsize=6.6)
@@ -611,6 +614,7 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
             axx.text(frac, depth, txt, fontsize=6.2, color=cc, ha="center", va="center",
                      path_effects=[pe.withStroke(linewidth=1.6, foreground="white")])
         axx.set_ylim(100, 0); axx.set_xlim(0, 100)
+        axx.set_yticks([0, 20, 40, 60, 80])
         from matplotlib.ticker import MaxNLocator as _M
         axx.xaxis.set_major_locator(_M(3))
         axx.text(0.5, 0.985, "texture", transform=axx.transAxes, ha="center", va="top",
@@ -619,21 +623,30 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     if has_restr or known_restr:
         axr = fig.add_subplot(gs2[n_cols2 - 1])
         axr.set_ylim(100, 0); axr.set_xlim(0, 1)
-        axr.set_yticks([0, 20, 40, 60, 80, 100]); axr.tick_params(labelsize=6.6)
+        axr.set_yticks([0, 20, 40, 60, 80]); axr.tick_params(labelsize=6.6)
         axr.set_xticks([])
         axr.text(0.5, 0.985, "restrictions", transform=axr.transAxes, ha="center",
                  va="top", fontsize=7.6, weight="bold", color="#111827")
         if has_restr:
-            for kind, top, bot in restricts:
-                bot = min(bot, 100.0)
+            for _i, (kind, top, bot) in enumerate(restricts):
+                bot_disp = min(bot, 100.0)
                 if top > 100:
                     continue
-                axr.add_patch(plt.Rectangle((0.08, top), 0.84, max(bot - top, 4),
+                axr.add_patch(plt.Rectangle((0.08, top), 0.84, max(bot_disp - top, 4),
                                             facecolor=_restr_color(kind), alpha=0.28,
                                             edgecolor=_restr_color(kind), hatch="///", lw=0.8))
-                axr.text(0.5, max(top, (top + bot) / 2 - 3), kind, rotation=90, fontsize=5.6,
-                         color=_restr_color(kind), ha="center", va="center", weight="bold",
+                # label at the band's own extent with its FULL depth window, and
+                # stagger two overlapping bands left/right so names never merge
+                _xl = {0: 0.30, 1: 0.70}.get(_i % 2, 0.5)
+                _lab = f"{kind} {top:.0f}–{bot:.0f} cm"
+                axr.text(_xl, max(top, (top + bot_disp) / 2 - 3), _lab, rotation=90,
+                         fontsize=5.4, color=_restr_color(kind), ha="center",
+                         va="center", weight="bold",
                          path_effects=[pe.withStroke(linewidth=1.4, foreground="white")])
+                if bot > 100:  # band continues below the chart
+                    axr.annotate("", xy=(0.5, 99.2), xytext=(0.5, 94.5),
+                                 arrowprops=dict(arrowstyle="-|>", lw=1.0,
+                                                 color=_restr_color(kind)))
             axr.text(0.5, 0.015, "hatched = restrictive layer",
                      transform=axr.transAxes, ha="center", va="bottom", fontsize=5.8)
         else:

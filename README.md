@@ -102,10 +102,10 @@ automatically for **every field** in `run_farm_pipeline.py` (`--all-fields` mode
 survey triangle + horizon table + weighted map where polygons exist, the grid
 triangle for raster providers):
 
-| US — SSURGO horizons | Canada — ON-DSS horizons |
-| --- | --- |
-| ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) |
-| Left: the field itself — map units colored by **dominant component** on a **field-local UTM frame** (metres from the SW corner, boxed north arrow; see `references/field-map-frame.md`), legend lists every series with its % of field area (sums to 100). Middle: horizon table whose **component chips reuse the map colors** — row ↔ polygon at a glance; numeric cells plain. Right: same table **interpolated to continuous depth** from 0 cm (comppct-weighted, 5 cm bins) + a **100 % sand·silt·clay texture stack** down the profile + a restrictions column (SSURGO `corestrictions`) | Same schema, same renderer: Ontario series (Brookston 82.8 %, Perth 13.2 %, Normandale 3.9 %) — UTM 17 frame, chips matched, profiles from the surface down |
+| US — SSURGO horizons | Canada — ON-DSS horizons | Restrictive subsurface — southern Illinois |
+| --- | --- | --- |
+| ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) | ![Illinois fragipan demo](my-farm-advisor/data-pipeline/examples/soil-maps/output/il-r1_horizon_table.png) |
+| Left: the field itself — map units colored by **dominant component** on a **field-local UTM frame** (metres from the SW corner, boxed north arrow; see `references/field-map-frame.md`), legend lists every series with its % of field area (sums to 100). Middle: horizon table whose **component chips reuse the map colors** — row ↔ polygon at a glance; numeric cells plain. Right: same table **interpolated to continuous depth** from 0 cm (comppct-weighted, 5 cm bins) + a **100 % sand·silt·clay texture stack** down the profile + a restrictions column (SSURGO `corestrictions`) | Same schema, same renderer: Ontario series (Brookston 82.8 %, Perth 13.2 %, Normandale 3.9 %) — the geometry **auto-rotated 56°** so the field's long edge fills the portrait panel; the north arrow counter-rotates and the axis states the angle | A demo field deliberately placed over Fishhook's **densic material at 74–203 cm** and Ava's classic **Fragipan at 71–163 cm**: restrictive layers strike across every affected depth profile as red bands, labeled with kind + depth window, and get their own hatched panel — the "don't-till-this-deep" signal is the loudest thing on the page |
 
 ### Terrain derivatives — ready the moment the DEM lands
 
@@ -171,6 +171,20 @@ Sentinel-2 (no accounts, no keys), cross-checked against the USDA CDL.
 | --- | --- | --- |
 | ![Iowa CDL comparator](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_ia_soy_cdl.png) | ![Narrabri tc-s2](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc2.png) | ![Narrabri tc-s1](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc1.png) |
 | Six panels: imagery, NDVI, cropland mask, WorldCereal crop type **and USDA CDL 2023** on identical extents — in-field shares printed, verdict **AGREE** (CDL 96.7% soybeans vs WorldCereal 98.9%) | Correctly sees the fallow dry-season window (La Niña 2023) | Honest caveat: un-fine-tuned model mislabels cotton as oilseed — regional accuracy stated, not oversold |
+
+The same models run **per year** and stack into a rotation-strip figure via
+`render_year_series()` — this is how rotation history is sourced for countries
+with no national per-year layer (Brazil, most of the world):
+
+| Brazil (São Paulo) — 2021→2024 | Ontario, Canada — 2021→2023 |
+| --- | --- |
+| ![BR year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/br-r1_crop_class_year_series.png) | ![CA year series](my-farm-advisor/data-pipeline/examples/worldcereal/output/on-r1_crop_class_year_series.png) |
+| Sugarcane years honestly read *no crop* (the crop-type layer has no cane class); maize and grass/fodder years pop in color — the rotation signal is legible even where the class vocabulary falls short | CAMEO-classified soy/maize/wheat rotation recovered year-by-year, keyless, with no Canadian login — alongside the AAFC ACI layer, which remains the authoritative Canadian source |
+
+Coverage note (stated, not hidden): the crop-type layer labels only pixels inside
+WorldCereal's reference cropland mask for that year, so partial-year coverage on
+small fields renders as interior gaps — per-year shares are computed over labeled
+pixels only.
 
 ### Breeding operations — designs, fieldbooks, and selection
 

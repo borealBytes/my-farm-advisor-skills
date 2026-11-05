@@ -87,14 +87,14 @@ national atlases where they do, and the global 250 m floor everywhere:
 | SSURGO (US) | Ontario DSS (CA) | Soil Atlas raster cells (AU) | SoilGrids 250 m cells (BR) |
 | --- | --- | --- | --- |
 | ![ia triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![on triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![au triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r4_texture_triangle.png) | ![br triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_texture_triangle.png) |
-| Every pin = one mukey×component: **series name + % of the field** (map-unit polygon area × within-unit component share), exact-class duplicates merged, labels collision-placed, star = the area-weighted field mean (loam, clay 26 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package | The Ontario survey speaks the same schema — same renderer, same triangle | The triangle as a **derivation** for gridded sources: every 100 m atlas cell inside the boundary is one point (30 displayed max), star = cell-weighted mean | The global floor too: SoilGrids sand/silt/clay cells of a Cerrado field → sandy clay loam mean. Four provenance levels, one classifier |
+| Every pin = one mukey×component: **series name + % of the field** (map-unit polygon area × within-unit component share), exact-class duplicates merged, labels collision-placed, star = the area-weighted field mean (loam, clay 26 / silt 40 / sand 33). Full percent ladders on **all three edges** — % SAND under the base, % CLAY up the right, % SILT down the left — each with its own bold titled axis. Canonical 12-class geometry from the CRAN `soiltexture` package | The Ontario survey speaks the same schema — same renderer, same triangle | The triangle as a **derivation** for gridded sources: every 100 m atlas cell inside the boundary is one point (30 displayed max), star = cell-weighted mean | The global floor too: SoilGrids sand/silt/clay cells of a Cerrado field → sandy clay loam mean. Four provenance levels, one classifier |
 
 **Whole-field weighted property maps — the area-weighted field number, drawn as a surface:**
 
 | Iowa (SSURGO) | Ontario (DSS) |
 | --- | --- |
 | ![ia weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_weighted_property_map.png) | ![on weighted](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_weighted_property_map.png) |
-| Each map-unit polygon colored by **its component mix's topsoil value** (comppct-weighted within the unit): OM, pH, AWC, clay as continuous surfaces instead of dominant-component tiles — the weighted mean printed on every panel | Same schema, same math: Ontario census of Brookston/Perth/Kintyre weighted averages rendered per polygon |
+| 8 attributes — OM, pH, AWC, clay, silt, sand, CEC, bulk density — each map-unit polygon colored by **its component mix's topsoil value** (comppct-weighted within the unit), weighted mean printed per panel; below them a **100 % sand+silt+clay strip** across map units ordered north → south, width ∝ field share — watch the texture trade off as you walk down the field | Same schema, same math: Ontario census of Brookston/Perth/Kintyre, eight surfaces + the same texture strip |
 
 **Horizon detail — the rows behind every map, triangle and weighted panel above.**
 All of it — property maps, triangles, horizon tables, interpolated profiles — fires
@@ -105,7 +105,7 @@ triangle for raster providers):
 | US — SSURGO horizons | Canada — ON-DSS horizons |
 | --- | --- |
 | ![Iowa horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_horizon_table.png) | ![Ontario horizon table](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_horizon_table.png) |
-| Cells color-coded within column; at right the same table **interpolated to continuous depth** (piecewise-linear across horizon midpoints, comppct-weighted, 5 cm bins, 0–100 cm) — the classic SSURGO interval interpolation, honest about being constant beyond measured table | Same schema, same renderer: Ontario series (Brookston, Perth, Normandale, Kintyre) with real horizon splits and the same interpolated profiles |
+| Left: the field itself — map units colored by **dominant component**, legend lists every series with its % of field area (sums to 100) — so the table rows tie straight to where they sit. Middle: color-coded horizon table. Right: the same table **interpolated to continuous depth** (piecewise-linear across horizon midpoints, comppct-weighted, 5 cm bins, starting at 0 cm) — the classic SSURGO interval interpolation, honest about being constant beyond measured | Same schema, same renderer: Ontario series (Brookston 82.8 %, Perth 13.2 %, Normandale 3.9 % of field) with real horizon splits, the same map, and profiles from the surface down |
 
 ### Terrain derivatives — ready the moment the DEM lands
 

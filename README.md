@@ -8,11 +8,19 @@ and validation checks that make the workflows discoverable by agents and
 readable by humans. The catalog is harness-neutral: any agent runtime that can
 read `SKILL.md` / `AGENTS.md` files can use it.
 
-| Skill | Scope | Start here |
-| --- | --- | --- |
-| 🌾 `my-farm-advisor` | Field management, soil, weather, imagery, terrain, EDA, strategy, admin maps, farm-data pipelines and reporting | [`SKILL.md`](my-farm-advisor/SKILL.md) |
-| 🌱 `my-farm-breeding-trial-management` | Trial design, fieldbooks, germplasm, selection, crossing, field-boundary-aware trial placement | [`SKILL.md`](my-farm-breeding-trial-management/SKILL.md) |
-| 🧬 `my-farm-qtl-analysis` | GWAS, eQTL, classical QTL, VCF/SNP QC, population structure, genomic prediction, genetics reporting | [`SKILL.md`](my-farm-qtl-analysis/SKILL.md) |
+| Skill | Status | Scope | Start here |
+| --- | --- | --- | --- |
+| 🌾 `my-farm-advisor` | **Active focus** | Field management, soil, weather, imagery, terrain, EDA, strategy, admin maps, farm-data pipelines and reporting | [`SKILL.md`](my-farm-advisor/SKILL.md) |
+| 🌱 `my-farm-breeding-trial-management` | Initial stab — expanding | Trial design, fieldbooks, germplasm, selection, crossing, field-boundary-aware trial placement | [`SKILL.md`](my-farm-breeding-trial-management/SKILL.md) |
+| 🧬 `my-farm-qtl-analysis` | Initial stab — expanding | GWAS, eQTL, classical QTL, VCF/SNP QC, population structure, genomic prediction, genetics reporting | [`SKILL.md`](my-farm-qtl-analysis/SKILL.md) |
+
+**Why this ordering is deliberate:** the data pipeline is the keystone — you
+need trustworthy field data before trial analytics or genotype-by-phenotype
+analysis can say anything. The advisor skill and its pipelines get built out
+first so the breeding and QTL skills can grow into that foundation later with
+more power behind them. Expect the 🌱 and 🧬 trees to expand the most over the
+coming releases; their current examples are real and runnable, just fewer than
+what's coming.
 
 ## What the output looks like
 

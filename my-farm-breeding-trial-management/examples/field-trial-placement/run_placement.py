@@ -576,7 +576,9 @@ def main():
     if args.output_dir:
         output_dir = Path(args.output_dir)
     else:
-        output_dir = Path(f"data/my-farm-advisor/growers/{args.grower_slug}/farms/{args.farm_slug}/fields/{args.field_id}/trials")
+        import os
+        _root = Path(os.environ.get("DATA_PIPELINE_DATA_ROOT", ".")) / "data-pipeline"
+        output_dir = _root / "growers" / args.grower_slug / "farms" / args.farm_slug / "fields" / args.field_id / "trials"
     output_dir.mkdir(parents=True, exist_ok=True)
     
     # Save fieldbook

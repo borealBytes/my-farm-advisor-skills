@@ -132,8 +132,10 @@ def _field_array_stats(
     boundary = gpd.read_file(boundary_path)
     with rasterio.open(raster_path) as src:
         boundary_proj = boundary.to_crs(src.crs)
-        clipped, _ = mask(src, boundary_proj.geometry, crop=True, filled=False)
-    array = np.ma.filled(clipped[0], np.nan).astype(float)
+        import raster_rules as _rr
+        clipped, _, _nm = _rr.outer_crop(src, list(boundary_proj.geometry))
+    array = clipped[0].astype(float)
+    array[_nm] = np.nan  # outside the field polygon
     valid = array[np.isfinite(array)]
     if valid.size == 0:
         return None, None, None

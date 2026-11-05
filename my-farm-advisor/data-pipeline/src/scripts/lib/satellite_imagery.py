@@ -159,7 +159,9 @@ def clip_asset_to_field(
             _geom = _geom.buffer(_m_deg)
         else:
             _geom = _geom.buffer(_m)
-        out_image, out_transform = mask(src, [_geom.__geo_interface__], crop=True)
+        # raster_rules.outer_crop: mask(crop=True) can round the window INWARD
+        # and shave source cells off the buffered edges; outer_crop rounds out.
+        out_image, out_transform, _ = _rr.outer_crop(src, [_geom])
         profile = src.profile.copy()
 
     profile.update(

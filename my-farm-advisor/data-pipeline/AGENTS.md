@@ -198,6 +198,15 @@ cd ../..
 
 For runtime setup changes, run a temp-root installer smoke command with `--non-interactive --force-refresh --no-install-deps` when dependencies are unavailable, then run `scripts/run_farm_pipeline.py --structure-test` from `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src`. Otherwise run `./scripts/validate.sh` from the repository root after structural changes.
 
+## Figure refresh duty
+
+Any change under `src/scripts/` that alters a renderer feeding the gallery
+(or `lib/field_frame.py` / `lib/raster_rules.py` shared by them) obliges you
+to re-run the affected demo renders and pass the vision review in
+`../../../CONTRIBUTING.md` before committing — including regenerated raster
+coverage after ingest changes. The root AGENTS.md "Figure quality gate"
+section is the operative rule.
+
 ## Local-delta-only reminder
 
 This nested AGENTS.md only records instructions that differ from the parent or root files. Do not duplicate root-wide asset, vendor, or validation policy here except this pointer to `../../AGENTS.md`.

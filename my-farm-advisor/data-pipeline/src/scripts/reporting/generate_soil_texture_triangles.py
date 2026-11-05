@@ -155,12 +155,28 @@ def _grid_components(soil_dir: Path) -> tuple[pd.DataFrame, str]:
         raise SystemExit(f"no clay grids under {soil_dir}")
     depth = tifs[0].name.split("clay_")[-1][:-4]
     arrays = {}
+    meta = {}
     for frac in ("clay", "silt", "sand"):
         hits = sorted(soil_dir.rglob(f"*{frac}_{depth}.tif"))
         if not hits:
             raise SystemExit(f"missing {frac}_{depth}.tif under {soil_dir}")
         with rasterio.open(hits[0]) as ds:
             arrays[frac] = ds.read(1).astype("float64")
+            meta[frac] = (ds.transform, ds.crs, ds.bounds, ds.shape, ds.nodata)
+    # bands can be clipped at slightly different cell sizes (different source
+    # zoom levels); align every fraction onto the clay grid via nearest
+    # reproject so per-cell ternary sums stay coherent
+    from rasterio.warp import reproject, Resampling
+    from rasterio.transform import from_bounds
+    ct, ccrs, cbounds, (ch, cw), _cn = meta["clay"]
+    dst_tr = from_bounds(*cbounds, width=cw, height=ch)
+    for frac in ("silt", "sand"):
+        src, scr_s, sb, _, snodata = meta[frac]
+        out = np.full((ch, cw), np.nan)
+        reproject(arrays[frac], out, src_transform=src, src_crs=scr_s,
+                  dst_transform=dst_tr, dst_crs=ccrs,
+                  resampling=Resampling.nearest, src_nodata=snodata)
+        arrays[frac] = out
     valid = np.isfinite(arrays["clay"]) & np.isfinite(arrays["silt"]) & np.isfinite(arrays["sand"])
     total = arrays["clay"] + arrays["silt"] + arrays["sand"]
     valid &= total >= 70  # honest gap: too little reported to normalize

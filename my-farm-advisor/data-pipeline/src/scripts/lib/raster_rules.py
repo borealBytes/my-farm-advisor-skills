@@ -91,3 +91,41 @@ def coverage(tif_path: str | Path, geom_wgs84, *, nodata_extra: float | None = N
             "nodata_ratio_in_field": 1.0 - field_valid / max(field_cells, 1),
             "outer_margin_m": float(m),
         }
+
+
+def outer_crop(src, geoms, *, nodata=None):
+    """rasterio.mask.mask(crop=True) rounds the crop window INWARD, which can
+    shave 1-3 source cells off the clip where a buffered boundary crosses a
+    pixel row/column. This helper rounds OUTWARD (windows.from_bounds with
+    op='union', clamped to the source), guaranteeing every buffered edge.
+
+    Returns (image, transform, mask) like rasterio.mask.mask(..., masked=True).
+    """
+    from rasterio.windows import Window
+    import numpy as np
+    import math
+
+    shp = [g if hasattr(g, "bounds") else g for g in geoms]
+    x0 = min(g.bounds[0] for g in shp)
+    y0 = min(g.bounds[1] for g in shp)
+    x1 = max(g.bounds[2] for g in shp)
+    y1 = max(g.bounds[3] for g in shp)
+    tr = src.transform
+    c0, c1 = (x0 - tr.c) / tr.a, (x1 - tr.c) / tr.a
+    r0, r1 = (y0 - tr.f) / tr.e, (y1 - tr.f) / tr.e
+    col_off = max(0, int(math.floor(min(c0, c1))))
+    col_end = min(src.width, int(math.ceil(max(c0, c1))))
+    row_off = max(0, int(math.floor(min(r0, r1))))
+    row_end = min(src.height, int(math.ceil(max(r0, r1))))
+    width = col_end - col_off
+    height = row_end - row_off
+    if width <= 0 or height <= 0:
+        raise ValueError("outer_crop: geometry does not intersect source raster")
+    win_i = Window(col_off, row_off, width, height)
+    out = src.read(window=win_i)
+    from rasterio.transform import Affine
+    tr = Affine(tr.a, tr.b, tr.c + col_off * tr.a, tr.d, tr.e, tr.f + row_off * tr.e)
+    from rasterio.features import geometry_mask
+    m = geometry_mask(shp, out_shape=(height, width), transform=tr, invert=True, all_touched=True)
+    filled = np.where(m, out, nodata if nodata is not None else src.nodata)
+    return filled, tr, ~m

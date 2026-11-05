@@ -23,7 +23,7 @@ But different correction methods make different tradeoffs:
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/threshold-correction
+cd my-farm-qtl-analysis/examples/threshold-correction
 python run_thresholds.py
 ```
 

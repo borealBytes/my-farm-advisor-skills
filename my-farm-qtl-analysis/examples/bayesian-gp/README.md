@@ -26,7 +26,7 @@ Traditional genomic prediction (GBLUP) treats all markers equally. Bayesian meth
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/bayesian-gp
+cd my-farm-qtl-analysis/examples/bayesian-gp
 python run_bayesian.py
 ```
 

@@ -19,7 +19,7 @@ In GWAS, elastic net helps identify the most important markers while handling li
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/elastic-net-cv
+cd my-farm-qtl-analysis/examples/elastic-net-cv
 python run_elastic_net.py
 ```
 

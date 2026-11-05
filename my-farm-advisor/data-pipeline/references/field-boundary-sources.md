@@ -41,7 +41,7 @@ area_ha_est, crop, area_acres` (+ `source`, and source-specific ids like
 
 ## AU / ON / EU / anywhere OSM maps farms — Overpass (`download_osm_fields.py`)
 
-`way["landuse"="farmland"](bbox)` closed polygons. Measured coverage
+Overpass QL: ways filtered on `landuse=farmland` within the bbox; returned polygons are closed. Measured coverage
 (2026-11-03): NSW Wee Waa cotton country 27 fields ≥20 ha up to **1,233 ha**;
 Chatham-Kent ON 62 fields ≥20 ha up to **593 ha**; Ontario coverage is much
 better than US-Corn-Belt OSM (there, use CSB instead).

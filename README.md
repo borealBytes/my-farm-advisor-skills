@@ -1,113 +1,124 @@
 # My Farm Advisor Skills
 
-This repository is the My Farm Advisor skill catalog. It contains three in-repo skills and the local instructions, examples, scripts, and validation checks that make those skills discoverable by agents and readable by humans.
+This repository is the My Farm Advisor skill catalog: three portable agent
+skills that turn farm, field, trial, and genotype data into decisions —
+analyses a peer could re-run, maps a scout could trust, plans a season could
+execute. It contains the skills, their local instructions, examples, scripts,
+and validation checks that make the workflows discoverable by agents and
+readable by humans. The catalog is harness-neutral: any agent runtime that can
+read `SKILL.md` / `AGENTS.md` files can use it.
 
-The catalog is intentionally focused:
+| Skill | Scope | Start here |
+| --- | --- | --- |
+| 🌾 `my-farm-advisor` | Field management, soil, weather, imagery, terrain, EDA, strategy, admin maps, farm-data pipelines and reporting | [`SKILL.md`](my-farm-advisor/SKILL.md) |
+| 🌱 `my-farm-breeding-trial-management` | Trial design, fieldbooks, germplasm, selection, crossing, field-boundary-aware trial placement | [`SKILL.md`](my-farm-breeding-trial-management/SKILL.md) |
+| 🧬 `my-farm-qtl-analysis` | GWAS, eQTL, classical QTL, VCF/SNP QC, population structure, genomic prediction, genetics reporting | [`SKILL.md`](my-farm-qtl-analysis/SKILL.md) |
 
-- `my-farm-advisor` for farm advisory, field data, weather, soil, imagery, reporting, and strategy workflows.
-- `my-farm-breeding-trial-management` for breeding operations, trial design, fieldbooks, germplasm, selection, crossing, and placement workflows.
-- `my-farm-qtl-analysis` for QTL, GWAS, eQTL, quality control, population structure, genomic prediction, and reporting workflows.
+## What the output looks like
 
-## Skill Catalog
+Every figure below was rendered by a script in this repository from public,
+keyless data sources (verification fixtures; regenerate them with the
+commands in each example's README).
 
-| Skill | Start here | What it does | Best for |
-| --- | --- | --- | --- |
-| 🌾 `my-farm-advisor` | [`my-farm-advisor/SKILL.md`](my-farm-advisor/SKILL.md) | Routes farm advisory work into field, soil, weather, imagery, EDA, strategy, admin, and data-pipeline workflows | Farm data rebuilds, field reports, geospatial context, agronomic analysis |
-| 🌱 `my-farm-breeding-trial-management` | [`my-farm-breeding-trial-management/SKILL.md`](my-farm-breeding-trial-management/SKILL.md) | Routes breeding operations into design, fieldbook, germplasm, selection, crossing, and field-trial placement examples | Breeding program execution and operational planning |
-| 🧬 `my-farm-qtl-analysis` | [`my-farm-qtl-analysis/SKILL.md`](my-farm-qtl-analysis/SKILL.md) | Routes quantitative genetics work into mapping, QC, structure, prediction, and reporting examples | GWAS, eQTL, classical QTL, genomic prediction, and genetics reporting |
+### Farm data stacks — terrain, soil, and crop type for one field boundary
+
+Rendered by [`render_field_maps.py`](my-farm-advisor/data-pipeline/src/scripts/render_field_maps.py)
+from a demo grower's runtime data: Copernicus DEM hillshade, national soil
+surveys, and per-year WorldCereal crop inference, co-registered to the field
+boundary (red).
+
+| Iowa, US — 172 ha | Ontario, CA — 593 ha | Narrabri, AU — 1,233 ha |
+| --- | --- | --- |
+| ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r3_field_map.png) |
+| SSURGO map units; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF); terrain panel from the global 30 m DEM |
+
+### Per-year crop classification anywhere — keyless satellite imagery
+
+Rendered by [`render_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/render_worldcereal.py)
+using the open WorldCereal default models on Microsoft Planetary Computer
+Sentinel-2 (no accounts, no keys).
+
+| Iowa soy verification | Narrabri, dry season | Narrabri, summer season |
+| --- | --- | --- |
+| ![Iowa WorldCereal check](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_ia_soy.png) | ![Narrabri tc-s2](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc2.png) | ![Narrabri tc-s1](my-farm-advisor/data-pipeline/examples/worldcereal/output/wc_verify_au_tc1.png) |
+| True color, NDVI, cropland mask, crop type — model called soybean with no label input | Correctly sees the fallow dry-season window (La Niña 2023) | Honest caveat: un-fine-tuned model mislabels cotton as oilseed — regional accuracy stated, not oversold |
+
+### Breeding operations — designs, fieldbooks, and selection
+
+| Alpha-lattice design | Field-book plot map | Genomic breeding values |
+| --- | --- | --- |
+| ![Alpha lattice](my-farm-breeding-trial-management/examples/alpha-lattice/output/alpha_lattice_field_map.png) | ![Field book](my-farm-breeding-trial-management/examples/field-book/output/fieldbook_plot_map.png) | ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) |
+| 24 treatments × 3 reps, blocks of 4, randomized per replicate | Grower-view plot layout straight from a generated fieldbook | Top-15 genotypes with 95 % CIs after BLUP |
+
+### Quantitative genetics — mapping and diagnostics
+
+| QTL ideogram + aligned Manhattan | Genomic-control QQ |
+| --- | --- |
+| ![QMapper ideogram](my-farm-qtl-analysis/examples/qmapper-ideogram/output/qmapper_combined.png) | ![QQ before/after GC](my-farm-qtl-analysis/examples/genomic-control/output/qq_before_after_gc.png) |
+| Significant QTL flagged per chromosome, thresholds documented | Inflation before correction, realigned after — the QC story in one panel |
 
 ## Global data coverage (any country, zero accounts)
 
-The `my-farm-advisor` data pipeline now gives non-US fields the same source
-lineage as US fields, with no API keys, logins, or paid services in the
-default path:
+Non-US fields get the same source lineage as US fields. No API keys, logins,
+or paid services are required in the default path.
 
-- **Boundaries** — USDA CSB GeoParquet (US), OSM/Overpass farm rules (CA, AU, anywhere) with a new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md).
-- **Soil** — SSURGO (US, with tested/method flags), Ontario detailed soil survey (CA), national Soil Atlas via Gaia-DAP (AU), SoilGrids 250 m as the verified global floor; country-aware routing in [`soil-routing.md`](my-farm-advisor/soil/soil-routing.md).
-- **Crop rotation history** — USDA CDL (US, 2008→), AAFC ACI (CA, 2017→), and the open WorldCereal default crop models applied **per year for any country** on keyless Microsoft Planetary Computer Sentinel-2 ([`crop-rotation-sources.md`](my-farm-advisor/data-pipeline/references/crop-rotation-sources.md), `apply_worldcereal.py`); season windows come from the toolbox crop calendar (Southern-Hemisphere cross-year correct), and every output ships provenance + honest regional-accuracy caveats.
-- **Terrain** — Copernicus global 30 m DEM with full derivative suite.
-- **Weather** — NASA POWER public Zarr at field centroids, anywhere.
-- **Admin & context** — geoadmin/GADM L1/L2, combined FIPS, choropleth maps, corn RM / soybean MG shared datasets for US + CA.
+| Capability | United States | Canada | Australia | Any other country |
+| --- | --- | --- | --- | --- |
+| **Field boundaries** | USDA Crop Sequence Boundaries (GeoParquet) | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM + new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md) |
+| **Soil** | SSURGO (tested/method flags) | Ontario detailed soil survey | Soil Atlas of Australia via Gaia-DAP | SoilGrids 250 m (verified scale table) |
+| **Crop rotation history** | USDA CDL, 2008→ | AAFC ACI, 2017→ | WorldCereal per-year inference | WorldCereal per-year inference |
+| **Terrain** | Copernicus DEM 30 m | Copernicus DEM 30 m | Copernicus DEM 30 m | Copernicus DEM 30 m + full derivative suite |
+| **Weather** | NASA POWER | NASA POWER | NASA POWER | NASA POWER (public Zarr, field centroids) |
+| **Admin / context** | geoadmin + combined FIPS | geoadmin/GADM, corn RM & soybean MG | GADM L1/L2 | GADM L1/L2, choropleths |
 
-See [`my-farm-advisor/README.md`](my-farm-advisor/README.md#global-data-coverage-any-country-zero-accounts) for the capability matrix.
+The by-year tier for rotation history is the open
+[WorldCereal default models](https://github.com/WorldCereal/worldcereal-classification)
+(MIT) applied per year on keyless Planetary Computer Sentinel-2 via
+[`apply_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/ingest/apply_worldcereal.py);
+season windows come from the crop calendar (Southern-Hemisphere cross-year
+correct), and every output ships provenance plus honest regional-accuracy
+caveats. Details in [`crop-rotation-sources.md`](my-farm-advisor/data-pipeline/references/crop-rotation-sources.md)
+and the capability matrix in
+[`my-farm-advisor/README.md`](my-farm-advisor/README.md#global-data-coverage-any-country-zero-accounts).
 
-## How The Catalog Routes Work
+## How the catalog is organized
 
-Each top-level skill keeps `SKILL.md` compact. Agents read it first, then open `INDEX.md` to find the right workflow area, then use the local `AGENTS.md`, `README.md`, guide, script, or example for the actual work.
+Three skills, each a routed family of workflow areas. The router stays small;
+the knowledge lives close to the work.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#e8f5e9","primaryTextColor":"#1b5e20","primaryBorderColor":"#81c784","lineColor":"#90a4ae","secondaryColor":"#e3f2fd","tertiaryColor":"#fff8e1"}}}%%
-flowchart LR
-    request([🌿 User request]) --> catalog{🧭 Skill catalog}
-
-    catalog --> advisor[🌾 my-farm-advisor]
-    catalog --> breeding[🌱 my-farm-breeding-trial-management]
-    catalog --> qtl[🧬 my-farm-qtl-analysis]
-
-    advisor --> advisorIndex[📚 Farm INDEX.md]
-    breeding --> breedingIndex[📚 Breeding INDEX.md]
-    qtl --> qtlIndex[📚 QTL INDEX.md]
-
-    advisorIndex --> advisorDocs[🧩 Farm workflow docs]
-    breedingIndex --> breedingDocs[🧪 Breeding examples]
-    qtlIndex --> qtlDocs[📊 Genetics examples]
-
-    classDef entry fill:#e8f5e9,stroke:#81c784,color:#1b5e20,stroke-width:1px
-    classDef skill fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1,stroke-width:1px
-    classDef index fill:#fff8e1,stroke:#ffcc80,color:#5d4037,stroke-width:1px
-    classDef docs fill:#f3e5f5,stroke:#ba68c8,color:#4a148c,stroke-width:1px
-
-    class request,catalog entry
-    class advisor,breeding,qtl skill
-    class advisorIndex,breedingIndex,qtlIndex index
-    class advisorDocs,breedingDocs,qtlDocs docs
+mindmap
+  root((🌾 My Farm Advisor Skills))
+    🌾 my-farm-advisor
+      Admin · geoadmin, interactive maps
+      Data sources · rebuilds, reporting
+      EDA · explore, correlate, visualize
+      Field management · boundaries, headlands
+      Imagery · Landsat, Sentinel-2
+      Soil · SSURGO, CDL, routing
+      Strategy · maturity, planning
+      Weather · NASA POWER
+      Data pipeline · ingest, render, runtime
+    🌱 breeding-trial-management
+      Design · RCBD, alpha-lattice, augmented
+      Fieldbook · sheets, labels, sync
+      Placement · boundary-aware siting
+      Germplasm · accessions, pedigrees
+      Selection · indexes, ranking, simulation
+      Crossing · mate pairing
+    🧬 qtl-analysis
+      Mapping · GWAS, eQTL, QTL, GxE
+      QC · VCF, filtering, imputation
+      Structure · PCA, admixture, kinship
+      Prediction · BLUP, Bayesian GP, CV
+      Reporting · ideograms, reports
 ```
 
-## The Three Skills
+## How a request flows
 
-### 🌾 My Farm Advisor
-
-`my-farm-advisor` is the farm operations and advisory skill. It is the right entrypoint when the request is about farm data, field boundaries, soil, weather, satellite imagery, EDA, reports, maps, maturity planning, or strategy.
-
-| Area | Index | Examples of work |
-| --- | --- | --- |
-| Admin | [`admin/INDEX.md`](my-farm-advisor/admin/INDEX.md) | Geoadmin workflows and interactive maps |
-| Data sources | [`data-sources/INDEX.md`](my-farm-advisor/data-sources/INDEX.md) | Data rebuilds, deterministic pipeline runs, farm intelligence reporting |
-| EDA | [`eda/INDEX.md`](my-farm-advisor/eda/INDEX.md) | Exploration, comparisons, correlations, visualization, time series |
-| Field management | [`field-management/INDEX.md`](my-farm-advisor/field-management/INDEX.md) | Boundaries, CSB sampling, headlands |
-| Imagery | [`imagery/INDEX.md`](my-farm-advisor/imagery/INDEX.md) | Landsat and Sentinel-2 workflows |
-| Soil | [`soil/INDEX.md`](my-farm-advisor/soil/INDEX.md) | SSURGO, CDL, poster-card outputs |
-| Strategy | [`strategy/INDEX.md`](my-farm-advisor/strategy/INDEX.md) | Crop strategy and maturity planning |
-| Weather | [`weather/INDEX.md`](my-farm-advisor/weather/INDEX.md) | NASA POWER weather and derived farm weather analysis |
-
-### 🌱 My Farm Breeding Trial Management
-
-`my-farm-breeding-trial-management` is the breeding operations skill. Use it when the work is about running a breeding program rather than analyzing genetics after the fact.
-
-| Area | Start here | Examples of work |
-| --- | --- | --- |
-| Design | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | RCBD, alpha-lattice, augmented designs |
-| Fieldbook | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | Plot sheets, labels, imports, field sync |
-| Field trial placement | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | Field-boundary-aware trial placement |
-| Germplasm | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | Accession, pedigree, mock breeding-system integrations |
-| Selection | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | Selection indexes, ranking, cycle simulation |
-| Crossing | [`INDEX.md`](my-farm-breeding-trial-management/INDEX.md) | Mate pairing and crossing plans |
-
-### 🧬 My Farm QTL Analysis
-
-`my-farm-qtl-analysis` is the quantitative genetics skill. Use it when the request is about genotype, phenotype, expression, marker-trait analysis, prediction, or reporting.
-
-| Area | Start here | Examples of work |
-| --- | --- | --- |
-| Mapping | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | GWAS, eQTL, classical QTL, GxE, covariates, rare variants |
-| QC | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | VCF validation, SNP filtering, sample QC, imputation |
-| Structure | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | PCA, admixture, LD decay, haplotypes, kinship |
-| Prediction | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | Genomic prediction, BLUP, Bayesian GP, elastic net, cross-validation |
-| Reporting | [`INDEX.md`](my-farm-qtl-analysis/INDEX.md) | Ideograms, analysis reports, real-dataset packaging |
-
-## Agent Discovery Flow
-
-This is how an agent should move through the repo. The top-level router stays small; the detailed instructions live close to the workflow they control.
+The routing hierarchy is a contract: `SKILL.md` → `INDEX.md` → subtree
+`AGENTS.md` → matching guide/script/example. Never skip levels.
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#e3f2fd","primaryTextColor":"#0d47a1","primaryBorderColor":"#64b5f6","lineColor":"#90a4ae","secondaryColor":"#e8f5e9","tertiaryColor":"#fff8e1"}}}%%
@@ -116,142 +127,135 @@ sequenceDiagram
     participant User as 🌿 User
     participant Skill as 🧭 SKILL.md
     participant Index as 📚 INDEX.md
-    participant Agents as 📝 AGENTS.md
-    participant Workflow as 🧩 Workflow docs
-    participant Output as ✅ Result
-
-    User->>Skill: Ask a farm, breeding, or QTL question
-    Skill->>Index: Route to the right area
-    Index->>Agents: Load local operating rules when needed
-    Agents->>Workflow: Open the matching README, GUIDE, script, or example
-    Workflow->>Output: Run or explain the focused workflow
+    participant Rules as 📝 AGENTS.md
+    participant Script as 🧩 Guide / script / example
+    participant Data as 💾 Runtime data root
+    User->>Skill: Farm, breeding, or QTL question
+    Skill->>Index: Choose the workflow family
+    Index->>Rules: Load local operating rules
+    Rules->>Script: Run the matching workflow
+    Script->>Data: Read/write under DATA_PIPELINE_DATA_ROOT
+    Script-->>User: Answer with provenance + caveats
 ```
 
-## Skill File Pattern
+## How data-source routing decides
 
-Each top-level skill follows the same structure so discovery stays predictable.
-
-| File | Required | Purpose |
-| --- | --- | --- |
-| `SKILL.md` | ✅ | Compact routing entrypoint with stable frontmatter name |
-| `INDEX.md` | ✅ | Human and agent navigation map for workflow families |
-| `README.md` | ✅ | Human overview of the skill and major capabilities |
-| `AGENTS.md` | ✅ | Local operating instructions for agents working in that skill tree |
-| `PROVENANCE.md` | ✅ | Source and maintenance record for the skill tree |
+Country-aware tiering (soil shown; the same ladder governs boundaries and
+rotation history, documented in `soil/soil-routing.md`):
 
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"primaryColor":"#fff8e1","primaryTextColor":"#5d4037","primaryBorderColor":"#ffcc80","lineColor":"#90a4ae","secondaryColor":"#f3e5f5","tertiaryColor":"#e8f5e9"}}}%%
-stateDiagram-v2
-    [*] --> Entry: 🌿 request arrives
-    Entry --> Skill: read SKILL.md
-    Skill --> Index: choose workflow family
-    Index --> LocalRules: read AGENTS.md if editing or running
-    LocalRules --> Workflow: open guide, README, script, or example
-    Workflow --> Done: answer, edit, or run validation
-    Done --> [*]
+%%{init: {"theme":"base","themeVariables":{"primaryColor":"#e8f5e9","primaryTextColor":"#1b5e20","primaryBorderColor":"#81c784","lineColor":"#90a4ae","secondaryColor":"#e3f2fd","tertiaryColor":"#fff8e1"}}}%%
+flowchart TD
+    field([🚜 Field with boundary]) --> q{Country?}
+    q -- US --> us[Tier 1 · SSURGO + CDL]
+    q -- CA --> ca[Tier 1 · Ontario DSS / AAFC ACI]
+    q -- AU --> au[Tier 1 · Soil Atlas via Gaia-DAP]
+    q -- otherwise --> glob{WorldCereal model applicable?}
+    us --> stack[💾 Per-field runtime data stack]
+    ca --> stack
+    au --> stack
+    glob -- yes --> wc[Tier 2 · WorldCereal per-year inference + caveat]
+    glob -- no --> sg[Tier 3 · SoilGrids 250 m floor]
+    wc --> stack
+    sg --> stack
+    stack --> out[📈 Maps, EDA, reports, plans]
 
-    classDef softGreen fill:#e8f5e9,stroke:#81c784,color:#1b5e20
-    classDef softBlue fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
-    classDef softYellow fill:#fff8e1,stroke:#ffcc80,color:#5d4037
-    classDef softPurple fill:#f3e5f5,stroke:#ba68c8,color:#4a148c
-
-    class Entry,Done softGreen
-    class Skill softBlue
-    class Index,LocalRules softYellow
-    class Workflow softPurple
+    classDef tier fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
+    classDef gate fill:#fff8e1,stroke:#ffcc80,color:#5d4037
+    class us,ca,au,wc,sg tier
+    class q,glob gate
 ```
 
-## Runtime And Output Rules
-
-The catalog contains instructions, scripts, examples, metadata, and small reproducibility records. Generated data and runtime outputs stay out of the repository.
+## Runtime and output rules
 
 | Rule | Why |
 | --- | --- |
-| Keep generated outputs out of Git | Prevents runtime data, maps, reports, and downloaded payloads from bloating the catalog |
-| Use `${DATA_PIPELINE_DATA_ROOT}` for farm pipeline runs | Keeps farm data under an explicit external runtime root |
-| Commit metadata and source records | Keeps workflows reproducible without committing generated payloads |
-| Run validation after structural changes | Catches missing routers, stale links, and asset-policy regressions |
-
-## Validation
-
-Run validation from the repository root:
-
-```bash
-./scripts/validate.sh
-```
-
-The validator checks:
-
-- Top-level skill directories are present.
-- Required `SKILL.md`, `README.md`, `INDEX.md`, and `PROVENANCE.md` files exist.
-- `SKILL.md` frontmatter starts at the top of the file and uses the directory name as the discovery key.
-- Markdown relative links and local heading anchors resolve.
-- Stale routing references are absent.
-- Generated data paths and forbidden assets are not tracked.
-- Geoadmin metadata records contain required reproducibility fields.
+| Runtime data lives outside Git, under `${DATA_PIPELINE_DATA_ROOT}` (default `./data`) | Farm data grows roughly linearly with monitored acreage — the clone must stay small for any deployment |
+| Generated outputs are committed at exactly one place: `examples/**/output/*.png` | Small deterministic fixtures let examples verify offline; everywhere else, regenerate at runtime (see [`ASSET_POLICY.md`](ASSET_POLICY.md)) |
+| Pinned URLs + sha256 journals for downloads | Checksum drift fails closed; a run is reproducible months later |
+| Commit metadata and source records, not payloads | Provenance without repository bloat |
+| Run `./scripts/validate.sh` after structural changes | Catches missing routers, stale links, and policy regressions |
 
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"primaryColor":"#e8f5e9","primaryTextColor":"#1b5e20","primaryBorderColor":"#81c784","lineColor":"#90a4ae","secondaryColor":"#e3f2fd","tertiaryColor":"#ffebee"}}}%%
-flowchart TB
-    start([🧪 Run scripts/validate.sh]) --> catalog[🧭 Check three skill roots]
-    catalog --> metadata[📄 Check SKILL metadata]
-    metadata --> links[🔗 Check markdown links and anchors]
-    links --> stale[🧹 Check stale routing references]
-    stale --> assets[📦 Check generated asset exclusions]
+flowchart LR
+    start([🧪 scripts/validate.sh]) --> roots[🧭 Three skill roots present]
+    roots --> meta[📄 SKILL.md frontmatter valid]
+    meta --> links[🔗 Links and anchors resolve]
+    links --> stale[🧹 No stale routing refs]
+    stale --> assets[📦 Asset-policy exclusions honored]
     assets --> pass([✅ Catalog is ready])
-
-    metadata -. failure .-> fail([🚧 Fix and rerun])
+    meta -. failure .-> fail([🚧 Fix and rerun])
     links -. failure .-> fail
     stale -. failure .-> fail
     assets -. failure .-> fail
 
-    classDef intro fill:#e8f5e9,stroke:#81c784,color:#1b5e20,stroke-width:1px
-    classDef check fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1,stroke-width:1px
-    classDef ok fill:#e8f5e9,stroke:#66bb6a,color:#1b5e20,stroke-width:1px
-    classDef bad fill:#ffebee,stroke:#ef9a9a,color:#b71c1c,stroke-width:1px
-
-    class start intro
-    class catalog,metadata,links,stale,assets check
+    classDef check fill:#e3f2fd,stroke:#64b5f6,color:#0d47a1
+    classDef ok fill:#e8f5e9,stroke:#66bb6a,color:#1b5e20
+    classDef bad fill:#ffebee,stroke:#ef9a9a,color:#b71c1c
+    class roots,meta,links,stale,assets check
     class pass ok
     class fail bad
 ```
 
-## Repository Layout
+## The three skills in detail
+
+### 🌾 My Farm Advisor
+
+| Area | Index | Examples of work |
+| --- | --- | --- |
+| Admin | [`admin/INDEX.md`](my-farm-advisor/admin/INDEX.md) | Geoadmin workflows and interactive maps |
+| Data sources | [`data-sources/INDEX.md`](my-farm-advisor/data-sources/INDEX.md) | Data rebuilds, deterministic pipeline runs, intelligence reporting |
+| EDA | [`eda/INDEX.md`](my-farm-advisor/eda/INDEX.md) | Exploration, comparisons, correlations, visualization, time series |
+| Field management | [`field-management/INDEX.md`](my-farm-advisor/field-management/INDEX.md) | Boundaries, CSB sampling, headlands |
+| Imagery | [`imagery/INDEX.md`](my-farm-advisor/imagery/INDEX.md) | Landsat and Sentinel-2 workflows |
+| Soil | [`soil/INDEX.md`](my-farm-advisor/soil/INDEX.md) | SSURGO, CDL, country routing, poster cards |
+| Strategy | [`strategy/INDEX.md`](my-farm-advisor/strategy/INDEX.md) | Crop strategy and maturity planning |
+| Weather | [`weather/INDEX.md`](my-farm-advisor/weather/INDEX.md) | NASA POWER weather and derived analysis |
+| Data pipeline | [`data-pipeline/README.md`](my-farm-advisor/data-pipeline/README.md) | Country-aware ingest, per-field rendering, runtime management |
+
+### 🌱 My Farm Breeding Trial Management
+
+| Area | Examples of work |
+| --- | --- |
+| Design | RCBD, alpha-lattice, augmented designs (with committed layout fixtures) |
+| Fieldbook | Plot sheets, labels, imports, IoT field sync |
+| Placement | Field-boundary-aware trial siting |
+| Germplasm | Accessions, pedigrees, mock breeding-system integrations |
+| Selection | Selection indexes, GEBV ranking, cycle simulation |
+| Crossing | Mate pairing, coancestry-aware crossing plans |
+
+### 🧬 My Farm QTL Analysis
+
+| Area | Examples of work |
+| --- | --- |
+| Mapping | GWAS (GLM/LMM), eQTL, classical QTL, GxE, covariates, rare variants |
+| QC | VCF validation, SNP filtering, genomic control, imputation |
+| Structure | PCA, admixture, LD decay, haplotypes, kinship |
+| Prediction | Genomic prediction, BLUP, Bayesian GP, elastic net, cross-validation |
+| Reporting | Ideograms, analysis reports, real-dataset packaging |
+
+## Repository layout
 
 ```text
 my-farm-advisor-skills/
-├── README.md
-├── AGENTS.md
-├── scripts/
-│   └── validate.sh
-├── my-farm-advisor/
-│   ├── SKILL.md
-│   ├── INDEX.md
-│   ├── README.md
-│   ├── AGENTS.md
-│   └── ...
+├── README.md, AGENTS.md, ASSET_POLICY.md
+├── scripts/validate.sh
+├── my-farm-advisor/                 # SKILL.md, INDEX.md, AGENTS.md, workflow areas,
+│                                    # data-pipeline (ingest scripts + example fixtures)
 ├── my-farm-breeding-trial-management/
-│   ├── SKILL.md
-│   ├── INDEX.md
-│   ├── README.md
-│   ├── AGENTS.md
-│   └── ...
 └── my-farm-qtl-analysis/
-    ├── SKILL.md
-    ├── INDEX.md
-    ├── README.md
-    ├── AGENTS.md
-    └── ...
 ```
 
-## Working In This Repo
+## Working in this repo
 
 | Task | Start here | Validate with |
 | --- | --- | --- |
 | Route a farm advisory request | [`my-farm-advisor/SKILL.md`](my-farm-advisor/SKILL.md) | `./scripts/validate.sh` |
-| Update a farm workflow doc | Matching `my-farm-advisor/**/AGENTS.md` | `./scripts/validate.sh` plus local command if documented |
 | Route a breeding request | [`my-farm-breeding-trial-management/SKILL.md`](my-farm-breeding-trial-management/SKILL.md) | `./scripts/validate.sh` |
 | Route a QTL request | [`my-farm-qtl-analysis/SKILL.md`](my-farm-qtl-analysis/SKILL.md) | `./scripts/validate.sh` |
-| Change catalog structure | Root [`AGENTS.md`](AGENTS.md) and `scripts/validate.sh` | `bash -n scripts/validate.sh && ./scripts/validate.sh` |
+| Add/refresh an example figure | The example's own README | Render, inspect, commit to `examples/**/output/` |
+| Change catalog structure | Root [`AGENTS.md`](AGENTS.md) | `bash -n scripts/validate.sh && ./scripts/validate.sh` |
 
-Keep edits focused, keep generated outputs out of Git, and route through the nearest `INDEX.md` before opening detailed workflow docs.
+Keep edits focused, keep operational data in the runtime root, and route
+through the nearest `INDEX.md` before opening detailed workflow docs.

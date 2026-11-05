@@ -18,7 +18,7 @@ Genotype × Environment (G×E) interaction is common in breeding:
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/gxe-gwas
+cd my-farm-qtl-analysis/examples/gxe-gwas
 python run_gxe_gwas.py
 ```
 

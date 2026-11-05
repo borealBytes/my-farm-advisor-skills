@@ -20,7 +20,7 @@ Population structure can cause **false positives** in GWAS:
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/covariate-gwas
+cd my-farm-qtl-analysis/examples/covariate-gwas
 python run_covariate_gwas.py
 ```
 

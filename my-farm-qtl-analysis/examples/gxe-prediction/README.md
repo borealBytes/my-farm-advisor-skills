@@ -32,7 +32,7 @@ A reaction norm shows how a genotype's phenotype changes across environments:
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/gxe-prediction
+cd my-farm-qtl-analysis/examples/gxe-prediction
 python run_gxe.py
 ```
 

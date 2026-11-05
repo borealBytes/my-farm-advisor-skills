@@ -27,7 +27,7 @@ When close relatives appear in both training and test sets, prediction is artifi
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/cross-validation
+cd my-farm-qtl-analysis/examples/cross-validation
 python run_cv.py
 ```
 

@@ -18,7 +18,7 @@ When traits are genetically correlated (e.g., yield and height in crops), analyz
 ## Running the Example
 
 ```bash
-cd scientific-skills/qtl-analysis/examples/multi-trait-gwas
+cd my-farm-qtl-analysis/examples/multi-trait-gwas
 python run_multitrait.py
 ```
 

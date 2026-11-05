@@ -6,9 +6,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import json
 import os
 import sys
+import time
 import uuid
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -20,6 +22,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+import requests
 from rasterio.transform import from_bounds
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -603,11 +606,126 @@ def _prepare_source_rasters(
         adapter = USGSTNMAdapter(network_enabled=True)
         return [adapter.download(selected, cache_dir)]
 
+    if selected.adapter_id in {ADAPTER_NASADEM, ADAPTER_COPERNICUS_GLO30, ADAPTER_ALOS_AW3D30}:
+        return _download_global_cog_tiles(selected, cache_dir)
+
     raise ControlledFieldError(
         "provider_download_not_implemented",
         f"Selected DEM provider does not yet implement safe live downloads: {selected.adapter_id}",
         details={"selected_source": selected.to_dict(), "cache_dir": str(cache_dir)},
     )
+
+
+def _download_global_cog_tiles(candidate: SourceCandidate, cache_dir: Path) -> list[Path]:
+    """Fetch 1x1 degree public COG tiles for the global 30 m adapters.
+
+    Copernicus GLO-30 / NASADEM / ALOS AW3D30 publish deterministic tile URLs
+    with no authentication. Tiles land in ``cache_dir`` under their source
+    file name — the exact name ``_cached_source_paths`` looks for on replay —
+    with a sha256 journal that hard-fails on checksum drift.
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = cache_dir / "cog_download_manifest.json"
+    manifest: dict[str, dict[str, Any]] = {}
+    if manifest_path.exists():
+        manifest = json.loads(manifest_path.read_text())
+    paths: list[Path] = []
+    for source_url in candidate.source_urls:
+        name = Path(urlparse(source_url).path).name
+        if not name:
+            raise ControlledFieldError(
+                "global_cog_unnamed_source",
+                f"Global COG source has no file name: {source_url}",
+                details={"source_url": source_url},
+            )
+        target = cache_dir / name
+        if not target.exists():
+            _stream_cog_tile(source_url, target)
+        digest = hashlib.sha256(target.read_bytes()).hexdigest()
+        prior = manifest.get(name) or {}
+        if prior.get("sha256") and prior["sha256"] != digest:
+            raise ControlledFieldError(
+                "global_cog_checksum_drift",
+                f"Cached COG tile {name} no longer matches its recorded sha256.",
+                details={"expected": prior["sha256"], "actual": digest, "path": str(target)},
+            )
+        manifest[name] = {
+            "source_url": source_url,
+            "adapter_id": candidate.adapter_id,
+            "sha256": digest,
+            "bytes": target.stat().st_size,
+            "recorded_utc": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "license": candidate.license,
+            "citation": candidate.citation,
+        }
+        paths.append(target)
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True))
+    return paths
+
+
+def _stream_cog_tile(source_url: str, target: Path, *, retries: int = 3, timeout: int = 300) -> None:
+    last_error: Exception | None = None
+    partial = target.with_suffix(target.suffix + ".part")
+    for attempt in range(1, retries + 1):
+        try:
+            with requests.get(source_url, stream=True, timeout=timeout) as resp:
+                # Planetary Computer Azure blob accounts disabled anonymous
+                # container access (HTTP 409 PublicAccessNotPermitted); the PC
+                # SAS sign endpoint answers without a key for public collections.
+                if resp.status_code in (401, 403, 409):
+                    if os.environ.get("DEM_DEBUG"):
+                        print(f"[dem-sas] got {resp.status_code} for {source_url}; signing", file=sys.stderr)
+                    signed = _planetary_computer_signed_url(source_url)
+                    if signed:
+                        resp.close()
+                        resp = requests.get(signed, stream=True, timeout=timeout)
+                        with resp:
+                            resp.raise_for_status()
+                            with open(partial, "wb") as handle:
+                                for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                                    if chunk:
+                                        handle.write(chunk)
+                            partial.replace(target)
+                            return
+                resp.raise_for_status()
+                with open(partial, "wb") as handle:
+                    for chunk in resp.iter_content(chunk_size=1024 * 1024):
+                        if chunk:
+                            handle.write(chunk)
+            partial.replace(target)
+            return
+        except Exception as exc:  # noqa: BLE001 - retry any transport failure
+            last_error = exc
+            partial.unlink(missing_ok=True)
+            if attempt < retries:
+                time.sleep(5 * attempt)
+    raise ControlledFieldError(
+        "global_cog_download_failed",
+        f"Could not download COG tile {target.name}: {last_error}",
+        details={"source_url": source_url, "target": str(target)},
+    )
+
+
+PC_SAS_SIGN_URL = "https://planetarycomputer.microsoft.com/api/sas/v1/sign"
+
+
+def _planetary_computer_signed_url(url: str) -> str | None:
+    try:
+        resp = requests.get(PC_SAS_SIGN_URL, params={"href": url}, timeout=30)
+        if resp.status_code != 200:
+            if os.environ.get("DEM_DEBUG"):
+                print(f"[dem-sas] sign HTTP {resp.status_code}: {resp.text[:200]}", file=sys.stderr)
+            return None
+        data = resp.json()
+        signed = data.get("signed") or data.get("href")
+        result = signed if isinstance(signed, str) and signed else None
+        if os.environ.get("DEM_DEBUG") and not result:
+            print(f"[dem-sas] sign 200 but no signed url: {list(data)}", file=sys.stderr)
+        return result
+    except Exception as exc:  # noqa: BLE001 - signing is a best-effort fallback
+        if os.environ.get("DEM_DEBUG"):
+            print(f"[dem-sas] sign raised: {exc!r}", file=sys.stderr)
+        return None
 
 
 def _prepare_valid_dem_trial(

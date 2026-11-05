@@ -13,7 +13,14 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
 sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 
-GEOADMIN_LEVEL_CHOICES = ("l0_countries", "l1_states", "l2_counties")
+GEOADMIN_LEVEL_CHOICES = (
+    "l0_countries",
+    "l1_states",
+    "l2_counties",
+    "l1_states_canada",
+    "l2_counties_canada",
+    "lakes",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -75,6 +82,12 @@ def main() -> int:
         outputs = geoadmin_admin.write_standardized_outputs(source, frame)
         results[level] = {name: str(path) for name, path in outputs.items()}
         print(f"  Saved {level}: {results[level]}")
+
+    if any(level in args.levels for level in ("l2_counties", "l2_counties_canada")):
+        combined = geoadmin_admin.write_combined_fips_lookup()
+        if combined is not None:
+            results["fips_lookup_combined"] = {"lookup": str(combined)}
+            print(f"  Combined county-role lookup (US + Canada): {combined}")
 
     print(json.dumps(results, indent=2, sort_keys=True))
     return 0

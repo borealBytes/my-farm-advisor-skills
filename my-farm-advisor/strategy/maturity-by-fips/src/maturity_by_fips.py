@@ -38,6 +38,10 @@ _TRADITIONAL_CORN_STATE_FIPS = (
     "39",
     "46",
     "55",
+    # Ontario is Canada's corn belt (SW Ontario CHU zone 14-16, contiguous
+    # with the Michigan/Iowa belt); "CA35" is the geoadmin Canada province
+    # code (CA + StatCan PRUID 35). Added 2026-11-02 for Canadian parity.
+    "CA35",
 )
 
 

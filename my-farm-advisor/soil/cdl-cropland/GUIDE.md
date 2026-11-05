@@ -319,3 +319,31 @@ No special environment variables required. The workflow uses public USDA data.
 - [CDL FAQ](https://www.nass.usda.gov/Research_and_Science/Cropland/sarsfaqs2.php)
 - [Rasterio Documentation](https://rasterio.readthedocs.io/)
 - [rasterstats Documentation](https://pythonhosted.org/rasterstats/)
+
+## Canada — AAFC Annual Crop Inventory (ACI)
+
+Canada has no CDL. The pipeline routes fields whose boundary carries
+`country == "CA"` (written by boundary ingestion; the boundary ingestion step sets it)
+to the AAFC **Annual Crop Inventory**, 30 m per-year crop class maps,
+2009+ Canada-wide, published by Agriculture and Agri-Food Canada.
+
+- Per-year ImageServer exports:
+  `https://agriculture.canada.ca/imagery-images/rest/services/annual_crop_inventory/{year}/ImageServer/exportImage`
+  (no auth; verified 2026-11-02). Batch province zips:
+  `https://agriculture.canada.ca/atlas/data_donnees/annualCropInventory/data_donnees/tif/{year}/aci_{year}_{prov}_v5.zip`.
+- Code map + extraction live in `src/aci_reporting.py`; `ACI_CODE_MAP` maps
+  raw ACI classes to CDL-aligned names (147 → Corn, 158 → Soybeans,
+  145 → Winter Wheat, ...). The pinned 2019 bilingual legend is
+  `src/aci_legend_canada_2019.csv` (re-fetch from
+  `aci_crop_classifications_iac_classifications_des_cultures.csv` when
+  re-pinning — AAFC adds codes by year; unmapped codes fall back to `Other`
+  and the raw code is always preserved in `crop_code`).
+- Per-field ~30 m exports are cached under `shared/cdl/aci/<year>/`
+  (field bbox + 60 m buffer, native resolution) with a
+  `fetch_manifest.json` recording url/sha256/bytes/fetch-time.
+- Output rows are schema-identical to CDL extraction plus `crop_source`
+  ('cdl' | 'aci'); rotation summarization is shared. US and CA fields can
+  coexist in one farm — routing is per-field.
+- Verified on `demo-canada` (6 Ontario fields): five-year rotations resolve
+  to realistic Corn/Soybean/Winter-wheat sequences (2023: 3 Corn, 2 Winter
+  Wheat, 1 Soybeans).

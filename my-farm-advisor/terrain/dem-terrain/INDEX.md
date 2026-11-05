@@ -23,6 +23,11 @@ Use this package for field-level DEM source policy, terrain product contracts, p
 - Ingest CLI work should write under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline`, not inside this checkout.
 - Validation should include the root repository command: `./scripts/validate.sh`.
 
+## Guides
+
+- [GUIDE.md](GUIDE.md) — operational guide, including the implemented global
+  30 m DEM downloader (Copernicus GLO-30 / NASADEM / ALOS) for non-US fields.
+
 ## Output Boundary
 
 Do not commit DEM `.tif` files, preview `.png` files, runtime manifests, runtime summaries, downloaded tiles, source caches, or example `output/` folders. Keep this package focused on reusable documentation, source policy, and import-safe contracts.

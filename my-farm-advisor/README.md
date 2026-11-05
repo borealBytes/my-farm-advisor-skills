@@ -12,6 +12,32 @@ Use this skill when the request is fundamentally about fields, crops, weather, s
 - Provides both quick guidance docs and scoped agent instructions for repeatable farm workflows.
 - Anchors the farm-specific skill layer that sits on top of upstream OpenClaw.
 
+## Global data coverage (any country, zero accounts)
+
+The pipeline now gives non-US fields the same source lineage as US fields,
+with **no API keys, logins, or paid services anywhere in the default path**:
+
+| Capability | US | Canada | Australia | Any other country |
+|---|---|---|---|---|
+| Field boundaries | USDA CSB GeoParquet + OSM | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM/Overpass ([playbook](data-pipeline/references/field-boundary-sources.md)) |
+| Soil (profile) | SSURGO / gNATSGO flags | Ontario detailed DSS + AAFC | ASF via Gaia-DAP (ANSIS) | SoilGrids 250 m global fallback, scale-table verified |
+| Crop rotation history | USDA CDL 2008→ | AAFC ACI 2017→ | WorldCereal models, per-year | WorldCereal models, per-year ([routing](data-pipeline/references/crop-rotation-sources.md)) |
+| Terrain (30 m DEM) | Copernicus DEM global — same product everywhere | ← | ← | ← |
+| Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
+| Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 | GADM L1/L2 | GADM L1/L2 |
+| Corn RM / Soybean MG | FIPS maturity model | provincial analog | — (season calendar) | season calendar |
+
+Per-year crop-type classification for any field/year runs the open
+**WorldCereal default models** (`data-pipeline/src/scripts/ingest/apply_worldcereal.py`)
+on Sentinel-2 monthly composites fetched keyless from Microsoft Planetary
+Computer — the same anonymous access the NDVI products already use. Season
+windows come from the toolbox crop calendar (Southern-Hemisphere cross-year
+correct) and every output carries provenance + honest accuracy caveats
+(region-dependent; un-fine-tuned regions like Australia may mislabel crops).
+Verification figures: `data-pipeline/src/scripts/render_worldcereal.py`.
+Soil provider selection: [`soil/soil-routing.md`](soil/soil-routing.md);
+new-country checklist: [`data-pipeline/references/field-boundary-sources.md`](data-pipeline/references/field-boundary-sources.md).
+
 ## Canonical Farm Data Structure
 
 This skill is built around one deterministic storage model. The hierarchy is:

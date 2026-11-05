@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -17,6 +18,42 @@ if str(DATA_SCRIPTS_ROOT) not in sys.path:
     sys.path.insert(0, str(DATA_SCRIPTS_ROOT))
 
 GEOADMIN_LEVELS = ("l0_countries", "l1_states", "l2_counties")
+
+# Canada's "state/county" analogs. GADM 4.1 CAN ADM1 = provinces/territories
+# (matches StatCan exactly), ADM2 = census divisions (the county-role unit used
+# for weather/maturity aggregation; 53 in Ontario including Waterloo).
+# Downloaded 2026-11-02 and verified: 293 national ADM2 features.
+# License: GADM Terms of Use (free for use; redistribution restricted — cite
+# GADM, do not rehost). Determinism comes from the pinned URL + re-download
+# checksum journal in metadata.json.
+GADM_CAN_SHP_URL = "https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_CAN_shp.zip"
+GADM_CAN_ARCHIVE = "gadm41_CAN_shp.zip"
+# Water overlay cutoff: keep lakes/reservoirs at or above this area so the
+# layer stays tiny while every lake a continental map can see survives.
+MIN_LAKE_KM2 = 150.0
+
+# Statistics Canada PRUID (province/territory FIPS-equivalent) by name.
+CAN_PRUID_BY_NAME = {
+    "Alberta": "48",
+    "British Columbia": "59",
+    "Manitoba": "46",
+    "New Brunswick": "13",
+    "Newfoundland and Labrador": "10",
+    "Northwest Territories": "61",
+    "Nova Scotia": "12",
+    "Nunavut": "62",
+    "Ontario": "35",
+    "Prince Edward Island": "11",
+    "Québec": "24",
+    "Quebec": "24",
+    "Saskatchewan": "47",
+    "Yukon": "60",
+}
+CAN_ABBR_BY_PRUID = {
+    "10": "NL", "11": "PE", "12": "NS", "13": "NB", "24": "QC", "35": "ON",
+    "46": "MB", "47": "SK", "48": "AB", "59": "BC", "60": "YT", "61": "NT",
+    "62": "NU",
+}
 
 
 def _shared_root() -> Path:
@@ -72,6 +109,7 @@ def geoadmin_level_roots() -> dict[str, Path]:
         "l0_countries": _geoadmin_level_root("l0_countries"),
         "l1_states": _geoadmin_level_root("l1_states"),
         "l2_counties": _geoadmin_level_root("l2_counties"),
+        "lakes": _geoadmin_level_root("lakes"),
     }
 
 
@@ -104,6 +142,37 @@ def build_source_catalog(census_year: int) -> dict[str, GeoadminSource]:
             output_parquet="counties_usa.parquet",
             vintage=str(census_year),
         ),
+        # Canada mirrors l1/l2 roles: provinces as "states", census
+        # divisions as "counties" (GADM 4.1 built from StatCan boundaries).
+        "l1_states_canada": GeoadminSource(
+            level_slug="l1_states",
+            source_name="gadm",
+            source_url=GADM_CAN_SHP_URL,
+            archive_name=GADM_CAN_ARCHIVE,
+            output_geojson="states_canada.geojson",
+            output_parquet="states_canada.parquet",
+            vintage="gadm-4.1",
+        ),
+        "l2_counties_canada": GeoadminSource(
+            level_slug="l2_counties",
+            source_name="gadm",
+            source_url=GADM_CAN_SHP_URL,
+            archive_name=GADM_CAN_ARCHIVE,
+            output_geojson="counties_canada.geojson",
+            output_parquet="counties_canada.parquet",
+            vintage="gadm-4.1",
+        ),
+        # Base-map context: administrative polygons are LAND-only, so
+        # cartography must overlay water or lakes read as missing data.
+        "lakes": GeoadminSource(
+            level_slug="lakes",
+            source_name="natural-earth",
+            source_url="https://naciscdn.org/naturalearth/10m/physical/ne_10m_lakes.zip",
+            archive_name="ne_10m_lakes.zip",
+            output_geojson="lakes.geojson",
+            output_parquet="lakes.parquet",
+            vintage="natural-earth-10m",
+        ),
     }
 
 
@@ -111,6 +180,15 @@ def download_source_archive(source: GeoadminSource, *, force: bool = False) -> P
     target = _geoadmin_level_root(source.level_slug) / "raw" / source.archive_name
     if target.exists() and not force:
         return target
+    # The Canada zip feeds both the l1 and l2 levels; reuse the copy fetched
+    # for the sibling level instead of pulling 138 MB twice (real copy — no
+    # symlinks in project data).
+    for sibling in ("l1_states", "l2_counties"):
+        sibling_target = _geoadmin_level_root(sibling) / "raw" / source.archive_name
+        if sibling_target != target and sibling_target.exists() and not force:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(sibling_target, target)
+            return target
     target.parent.mkdir(parents=True, exist_ok=True)
     response = requests.get(source.source_url, timeout=180)
     response.raise_for_status()
@@ -126,6 +204,10 @@ def _keep_columns(frame: gpd.GeoDataFrame, columns: list[str]) -> gpd.GeoDataFra
 
 
 def standardize_geoadmin_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
+    if source.output_geojson in ("states_canada.geojson", "counties_canada.geojson"):
+        return _standardize_canada_layer(source, archive_path)
+    if source.level_slug == "lakes":
+        return _standardize_lakes_layer(source, archive_path)
     frame = gpd.read_file(archive_path)
     frame = frame.to_crs("EPSG:4326")
     if source.level_slug == "l0_countries":
@@ -176,6 +258,110 @@ def standardize_geoadmin_layer(source: GeoadminSource, archive_path: Path) -> gp
     frame["source_name"] = source.source_name
     frame["source_vintage"] = source.vintage
     return cast(gpd.GeoDataFrame, frame)
+
+
+def _standardize_lakes_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
+    """Natural Earth 10m lakes -> compact water overlay for base maps.
+
+    Administrative polygons are land-only; every map drawn from them needs a
+    water overlay or the Great Lakes read as missing data. Keep named open
+    water >= MIN_LAKE_KM2 (equal-area computed); reservoirs included.
+    """
+    frame = gpd.read_file(archive_path).to_crs("EPSG:4326")
+    area_km2 = frame.to_crs("EPSG:6933").area / 1_000_000.0
+    keep = area_km2 >= MIN_LAKE_KM2
+    out = gpd.GeoDataFrame(
+        {
+            "name": frame.loc[keep, "name"],
+            "feature_class": frame.loc[keep, "featurecla"],
+            "wikidata_id": frame.loc[keep, "wikidataid"],
+            "area_km2": area_km2[keep].round(1),
+            "geometry": frame.loc[keep, "geometry"],
+        },
+        geometry="geometry",
+        crs="EPSG:4326",
+    )
+    out["source_name"] = source.source_name
+    out["source_vintage"] = source.vintage
+    return cast(gpd.GeoDataFrame, out)
+
+
+def _canada_pruid(name: object) -> str | float:
+    """Map GADM province names to StatCan PRUID, tolerant of DBF mojibake.
+
+    GADM .dbf files disagree on encoding ("Québec" can arrive as UTF-8 bytes
+    decoded as latin-1 -> 'QuÃ©bec'); repair before mapping so builds are
+    deterministic regardless of fiona/GDAL versions.
+    """
+    text = str(name)
+    for candidate in (text, text.strip(), text.encode("latin-1", "ignore").decode("utf-8", "ignore")):
+        if candidate in CAN_PRUID_BY_NAME:
+            return CAN_PRUID_BY_NAME[candidate]
+    return float("nan")
+
+
+def _standardize_canada_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
+    """GADM 4.1 Canada -> the same standardized schemas as TIGER l1/l2.
+
+    FIPS-slot codes: ``state_fips = "CA"+PRUID`` (StatCan province code),
+    ``county_fips`` = the census-division index inside GADM's GID_2 zero-padded
+    to 3 digits (stable for the pinned archive; raw ``gadm_gid_2`` is kept in
+    every row for cross-reference).
+    """
+    layer = "gadm41_CAN_1" if source.output_geojson == "states_canada.geojson" else "gadm41_CAN_2"
+    frame = gpd.read_file(archive_path, layer=layer)
+    if frame.crs is None:
+        # GADM ships WGS84 (.prj can be invisible through /vsizip); assert it.
+        frame = frame.set_crs("EPSG:4326")
+    frame = frame.to_crs("EPSG:4326")
+    if layer == "gadm41_CAN_1":
+        pruid = frame["NAME_1"].map(_canada_pruid)
+        if pruid.isna().any():
+            unmapped = sorted(frame.loc[pruid.isna(), "NAME_1"].unique())
+            raise ValueError(f"GADM province names missing PRUID mapping: {unmapped}")
+        state_fips = "CA" + pruid
+        out = gpd.GeoDataFrame(
+            {
+                "state_fips": state_fips,
+                "state_code": pruid.map(CAN_ABBR_BY_PRUID),
+                "state_name": frame["NAME_1"],
+                "region_code": "",
+                "division_code": "",
+                "gadm_gid_1": frame["GID_1"],
+                "country": "CA",
+            },
+            geometry=frame.geometry,
+            crs="EPSG:4326",
+        )
+    else:
+        pruid = frame["NAME_1"].map(_canada_pruid)
+        if pruid.isna().any():
+            unmapped = sorted(frame.loc[pruid.isna(), "NAME_1"].unique())
+            raise ValueError(f"GADM province names missing PRUID mapping: {unmapped}")
+        cd_index = (
+            frame["GID_2"].astype(str).str.split(".").str[2].str.split("_").str[0]
+        )
+        if cd_index.isna().any() or not cd_index.str.isdigit().all():
+            raise ValueError("Unexpected GADM GID_2 format; cannot derive census-division codes")
+        out = gpd.GeoDataFrame(
+            {
+                "fips": ("CA" + pruid + cd_index.str.zfill(3)),
+                "state_fips": "CA" + pruid,
+                "county_fips": cd_index.str.zfill(3),
+                "county_name": frame["NAME_2"],
+                "county_name_full": frame["NAME_2"].astype(str)
+                + " ("
+                + frame["TYPE_2"].fillna("Census Division").astype(str)
+                + ")",
+                "gadm_gid_2": frame["GID_2"],
+                "country": "CA",
+            },
+            geometry=frame.geometry,
+            crs="EPSG:4326",
+        )
+    out["source_name"] = source.source_name
+    out["source_vintage"] = source.vintage
+    return cast(gpd.GeoDataFrame, out)
 
 
 def _county_lookup(frame: gpd.GeoDataFrame) -> pd.DataFrame:
@@ -297,10 +483,40 @@ def write_standardized_outputs(
     )
     outputs = {"geojson": geojson_path, "parquet": parquet_path, "metadata": metadata_path}
     if source.level_slug == "l2_counties" and write_lookup:
-        lookup_path = level_root / "fips_lookup.parquet"
+        country_suffix = Path(source.output_geojson).stem.replace("counties_", "")
+        lookup_name = (
+            "fips_lookup.parquet" if country_suffix == "usa" else f"fips_lookup_{country_suffix}.parquet"
+        )
+        lookup_path = level_root / lookup_name
         _county_lookup(frame).to_parquet(lookup_path, index=False)
         outputs["lookup"] = lookup_path
         metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
         metadata["lookup_parquet"] = _repo_relative(lookup_path)
         metadata_path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return outputs
+
+
+def write_combined_fips_lookup() -> Path | None:
+    """Merge per-country l2 lookups into ``fips_lookup.parquet``.
+
+    ``aggregate_weather_by_fips.py`` and the maturity chain read this single
+    file; it must contain every country's county-role units (US counties +
+    Canadian census divisions), never just whichever layer was built last.
+    """
+    level_root = geoadmin_level_roots()["l2_counties"]
+    frames: list[pd.DataFrame] = []
+    usa = level_root / "fips_lookup.parquet"
+    if usa.exists():
+        frames.append(pd.read_parquet(usa))
+    for extra in sorted(level_root.glob("fips_lookup_*.parquet")):
+        frames.append(pd.read_parquet(extra))
+    if not frames:
+        return None
+    combined = cast(
+        pd.DataFrame,
+        pd.concat(frames, ignore_index=True).drop_duplicates(subset=["fips"], keep="first"),
+    )
+    combined = cast(pd.DataFrame, combined.sort_values("fips").reset_index(drop=True))
+    combined.to_parquet(level_root / "fips_lookup_combined.parquet", index=False)
+    combined.to_parquet(usa, index=False)
+    return usa

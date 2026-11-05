@@ -17,12 +17,14 @@ sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 from paths import (  # pyright: ignore[reportMissingImports]
     farm_boundary_path,
     farm_manifest_dir,
+    farm_soil_polygons_ontario_path,
     farm_soil_sample_path,
     farm_ssurgo_full_path,
     farm_ssurgo_summary_path,
     field_soil_full_path,
     field_soil_polygon_path,
     field_soil_summary_path,
+    shared_soil_ontario_dir,
 )
 from reporting_bootstrap import (
     ensure_canonical_data_tree,
@@ -36,6 +38,151 @@ from ssurgo_soil import download_soil  # pyright: ignore[reportMissingImports]
 from ssurgo_workflows import query_mupolygons_for_field  # pyright: ignore[reportMissingImports]
 
 SDA_URL = "https://sdmdataaccess.sc.egov.usda.gov/Tabular/post.rest"
+ONTARIO_SOURCE_NAME = "ontario_detailed_soil_survey"
+
+
+def _load_ontario_module():
+    """Resolve the ontario-soil-survey skill module, or None when unavailable."""
+    try:
+        ensure_skill_path("ontario-soil-survey")
+        import ontario_soil_survey as ontario_module
+
+        return ontario_module
+    except FileNotFoundError:
+        print(
+            "  warn  ontario-soil-survey skill not found; routing every field "
+            "through SSURGO (Canadian fields will have no soil rows)"
+        )
+        return None
+
+
+AUSTRALIA_PROPERTIES = ("CLAY", "SILT", "SAND", "CEC", "PHCALCIUMCHLORIDE", "CARBON", "BULKDENSITY")
+AUSTRALIA_DEPTH = "0-5cm"
+
+
+def _load_australia_module():
+    """Resolve the australia-soil skill module, or None when unavailable."""
+    try:
+        ensure_skill_path("australia-soil")
+        import australia_soil as australia_module  # pyright: ignore[reportMissingImports]
+
+        return australia_module
+    except FileNotFoundError:
+        print(
+            "  warn  australia-soil skill not found; AU fields will fall back "
+            "to the SoilGrids grid step"
+        )
+        return None
+
+
+def _australia_soil_rows(fields, *, field_slug_map, grower_slug, farm_slug):
+    """Clip SLGA/ASF attributes + index ANSIS sites for AU fields (keyless DAP)."""
+    au = _load_australia_module()
+    if au is None:
+        return pd.DataFrame()
+    rows: list[dict] = []
+    for _, row in fields.iterrows():
+        field_id = str(row["field_id"])
+        field_slug = field_slug_map.get(field_id, field_id)
+        soil_dir = field_soil_summary_path(grower_slug, farm_slug, field_slug).parent
+        bbox = tuple(row.geometry.bounds)
+        for prop in AUSTRALIA_PROPERTIES:
+            out_path = soil_dir / "slga_asf" / f"{prop.lower()}_{AUSTRALIA_DEPTH}.tif"
+            try:
+                prov = au.clip_field(bbox, out_path, prop=prop, depth=AUSTRALIA_DEPTH)
+            except Exception as exc:
+                print(f"  warn  SLGA/ASF clip failed for {field_slug} {prop}: {exc}")
+                continue
+            stat = (prov.get("stats") or [{}])[0]
+            rows.append(
+                {
+                    "field_id": str(field_id),
+                    "field_slug": field_slug,
+                    "soil_source": prov["source"],
+                    "property": prop,
+                    "attribute": prov["attribute"],
+                    "depth": prov["depth"],
+                    "unit": prov["units"],
+                    "source_kind": prov["source_kind"],
+                    "mean": stat.get("mean"),
+                    "min": stat.get("min"),
+                    "max": stat.get("max"),
+                    "n_pixels": stat.get("count"),
+                    "doi": prov.get("doi"),
+                    "url": prov["url"],
+                    "accessed_at": prov["accessed_at"],
+                }
+            )
+        try:
+            sites = au.asris_profiles_near(
+                bbox,
+                radius_km=25.0,
+                cache_dir=farm_manifest_dir(grower_slug, farm_slug) / "ansis_cache",
+            )
+            sites_out = soil_dir / "ansis_sites.geojson"
+            sites_out.parent.mkdir(parents=True, exist_ok=True)
+            sites.to_file(sites_out, driver="GeoJSON")
+            print(
+                f"  ANSIS site index: {len(sites)} profile sites within 25 km "
+                f"of {field_slug} -> {sites_out.name}"
+            )
+        except Exception as exc:
+            print(f"  warn  ANSIS site index failed for {field_slug}: {exc}")
+    if not rows:
+        return pd.DataFrame()
+    frame = pd.DataFrame(rows)
+    farm_out = farm_manifest_dir(grower_slug, farm_slug) / "slga_asf_property_stats.csv"
+    frame.to_csv(farm_out, index=False)
+    for field_slug, group in frame.groupby("field_slug"):
+        target = field_soil_summary_path(grower_slug, farm_slug, field_slug).parent
+        target.mkdir(parents=True, exist_ok=True)
+        group.to_csv(target / "slga_asf_property_stats.csv", index=False)
+    print(f"  SLGA/ASF: {len(frame)} property rows for {frame['field_slug'].nunique()} fields -> {farm_out.name}")
+    return frame
+
+
+def _write_ontario_polygon_caches(
+    polygons,
+    *,
+    field_slug_map: dict[str, str],
+    grower_slug: str,
+    farm_slug: str,
+    force: bool,
+) -> None:
+    if polygons is None or polygons.empty:
+        return
+    for field_id, group in polygons.groupby("field_id"):
+        field_slug = field_slug_map.get(str(field_id))
+        if not field_slug:
+            continue
+        cache_path = field_soil_polygon_path(grower_slug, farm_slug, field_slug)
+        if not force and _soil_polygon_cache_has_features(cache_path):
+            continue
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        group.to_file(cache_path, driver="GeoJSON")
+
+
+def _replay_ontario_polygon_caches(
+    *,
+    field_slug_map: dict[str, str],
+    grower_slug: str,
+    farm_slug: str,
+    force: bool,
+) -> None:
+    cache = farm_soil_polygons_ontario_path(grower_slug, farm_slug)
+    if not cache.exists():
+        return
+    try:
+        polygons = gpd.read_file(cache)
+    except Exception:
+        return
+    _write_ontario_polygon_caches(
+        polygons,
+        field_slug_map=field_slug_map,
+        grower_slug=grower_slug,
+        farm_slug=farm_slug,
+        force=force,
+    )
 
 
 def _query_sda(sql: str, timeout: int = 120) -> list[list[object]]:
@@ -159,6 +306,10 @@ def _write_field_polygon_caches(
     soil_rows = soil_data.copy()
     if "mukey" not in soil_rows.columns:
         return
+    # Ontario rows carry local POLY_IDs the SDA server cannot resolve; their
+    # polygon caches are written straight from the Ontario provider payload.
+    if "soil_source" in soil_rows.columns:
+        soil_rows = soil_rows[soil_rows["soil_source"] != ONTARIO_SOURCE_NAME]
     soil_rows["mukey"] = soil_rows["mukey"].astype(str)
 
     for _, field in fields_wgs84.iterrows():
@@ -266,22 +417,94 @@ def main():
                     farm_slug=farm_slug,
                     force=False,
                 )
+                _replay_ontario_polygon_caches(
+                    field_slug_map=field_slug_map,
+                    grower_slug=grower_slug,
+                    farm_slug=farm_slug,
+                    force=False,
+                )
             print(f"skip  SSURGO API fetch (cached): {farm_sample_output}")
             return soil_data
 
+    # Country-aware routing: Ontario survey fields use the ON provider,
+    # Australian fields use SLGA/ASF (+ANSIS site index), everything else
+    # SSURGO/SDA. Grid floor (SoilGrids 250 m) is a separate step:
+    # ingest/download_soilgrids.py. See soil/soil-routing.md.
+    ontario_module = _load_ontario_module()
+    ontario_field_ids: set[str] = set()
+    if ontario_module is not None:
+        try:
+            ontario_field_ids = set(
+                ontario_module.fields_with_survey_coverage(fields, shared_soil_ontario_dir())
+            )
+        except Exception as exc:
+            print(f"  warn  Ontario survey coverage check failed ({exc}); SSURGO-only routing")
+    on_mask = fields["field_id"].astype(str).isin(ontario_field_ids)
+    if "country" in fields.columns:
+        country = fields["country"].fillna("US").astype(str).str.upper()
+    else:
+        country = pd.Series(["US"] * len(fields), index=fields.index)
+    au_mask = country.eq("AU") & ~on_mask
+    ontario_fields = fields[on_mask].copy()
+    us_fields = fields[~on_mask & ~au_mask].copy()
+    au_fields = fields[au_mask].copy()
+    if not ontario_fields.empty:
+        print(
+            f"  routing {len(ontario_fields)} field(s) inside Ontario survey "
+            "coverage to the Ontario Detailed Soil Survey"
+        )
+    if not au_fields.empty:
+        print(
+            f"  routing {len(au_fields)} field(s) in Australia to SLGA/ASF "
+            "(CSIRO DAP keyless mirror) + ANSIS site index"
+        )
+        _australia_soil_rows(
+            au_fields,
+            field_slug_map=field_slug_map,
+            grower_slug=grower_slug,
+            farm_slug=farm_slug,
+        )
+
     soil_data = download_soil(
-        fields,
+        us_fields if not us_fields.empty else fields,
         field_id_column="field_id",
         max_depth_cm=30,
         output_path=str(farm_sample_output),
-    )
+    ) if not us_fields.empty else pd.DataFrame()
 
-    if soil_data.empty:
+    if soil_data.empty and not us_fields.empty:
         print("  Primary SSURGO download returned no rows; querying SDA fallback summaries...")
-        soil_data = _fallback_field_soil(fields)
+        soil_data = _fallback_field_soil(us_fields)
         if not soil_data.empty:
             soil_data.to_csv(farm_full_output, index=False)
             soil_data.to_csv(farm_sample_output, index=False)
+
+    if not soil_data.empty and "soil_source" not in soil_data.columns:
+        soil_data["soil_source"] = "ssurgo"
+
+    ontario_polygons = None
+    if not ontario_fields.empty and ontario_module is not None:
+        try:
+            ontario_rows = ontario_module.download_soil_ontario(
+                ontario_fields, shared_soil_ontario_dir(), max_depth_cm=30
+            )
+        except Exception as exc:
+            print(f"  warn  Ontario soil provider failed: {exc}")
+            ontario_rows = pd.DataFrame()
+        if not ontario_rows.empty:
+            print(
+                f"  Ontario survey: {len(ontario_rows)} soil records for "
+                f"{ontario_rows['field_id'].nunique()} fields"
+            )
+        try:
+            ontario_polygons = ontario_module.field_polygon_intersections(
+                ontario_fields, shared_soil_ontario_dir()
+            )
+        except Exception as exc:
+            print(f"  warn  Ontario polygon intersections failed: {exc}")
+        frames = [f for f in (soil_data, ontario_rows) if f is not None and not f.empty]
+        if frames:
+            soil_data = pd.concat(frames, ignore_index=True)
 
     if not soil_data.empty:
         soil_data.to_csv(farm_full_output, index=False)
@@ -300,6 +523,7 @@ def main():
                 avg_sand_pct=("sandtotal_r", "mean"),
                 dominant_soil=("compname", "first"),
                 drainage_class=("drainagecl", "first"),
+                soil_source=("soil_source", "first"),
             )
             .assign(ph_constraint="none", erosion_risk="moderate")
         )
@@ -326,9 +550,21 @@ def main():
                 farm_slug=farm_slug,
                 force=force,
             )
+            if ontario_polygons is not None and not ontario_polygons.empty:
+                farm_polygon_cache = farm_soil_polygons_ontario_path(grower_slug, farm_slug)
+                farm_polygon_cache.parent.mkdir(parents=True, exist_ok=True)
+                ontario_polygons.to_file(farm_polygon_cache, driver="GPKG", layer="soil_polygons")
+                _write_ontario_polygon_caches(
+                    ontario_polygons,
+                    field_slug_map=field_slug_map,
+                    grower_slug=grower_slug,
+                    farm_slug=farm_slug,
+                    force=force,
+                )
 
     print(
-        f"\n✓ Downloaded {len(soil_data)} soil records for {soil_data['field_id'].nunique()} fields"
+        f"\n✓ Downloaded {len(soil_data)} soil records for "
+        f"{soil_data['field_id'].nunique() if len(soil_data) else 0} fields"
     )
     print(f"  Output: {farm_sample_output}")
 

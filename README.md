@@ -16,6 +16,21 @@ The catalog is intentionally focused:
 | 🌱 `my-farm-breeding-trial-management` | [`my-farm-breeding-trial-management/SKILL.md`](my-farm-breeding-trial-management/SKILL.md) | Routes breeding operations into design, fieldbook, germplasm, selection, crossing, and field-trial placement examples | Breeding program execution and operational planning |
 | 🧬 `my-farm-qtl-analysis` | [`my-farm-qtl-analysis/SKILL.md`](my-farm-qtl-analysis/SKILL.md) | Routes quantitative genetics work into mapping, QC, structure, prediction, and reporting examples | GWAS, eQTL, classical QTL, genomic prediction, and genetics reporting |
 
+## Global data coverage (any country, zero accounts)
+
+The `my-farm-advisor` data pipeline now gives non-US fields the same source
+lineage as US fields, with no API keys, logins, or paid services in the
+default path:
+
+- **Boundaries** — USDA CSB GeoParquet (US), OSM/Overpass farm rules (CA, AU, anywhere) with a new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md).
+- **Soil** — SSURGO (US, with tested/method flags), Ontario detailed soil survey (CA), national Soil Atlas via Gaia-DAP (AU), SoilGrids 250 m as the verified global floor; country-aware routing in [`soil-routing.md`](my-farm-advisor/soil/soil-routing.md).
+- **Crop rotation history** — USDA CDL (US, 2008→), AAFC ACI (CA, 2017→), and the open WorldCereal default crop models applied **per year for any country** on keyless Microsoft Planetary Computer Sentinel-2 ([`crop-rotation-sources.md`](my-farm-advisor/data-pipeline/references/crop-rotation-sources.md), `apply_worldcereal.py`); season windows come from the toolbox crop calendar (Southern-Hemisphere cross-year correct), and every output ships provenance + honest regional-accuracy caveats.
+- **Terrain** — Copernicus global 30 m DEM with full derivative suite.
+- **Weather** — NASA POWER public Zarr at field centroids, anywhere.
+- **Admin & context** — geoadmin/GADM L1/L2, combined FIPS, choropleth maps, corn RM / soybean MG shared datasets for US + CA.
+
+See [`my-farm-advisor/README.md`](my-farm-advisor/README.md#global-data-coverage-any-country-zero-accounts) for the capability matrix.
+
 ## How The Catalog Routes Work
 
 Each top-level skill keeps `SKILL.md` compact. Agents read it first, then open `INDEX.md` to find the right workflow area, then use the local `AGENTS.md`, `README.md`, guide, script, or example for the actual work.

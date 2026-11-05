@@ -186,6 +186,10 @@ def farm_soil_sample_path(grower_slug: str, farm_slug: str) -> Path:
     return farm_table_path(grower_slug, farm_slug, farm_soil_sample_basename(farm_slug))
 
 
+def farm_soil_polygons_ontario_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_table_path(grower_slug, farm_slug, "soil_polygons_ontario.gpkg")
+
+
 def farm_report_asset_path(grower_slug: str, farm_slug: str, extension: str) -> Path:
     return farm_report_path(grower_slug, farm_slug, farm_report_basename(farm_slug, extension))
 
@@ -333,7 +337,7 @@ def farm_cdl_full_composition_path(
 def farm_cdl_preferred_full_composition_path(
     grower_slug: str,
     farm_slug: str,
-    preferred_ranges: tuple[tuple[int, int], ...] = ((2021, 2025), (2020, 2024), (2021, 2024)),
+    preferred_ranges: tuple[tuple[int, int], ...] = ((2021, 2025), (2020, 2024), (2021, 2024), (2019, 2023), (2018, 2022), (2019, 2024), (2020, 2023)),
 ) -> Path:
     for start_year, end_year in preferred_ranges:
         candidate = farm_cdl_full_composition_path(grower_slug, farm_slug, start_year, end_year)
@@ -349,6 +353,40 @@ def shared_cdl_dir() -> Path:
 
 def shared_dem_dir() -> Path:
     return SHARED_ROOT / "dem"
+
+
+def shared_soil_ontario_dir() -> Path:
+    return SHARED_ROOT / "soil_ontario"
+
+
+def shared_soilgrids_dir() -> Path:
+    return SHARED_ROOT / "soilgrids"
+
+
+def shared_soilgrids_field_dir(field_slug: str) -> Path:
+    return ensure_data_root_path(
+        shared_soilgrids_dir() / validate_path_slug(field_slug, "field_slug")
+    )
+
+
+def shared_soilgrids_tables_dir() -> Path:
+    return ensure_data_root_path(shared_soilgrids_dir() / "tables")
+
+
+def shared_soilgrids_manifest_dir() -> Path:
+    return ensure_data_root_path(shared_soilgrids_dir() / "manifests")
+
+
+def shared_soilgrids_stats_table_path() -> Path:
+    return shared_soilgrids_tables_dir() / "soilgrids_field_stats.parquet"
+
+
+def shared_soilgrids_journal_path() -> Path:
+    return shared_soilgrids_manifest_dir() / "sha256_journal.json"
+
+
+def farm_soilgrids_provenance_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_manifest_dir(grower_slug, farm_slug) / "soilgrids_provenance.json"
 
 
 def shared_dem_cache_path(adapter_slug: str) -> Path:
@@ -392,7 +430,7 @@ def shared_cdl_full_composition_path(start_year: int = 2021, end_year: int = 202
 
 
 def shared_cdl_preferred_full_composition_path(
-    preferred_ranges: tuple[tuple[int, int], ...] = ((2021, 2025), (2020, 2024), (2021, 2024)),
+    preferred_ranges: tuple[tuple[int, int], ...] = ((2021, 2025), (2020, 2024), (2021, 2024), (2019, 2023), (2018, 2022), (2019, 2024), (2020, 2023)),
 ) -> Path:
     for start_year, end_year in preferred_ranges:
         candidate = shared_cdl_full_composition_path(start_year, end_year)

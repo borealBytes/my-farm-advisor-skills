@@ -1,5 +1,29 @@
 # Data Pipeline Runtime Setup
 
+Real-farm field polygons per country (CSB GeoParquet pruning, Overpass rules,
+repository contract, new-country checklist):
+[references/field-boundary-sources.md](references/field-boundary-sources.md).
+Soil provider selection by boundary `country`:
+[../soil/soil-routing.md](../soil/soil-routing.md).
+Per-year crop rotation/crop-type sources by country (CDL, AAFC ACI, and the
+keyless WorldCereal default-model path for every other country):
+[references/crop-rotation-sources.md](references/crop-rotation-sources.md).
+
+## Global parity in one paragraph
+
+Any field, any country, **zero accounts**: boundaries from CSB (US) or
+OSM/Overpass (rules per country); profile soil from SSURGO (US), the Ontario
+detailed survey (CA), Australia's Soil Atlas via Gaia-DAP (AU), or SoilGrids
+250 m as the global floor; rotation history from CDL (US), AAFC ACI (CA), or
+the WorldCereal default crop models applied per year on keyless Microsoft
+Planetary Computer Sentinel-2 (`scripts/ingest/apply_worldcereal.py`,
+verification figures via `scripts/render_worldcereal.py`); terrain from the
+Copernicus global 30 m DEM; weather from NASA POWER public Zarr; admin
+boundaries and choropleths from geoadmin/GADM. Every provider journals its
+URL, sha256, and version. The one optional upgrade (Sentinel-1 fidelity in
+WorldCereal runs, `--backend cdse`) is genuinely optional — the default path
+never asks you to sign up for anything.
+
 This subskill ships the scripts that build the data-pipeline reports and
 posters. Each runtime host creates its own virtualenv inside the data tree on
 first run; the scripts auto-bootstrap that environment before continuing.

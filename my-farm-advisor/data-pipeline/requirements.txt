@@ -15,8 +15,11 @@ rasterstats>=0.19
 
 # Storage / interchange
 pyarrow>=15
-xarray>=2024.3
-zarr<3
+xarray>=2026.1
+# zarr 3.x is xarray>=2026's supported partner; zarr 2.x's open_group rejects
+# the zarr_format= kwarg xarray now always passes. NASA POWER stores are v2
+# format and are opened via xr.open_zarr(..., zarr_format=2) in lib/nasa_power.py.
+zarr>=3,<4
 fsspec[http]>=2024.3
 
 # Plotting / reporting
@@ -28,3 +31,8 @@ contextily>=1.6
 requests>=2.31
 beautifulsoup4>=4.12
 python-dotenv>=1.0
+
+# Optional extra (crop-rotation model layer; NOT installed by default because
+# it pulls torch):
+#   pip install 'worldcereal @ git+https://github.com/WorldCereal/worldcereal-classification.git@v2.8.2'
+# See data-pipeline/references/crop-rotation-sources.md

@@ -22,7 +22,7 @@ with **no API keys, logins, or paid services anywhere in the default path**:
 | Field boundaries | USDA CSB GeoParquet + OSM | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM/Overpass ([playbook](data-pipeline/references/field-boundary-sources.md)) |
 | Soil (profile) | SSURGO / gNATSGO flags | Ontario detailed DSS + AAFC | ASF via Gaia-DAP (ANSIS) | SoilGrids 250 m global fallback, scale-table verified |
 | Crop rotation history | USDA CDL 2008→ | AAFC ACI 2017→ | WorldCereal models, per-year | WorldCereal models, per-year ([routing](data-pipeline/references/crop-rotation-sources.md)) |
-| Terrain | USGS 3DEP via The National Map — up to **1 m LiDAR** where mapped; ILHMP (Illinois) | ← Copernicus DEM GLO-30, NASADEM 1″, ALOS AW3D30 (resolution-ranked auto-select) | ← | ← |
+| Terrain | USGS 3DEP via The National Map — up to **1 m LiDAR** where mapped; ILHMP (Illinois) | NRCan CanElevation HRDEM 10 m (OGL-Canada) next; today Copernicus GLO-30 | ELVIS/Vicmap state LiDAR next; today GA-tier floor | Copernicus DEM GLO-30, NASADEM 1″, ALOS AW3D30 — resolution-ranked auto-select |
 | Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
 | Imagery | Sentinel-2 L2A (10 m, ~5 d) + Landsat C2 L2 (30 m; archive 1982→, pipeline default L8+L9 for the 8-day window) — keyless PC STAC | ← | ← | ←; Sentinel-1 SAR (VV/VH) wired into WorldCereal — real radar via free optional CDSE backend, NODATA in keyless default |
 | Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 | GADM L1/L2 | GADM L1/L2 |

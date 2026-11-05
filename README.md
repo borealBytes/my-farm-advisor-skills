@@ -89,6 +89,27 @@ routing order and the fine-tuning upgrade path are in
 Capability matrix details in
 [`my-farm-advisor/README.md`](my-farm-advisor/README.md#global-data-coverage-any-country-zero-accounts).
 
+### Regional elevation extras beyond the global floor
+
+The terrain tier is where "best available for your location" matters most,
+because the gap between sources is 30 m vs sub-metre. The resolver registry
+takes regional adapters the same way the boundary playbook takes new countries
+— one module, provenance, license check — so extras are additive, never
+forking:
+
+| Status | Country | Better-than-global source |
+| --- | --- | --- |
+| ✅ Wired | US | USGS 3DEP (1 m / 1/9° / 1/3° / 2 m / 10 m, auto-resolved per field) |
+| ✅ Wired | Illinois | ILHMP LiDAR (sub-metre) |
+| 🔜 Next | Canada | NRCan **CanElevation** series: HRDEM/HRDEM Mosaic 10 m LiDAR-derived (186,000+ km² released), CCO 10 m, and open-licensed point clouds — Open Government Licence (Canada), attribution-required, account-free |
+| 🔜 Next | Australia | **ELVIS** (Geoscience Australia's free national elevation portal: state LiDAR + DEMs under ICSM), Vicmap 10 m + LiDAR DEM collections (Victoria), GA SRTM 1″ national DEM-H/DEM-S |
+| 📋 Catalogued | Europe / Japan / NZ | UK Environment Agency LiDAR (2/5 m), Netherlands AHN, Japan GSI 5 m, NZ LINZ — mostly open national programs; onboarding follows the same adapter checklist |
+
+Wiring a national source changes nothing downstream: same contract, same
+derivatives, and the resolver's provenance record shows which source won for
+each field (e.g. the Iowa demo field resolves to USGS **1 m** with NASADEM and
+ALOS 30 m logged as ranked alternatives).
+
 ## How the catalog is organized
 
 Three skills, each a routed family of workflow areas. The router stays small;

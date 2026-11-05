@@ -226,9 +226,9 @@ export DATA_PIPELINE_DATA_ROOT=/absolute/path/to/my-farm-advisor-runtime
 
 The `environment.d` file applies to future sessions only. It does not update an already-running shell.
 
-## Running inside OpenClaw CLI
+## Running inside an agent CLI
 
-When invoking the pipeline from the control UI or `openclaw-cli`, you can still
+When invoking the pipeline from an agent harness CLI (OpenClaw, Hermes, or plain shell), you can still
 activate the environment explicitly, but the entrypoints will install and re-exec
 themselves if the runtime venv is missing.
 

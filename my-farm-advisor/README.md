@@ -1,6 +1,6 @@
 # My Farm Advisor
 
-My Farm Advisor is the farm-specific skill umbrella for this repository. It turns the upstream OpenClaw runtime into an evidence-first agricultural system that can rebuild farm data, analyze field conditions, generate operator-ready reports, and route day-to-day questions into the right agronomic workflow.
+My Farm Advisor is the farm-specific skill umbrella for this repository. It turns any upstream agent runtime into an evidence-first agricultural system that can rebuild farm data, analyze field conditions, generate operator-ready reports, and route day-to-day questions into the right agronomic workflow.
 
 Use this skill when the request is fundamentally about fields, crops, weather, soil, terrain, imagery, reporting, or strategy. It is the top-level router for the farm domain in this repo.
 
@@ -10,7 +10,7 @@ Use this skill when the request is fundamentally about fields, crops, weather, s
 - Connects field operations, data rebuilds, imagery, soil, weather, and strategy work into one coherent system.
 - Preserves a field-level source of truth so summaries and recommendations stay traceable.
 - Provides both quick guidance docs and scoped agent instructions for repeatable farm workflows.
-- Anchors the farm-specific skill layer that sits on top of upstream OpenClaw.
+- Anchors the farm-specific skill layer that sits on top of an upstream agent runtime (OpenClaw, Hermes, or any harness that reads SKILL.md/AGENTS.md).
 
 ## Global data coverage (any country, zero accounts)
 
@@ -305,9 +305,9 @@ Examples:
 ```mermaid
 flowchart TD
     accTitle: Farm Skill Value In The Repo
-    accDescr: Diagram showing how the upstream OpenClaw runtime connects to the My Farm Advisor skill layer and how that layer produces operational farm outputs, lineage, reporting, and strategy support.
+    accDescr: Diagram showing how the upstream agent runtime connects to the My Farm Advisor skill layer and how that layer produces operational farm outputs, lineage, reporting, and strategy support.
 
-    upstream([⚙️ Upstream OpenClaw runtime]) --> farm_skill[🌾 My Farm Advisor skill layer]
+    upstream([⚙️ Upstream agent runtime]) --> farm_skill[🌾 My Farm Advisor skill layer]
 
     farm_skill --> field_outputs[🚜 Field operations outputs]
     farm_skill --> lineage[🧬 Traceable data lineage]

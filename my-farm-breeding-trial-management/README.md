@@ -1,5 +1,8 @@
 # My Farm Breeding Trial Management
 
+> **Status:** initial stab — real, runnable workflows and examples; this tree will
+> expand the most as the data-pipeline foundation underneath it matures.
+
 My Farm Breeding Trial Management is the breeding-operations skill pack for this repo. It covers how breeding programs move from experimental design to fieldbooks, germplasm handling, selection decisions, and crossing plans.
 
 Use this skill when the problem is operational breeding work rather than farm-wide advisory routing or downstream QTL interpretation.

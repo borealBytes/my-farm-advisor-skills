@@ -18,11 +18,17 @@ detailed survey (CA), Australia's Soil Atlas via Gaia-DAP (AU), or SoilGrids
 the WorldCereal default crop models applied per year on keyless Microsoft
 Planetary Computer Sentinel-2 (`scripts/ingest/apply_worldcereal.py`,
 verification figures via `scripts/render_worldcereal.py`); terrain from the
-Copernicus global 30 m DEM; weather from NASA POWER public Zarr; admin
-boundaries and choropleths from geoadmin/GADM. Every provider journals its
+resolution-ranked DEM resolver (USGS 3DEP/TNM where mapped — up to 1 m — with
+Copernicus 30 m, NASADEM, and ALOS as the global floor); weather from NASA
+POWER public Zarr; admin boundaries and choropleths from geoadmin plus GADM
+for any country via `--gadm-iso`. Every provider journals its
 URL, sha256, and version. The one optional upgrade (Sentinel-1 fidelity in
 WorldCereal runs, `--backend cdse`) is genuinely optional — the default path
 never asks you to sign up for anything.
+
+Per-field composite figures (terrain hillshade + contours, soil polygons, and
+per-year crop class over the boundary) render from the same archive with
+`scripts/render_field_maps.py`.
 
 This subskill ships the scripts that build the data-pipeline reports and
 posters. Each runtime host creates its own virtualenv inside the data tree on

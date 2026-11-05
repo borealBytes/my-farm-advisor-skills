@@ -306,6 +306,27 @@ flowchart LR
     class fail bad
 ```
 
+## Strategy playbooks — the interpretation layer over the raw data
+
+Data without context is a liability. The strategy sub-skill
+([`strategy/INDEX.md`](my-farm-advisor/strategy/INDEX.md)) ships
+**crop-specific, region-specific, year-stamped playbooks** — currently
+2026-season guides for corn, soybean, cotton, wheat, and grain sorghum, each
+with regional decision bands, planning windows, maturity frames, risk
+watchouts, and citations to extension/economics sources (farmdoc, ISU AgDM,
+Crop Protection Network…). A small recommendation engine
+(`generate_farm_recommendations` / `generate_field_recommendations`) feeds
+those guides with *your measured field attributes* — soil pH, water-holding,
+drainage class, erosion risk, rotation history, GDD — into the farm and field
+reports, under a hard rule: never invent field facts the data doesn't carry;
+say "scout this" instead.
+
+This is an explicitly growing layer: the goal is playbooks for more regions,
+more crops, every year — so your agent can tell you what the raw data *means*
+for your location and operation, not just plot it. Playbooks are Markdown by
+design: fork the format, write yours for your ground, and the same engine
+consumes them.
+
 ## Your own boundaries are the seed of everything
 
 The field-boundary layers above (CSB, OSM) are **starting material**: great for
@@ -401,7 +422,7 @@ geneticist — gets both without us choosing their agent harness for them.
 
 ```text
 my-farm-advisor-skills/
-├── README.md, AGENTS.md, ASSET_POLICY.md
+├── README.md, AGENTS.md, ASSET_POLICY.md, CONTRIBUTING.md
 ├── scripts/validate.sh
 ├── my-farm-advisor/                 # SKILL.md, INDEX.md, AGENTS.md, workflow areas,
 │                                    # data-pipeline (ingest scripts + example fixtures)
@@ -418,6 +439,7 @@ my-farm-advisor-skills/
 | Route a QTL request | [`my-farm-qtl-analysis/SKILL.md`](my-farm-qtl-analysis/SKILL.md) | `./scripts/validate.sh` |
 | Add/refresh an example figure | The example's own README | Render, inspect, commit to `examples/**/output/` |
 | Change catalog structure | Root [`AGENTS.md`](AGENTS.md) | `bash -n scripts/validate.sh && ./scripts/validate.sh` |
+| Update docs with a feature change | [`CONTRIBUTING.md`](CONTRIBUTING.md) (doc-sync rule) | `./scripts/validate.sh` |
 
 Keep edits focused, keep operational data in the runtime root, and route
 through the nearest `INDEX.md` before opening detailed workflow docs.

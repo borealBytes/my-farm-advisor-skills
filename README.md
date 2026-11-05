@@ -596,3 +596,10 @@ my-farm-advisor-skills/
 
 Keep edits focused, keep operational data in the runtime root, and route
 through the nearest `INDEX.md` before opening detailed workflow docs.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Copyright © 2026 MyFarmAdvisor Inc. Third-party
+data sources keep their own licenses (NASA POWER, Microsoft Planetary Computer
+STAC, ISRIC SoilGrids, ESA WorldCereal, Natural Resources Canada, etc. — each
+noted with its source in the relevant docs).

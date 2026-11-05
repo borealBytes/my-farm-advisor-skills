@@ -445,23 +445,55 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         _zone = int((_lon0 + 180) // 6) + 1
         _epsg = (32600 if _lat0 >= 0 else 32700) + _zone
         _gu = _poly.to_crs(_epsg)
+        ax_m = fig.add_subplot(gs[0])
+        # --- field-local frame with automatic viewport fit -------------------
+        # 1) pin (0,0) at the SW corner; 2) measure the panel's real aspect
+        # after layout; 3) rotate the geometry so the field's long edge runs
+        # along the panel's long axis; 4) re-pin (0,0) at the SW corner of the
+        # ROTATED bbox (what the reader's ruler starts from); 5) the north
+        # arrow counter-rotates, the metre grid does not.
+        import math as _math
+        import shapely.affinity as _aff
         _x0, _y0, _, _ = _gu.total_bounds
         _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
-        ax_m = fig.add_subplot(gs[0])
+        fig.canvas.draw()
+        _rb = ax_m.get_position()
+        _panel_h, _panel_w = _rb.height * fig.get_size_inches()[1], _rb.width * fig.get_size_inches()[0]
+        _long_axis = "vertical" if _panel_h >= _panel_w else "horizontal"
+        _pts = list(_gu.dissolve().geometry.iloc[0].minimum_rotated_rectangle.exterior.coords)
+        _edges = list(zip(_pts, _pts[1:]))[:4]
+        (_x1, _y1), (_x2, _y2) = max(_edges, key=lambda e: (e[1][0]-e[0][0])**2 + (e[1][1]-e[0][1])**2)
+        _theta = _math.degrees(_math.atan2(_y2 - _y1, _x2 - _x1))
+        _rot = (_theta - 90.0) if _long_axis == "vertical" else _theta
+        if abs(_rot) > 0.5:
+            _gu = _gu.assign(geometry=_gu.geometry.map(lambda g: _aff.rotate(g, -_rot, origin=(0, 0))))
+            _x0, _y0, _, _ = _gu.total_bounds
+            _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
+        _rot %= 360.0
+        if _rot >= 359.75:
+            _rot = 0.0
         _gu.plot(ax=ax_m, color=_gu["c"].fillna("#d1d5db"),
                  linewidth=0.4, edgecolor="#4b5563")
         _gu.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
-        ax_m.set_xlabel(f"m E from SW corner (UTM {_zone})", fontsize=6.8)
-        ax_m.set_ylabel("m N", fontsize=6.8)
+        _axlab = (f"m E from SW corner (UTM {_zone})" if _rot < 0.5 else
+                  f"field-local m (rotated {_rot:.0f}° from E, UTM {_zone})")
+        ax_m.set_xlabel(_axlab, fontsize=6.8)
+        ax_m.set_ylabel("m N" if _rot < 0.5 else "m (rotated frame)", fontsize=6.8)
         ax_m.tick_params(labelsize=6.4)
         ax_m.grid(alpha=0.18, lw=0.4)
-        # north arrow, top-right, boxed for contrast
-        ax_m.annotate("", xy=(0.90, 0.965), xytext=(0.90, 0.74),
+        # north arrow, top-right, boxed for contrast; the geometry was rotated
+        # CW by _rot, so true north in the panel points (sin rot, cos rot)
+        _rad = _math.radians(_rot)
+        _dx, _dy = _math.sin(_rad), _math.cos(_rad)
+        _cx, _cy, _r = 0.885, 0.855, 0.105
+        ax_m.annotate("", xy=(_cx + _r * _dx, _cy + _r * _dy),
+                      xytext=(_cx - _r * 0.72 * _dx, _cy - _r * 0.72 * _dy),
                       xycoords="axes fraction",
                       arrowprops=dict(arrowstyle="-|>", lw=2.4, color="#111827",
                                       mutation_scale=16))
-        ax_m.text(0.90, 0.985, "N", transform=ax_m.transAxes, fontsize=13,
-                  fontweight="bold", ha="center", va="bottom", color="#111827",
+        ax_m.text(_cx + _r * 1.34 * _dx, _cy + _r * 1.34 * _dy, "N",
+                  transform=ax_m.transAxes, fontsize=13, fontweight="bold",
+                  ha="center", va="center", color="#111827",
                   bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#111827", lw=1.0))
         ax_m.set_title("map units — dominant component", fontsize=8.6, weight="bold", pad=13)
         _hand = [mpatches.Patch(facecolor=_col[n], edgecolor="#4b5563",

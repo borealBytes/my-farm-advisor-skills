@@ -45,19 +45,25 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
 
 **Pitfalls, in order of how they will bite:**
 
-- **Translate first, rotate second**, about `origin=(0, 0)` — i.e. the field
-  SW corner after the UTM pin. Rotating about the geographic origin flings
-  the field off-canvas.
+- **Translate → rotate → re-translate.** Pin SW at (0,0), rotate the geometry
+  about that origin, then re-pin (0,0) at the SW corner of the **rotated**
+  bounding box — that is the corner the reader's ruler starts from. Rotating
+  about the geographic origin flings the field off-canvas.
+- **Pick the orientation from the panel's actual aspect at draw time**
+  (`fig.canvas.draw()` → `ax.get_position()` × figsize): field long edge along
+  the panel's long edge, always. Never hardcode "horizontal".
 - **The north arrow rotates opposite to the data.** The data frame no longer
-  points up after rotation; the arrow must show `N` at `+rot°` from up:
-  `arrowprops=dict(arrowstyle="-|>")` +
-  `matplotlib.transforms.Affine2D().rotate_deg_around(0.9, 0.85, rot)` on the
-  annotation. Rotating the geometry and keeping a straight-up arrow is a
+  points up after rotation. If the geometry was rotated clockwise by `rot`,
+  the arrow tip must point `(cx + r·sin rot, cy + r·cos rot)` in
+  axes-fraction coords (straight up is `(0, 1)`), with the boxed `N` label
+  beyond the tip. Rotating the geometry and keeping a straight-up arrow is a
   lie, not a simplification.
 - **Keep the metre grid axis-aligned to the frame, not the field**: gridlines
   read as distances; the field rotates inside them.
 - When `rot != 0`, label the axes `"field-local m (rotated {rot:.0f}° from E)"`
-  — "from SW corner" alone implies unrotated easting.
+  — "from SW corner" alone implies unrotated easting. Normalize |rot| < 0.25°
+  to exactly 0 so near-vertical fields keep the plain "m E from SW corner"
+  label and a straight arrow instead of a noisy "360°".
 - Rotation is presentational: never store rotated geometries as the field
   boundary of record; re-apply at render time from the EPSG:4326 boundary.
 

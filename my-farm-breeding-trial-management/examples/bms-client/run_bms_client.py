@@ -74,6 +74,21 @@ def main():
         source=ctx.providers.Esri.WorldImagery,
         crs="EPSG:3857",
     )
+    # Geopolitical reference: L0/L1/L2 boundaries and L2 county names from
+    # the cached GeoAdmin layers (the data-pipeline lib), so a viewer knows
+    # where these sites are without reading coordinates.
+    try:
+        _lib = Path(__file__).resolve().parents[2].parent / "my-farm-advisor" / \
+            "data-pipeline" / "src" / "scripts" / "lib"
+        import sys
+
+        if _lib.is_dir() and str(_lib) not in sys.path:
+            sys.path.insert(0, str(_lib))
+        from geoadmin_context import add_admin_context
+
+        add_admin_context(ax, g, crs="EPSG:3857")
+    except Exception as exc:  # noqa: BLE001 — context is additive
+        print(f"(admin context skipped: {exc})")
     ax.set_title("BMS Trial Footprint")
     ax.set_xlabel("Web Mercator X (m)")
     ax.set_ylabel("Web Mercator Y (m)")

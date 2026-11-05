@@ -83,18 +83,25 @@ def _render_map(
         # object size cap; lift it for these reads.
         os.environ.setdefault("OGR_GEOJSON_MAX_OBJ_SIZE", "0")
         gd_root = shared_geoadmin_dir()
-        for rel, lw, color in (
-            ("l1_states/states_usa.geojson", 0.6, "#374151"),
-            ("l1_states/states_canada.geojson", 0.6, "#374151"),
-            ("l0_countries/countries.geojson", 1.3, "#000000"),
+        # White lines with a thin dark casing: the standard trick so borders
+        # stay visible over BOTH the dark end of the choropleth ramp and the
+        # pale end (black vanishes on dark greens, white alone vanishes on
+        # pale yellows — the casing carries it on light fills).
+        for rel, lw in (
+            ("l1_states/states_usa.geojson", 0.7),
+            ("l1_states/states_canada.geojson", 0.7),
+            ("l0_countries/countries.geojson", 1.5),
         ):
             border_path = gd_root / rel
             if not border_path.exists():
                 continue
             _b = gpd.read_file(border_path).to_crs("EPSG:4326")
             lines = _b.cx[vis_bbox[0]:vis_bbox[2], vis_bbox[1]:vis_bbox[3]]
-            if not lines.empty:
-                lines.boundary.plot(ax=ax, color=color, linewidth=lw, zorder=4)
+            if lines.empty:
+                continue
+            lines.boundary.plot(ax=ax, color="#1f2937", linewidth=lw + 0.9,
+                                zorder=4, alpha=0.85)
+            lines.boundary.plot(ax=ax, color="#ffffff", linewidth=lw, zorder=5)
         ax.set_xlim(minx - 0.4, maxx + 0.4)
         ax.set_ylim(miny - 0.4, maxy + 0.4)
     except Exception:  # noqa: BLE001 — borders are cosmetic
@@ -104,7 +111,9 @@ def _render_map(
     import textwrap
 
     ax.set_title(
-        "\n".join(textwrap.wrap(title, 58)) + "\n" + subtitle,
+        "\n".join(textwrap.wrap(title, 58))
+        + "\n"
+        + "\n".join(textwrap.wrap(subtitle, 64)),
         fontsize=13,
         fontweight="bold",
     )

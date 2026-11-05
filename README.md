@@ -202,6 +202,7 @@ keys, logins, or paid services anywhere in the default path.
 | **Imagery** | Sentinel-2 L2A (10 m, ~5-day revisit) + Landsat Collection 2 L2 (30 m; collection back to 1982 — pipeline defaults to Landsat 8+9 for the combined 8-day window) | Same archives are global via keyless Planetary Computer STAC; Sentinel-1 C-band SAR (VV/VH) is wired into the WorldCereal input cube — real radar via the free optional CDSE backend, constant NODATA in the keyless default (documented trade-off) |
 | **Weather** | NASA POWER field-centroid Zarr (station-assimilated, any coordinate) | Same |
 | **Admin & context** | geoadmin + combined FIPS (US) | L0 every country (Natural Earth); L1/L2 **any** ISO3 via `--gadm-iso` (GADM 4.1, one-key-free download, merged into the same combined lookup) |
+| Small-footprint site maps | `lib/geoadmin_context.py` on cached layers | L0/L1/L2 borders + county names drawn around plotted points — any client map locates itself |
 | **Maturity zones (derived, not licensed)** | Corn RM / soybean MG computed **in-house per year** for US FIPS counties + provincial analog (CA) | No open official source exists — every seed company keeps proprietary maps; we rebuild ours from literature-based heat-unit models driven by our own NASA POWER weather (default 2021–2025 window, annual parquets you can re-run). More crops and regions are on the roadmap |
 
 **Rotation history for any country, any year.** Where no national map exists,

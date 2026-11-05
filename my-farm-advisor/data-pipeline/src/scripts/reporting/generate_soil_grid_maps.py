@@ -178,6 +178,9 @@ def render_field(
             arr = _mask_to_polygon(arr, ds.transform, poly)
             ext = ds.bounds
             label, unit, _cmap = BAND_LABELS.get(key, (key, "", "viridis"))
+            if key == "cec" and not raster_paths[key].name.startswith("soilgrids_"):
+                # ASF CEC arrives in its own native scale; do not assert SoilGrids units.
+                label, unit = "CEC 0–5 cm (ASF native units)", ""
             im = ax.imshow(arr, cmap="viridis", extent=[ext.left, ext.right, ext.bottom, ext.top], origin="upper")
             cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
             cb.set_label(unit, fontsize=6)

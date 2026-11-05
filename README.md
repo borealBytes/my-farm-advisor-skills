@@ -66,10 +66,34 @@ from a demo grower's runtime data: Copernicus DEM hillshade, national soil
 surveys, and per-year WorldCereal crop inference, co-registered to the field
 boundary (red).
 
-| Iowa, US — 172 ha | Ontario, CA — 593 ha | Narrabri, AU — 1,233 ha |
+| Iowa, US — 172 ha | Ontario, CA — 593 ha | Namoi Valley, AU — 44 ha pivot |
 | --- | --- | --- |
-| ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r3_field_map.png) |
-| SSURGO map units; terrain auto-resolved to USGS 3DEP **1 m LiDAR**; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF); terrain panel from the global 30 m DEM |
+| ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r4_field_map.png) |
+| SSURGO map units; terrain auto-resolved to USGS 3DEP **1 m LiDAR**; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF, real values); WorldCereal called **rapeseed on 93 %** of this irrigated pivot — near-complete field coverage at 384 px |
+
+### Soil intelligence at three resolution tiers
+
+Same renderer, three provenance levels — survey polygons where they exist,
+national atlases where they do, and the global 250 m floor everywhere:
+
+| US — SSURGO survey polygons | Canada — SoilGrids global floor | Australia — national Soil Atlas |
+| --- | --- | --- |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_soilgrids_maps.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) |
+| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | 7 properties + relief, field-mean annotated per panel (pH 6.8, CEC 21.2 cmol/kg) | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units |
+
+### Derived planning layers — computed from our own weather, not licensed
+
+| Corn relative maturity (model-derived) | Soybean MG (model-derived) |
+| --- | --- |
+| ![Corn RM](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_by_fips_2023.png) | ![Soybean MG](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_by_fips_2023.png) |
+| County GDD from our POWER pipeline → RM surface; recomputed per year; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
+
+### One page per field, and weather you can audit
+
+| Full-season field report | GDD accumulation (derived) | Year-over-year precipitation |
+| --- | --- | --- |
+| ![Field report poster](my-farm-advisor/data-pipeline/examples/field-poster/output/ia-r1_field_report.png) | ![GDD](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_weather_gdd.png) | ![Precip](my-farm-advisor/data-pipeline/examples/weather-eda/output/ia_monthly_precip.png) |
+| Identity, rotation history, soil horizons, frost windows, five-season curves — every number traceable to its cached source layer | Cumulative + per-season GDD base-10 from raw daily weather | Every point recomputable from the daily parquet |
 
 ### Per-year crop classification anywhere — keyless satellite imagery
 
@@ -84,17 +108,17 @@ Sentinel-2 (no accounts, no keys).
 
 ### Breeding operations — designs, fieldbooks, and selection
 
-| Alpha-lattice design | Field-book plot map | Genomic breeding values |
+| Boundary-aware trial placement | Alpha-lattice design | Genomic breeding values |
 | --- | --- | --- |
-| ![Alpha lattice](my-farm-breeding-trial-management/examples/alpha-lattice/output/alpha_lattice_field_map.png) | ![Field book](my-farm-breeding-trial-management/examples/field-book/output/fieldbook_plot_map.png) | ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) |
-| 24 treatments × 3 reps, blocks of 4, randomized per replicate | Grower-view plot layout straight from a generated fieldbook | Top-15 genotypes with 95 % CIs after BLUP |
+| ![Trial placement](my-farm-breeding-trial-management/examples/field-trial-placement/output/trial_map_maximized.png) | ![Alpha lattice](my-farm-breeding-trial-management/examples/alpha-lattice/output/alpha_lattice_field_map.png) | ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) |
+| Maximized 6-var × 4-block RCBD rotated into one lobe of an irregular field, 9 m headlands respected — trial geometry planned against the real boundary | 24 treatments × 3 reps, blocks of 4, randomized per replicate | Top-15 genotypes with 95 % CIs after BLUP |
 
 ### Quantitative genetics — mapping and diagnostics
 
-| QTL ideogram + aligned Manhattan | Genomic-control QQ |
-| --- | --- |
-| ![QMapper ideogram](my-farm-qtl-analysis/examples/qmapper-ideogram/output/qmapper_combined.png) | ![QQ before/after GC](my-farm-qtl-analysis/examples/genomic-control/output/qq_before_after_gc.png) |
-| Significant QTL flagged per chromosome, thresholds documented | Inflation before correction, realigned after — the QC story in one panel |
+| QTL ideogram + aligned Manhattan | Genomic-control QQ | Pedigree relationship matrix |
+| --- | --- | --- |
+| ![QMapper ideogram](my-farm-qtl-analysis/examples/qmapper-ideogram/output/qmapper_combined.png) | ![QQ before/after GC](my-farm-qtl-analysis/examples/genomic-control/output/qq_before_after_gc.png) | ![NRM heatmap](my-farm-qtl-analysis/examples/pedigree-kinship/output/pedigree_nrm_heatmap.png) |
+| Significant QTL flagged per chromosome, thresholds documented | Inflation before correction, realigned after — the QC story in one panel | Inbreeding visible on the diagonal; relatedness blocks from a demo pedigree |
 
 ## Global data coverage — the best available data for your location
 

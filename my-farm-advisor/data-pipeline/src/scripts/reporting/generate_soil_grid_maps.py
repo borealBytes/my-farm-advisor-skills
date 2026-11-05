@@ -127,7 +127,7 @@ def _panel_frame_labels(ax, ff, _fflib) -> None:
     ax.set_xlim(_L, _R)
     ax.set_ylim(_B, _T)
     _fflib.decorate(ax, ff, arrow_r=0.085, arrow_fs=8.5, callout=False,
-                    arrow_xy=(0.955, 0.05))
+                    arrow_xy=(0.955, 0.05), scale_x=15)
 
 
 _BAND_LEGEND = {  # ISRIC/SoilGrids standard legend files (vendored, data/isric_legends/)
@@ -285,8 +285,8 @@ def render_field(
                            fraction=0.046, pad=0.03)
         cb0.set_label("elevation (m)", fontsize=6)
         cb0.ax.tick_params(labelsize=6)
-        ax0.set_title(f"Terrain (hillshade + {_klass} tint, {_relief:.0f} m relief)",
-                      fontsize=9)
+        ax0.set_title(f"Terrain + hillshade ({_relief:.0f} m relief)",
+                      fontsize=8)
     else:
         ax0.text(0.5, 0.5, "no DEM", ha="center")
     ff.geometry.dissolve().boundary.plot(ax=ax0, color="red", lw=1.4)
@@ -300,7 +300,9 @@ def render_field(
         if key == "cec" and not raster_paths[key].name.startswith("soilgrids_"):
             # ASF CEC arrives in its own native scale; do not assert SoilGrids units.
             label, unit = "CEC 0–5 cm (ASF native units)", ""
-        _cm, _norm, _ticks = palettes.soil_scale(key, arr)
+        with rasterio.open(raster_paths[key]) as _ds:
+            _cell = _ds.res[0] * (111320 if _ds.crs.is_geographic else 1.0)
+        _cm, _norm, _ticks = palettes.soil_scale(key, arr, domain=_cell >= 150)
         im = ax.imshow(arr, cmap=_cm, norm=_norm,
                        extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper")
         cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03,

@@ -58,8 +58,8 @@ _CODE2LEGEND = {
     "clay":   ("CLYPPT", 1.0), "silt": ("SLTPPT", 1.0), "sand": ("SNDPPT", 1.0),
     "phh2o":  ("PHIHOX", 0.1), "phhcl": ("PHIHOX", 0.1), "phcac2": ("PHIHOX", 0.1),
     "soc":    ("ORCDRC", 1.0), "carbon": ("ORCDRC", 0.1),
-    "cec":    ("CECSOL", 1.0), "bdod": ("BLDFINE", 0.1),
-    "bulkdensity": ("BLDFINE", 0.1),
+    "cec":    ("CECSOL", 1.0), "bdod": ("BLDFINE", 0.001),
+    "bulkdensity": ("BLDFINE", 0.001),
 }
 
 
@@ -92,7 +92,7 @@ def isric_cmap(code: str):
     return _ISRIC_CACHE[code]
 
 
-def soil_scale(code: str, values):
+def soil_scale(code: str, values, domain: bool = False):
     """(cmap, norm, ticks) for a continuous soil property.
 
     ``code`` is an ISRIC legend stem (clay, soc, phh2o, cec, bdod, awch1k...).
@@ -104,6 +104,11 @@ def soil_scale(code: str, values):
     if v.size == 0:
         return matplotlib.colormaps["viridis"], Normalize(0, 1), []
     if code in ("phh2o", "phcac2"):
+        if domain:
+            norm = TwoSlopeNorm(vcenter=PH_CENTER, vmin=4.0, vmax=8.5)
+            ticks = [t for t in (AGRO_TICKS[code] or [])
+                     if norm.vmin <= t <= norm.vmax]
+            return matplotlib.colormaps["RdBu_r"], norm, ticks
         spread = max(np.percentile(v, 99) - PH_CENTER,
                      PH_CENTER - np.percentile(v, 1), 0.5)
         spread *= 1.05
@@ -117,9 +122,12 @@ def soil_scale(code: str, values):
     except FileNotFoundError:
         lo, hi = np.percentile(v, [2, 98])
         return matplotlib.colormaps["viridis"], Normalize(lo, max(hi, lo + 1e-9)), []
-    lo, hi = np.percentile(v, [2, 98])
-    if hi <= lo:
-        lo, hi = float(v.min()), float(v.max()) + 1e-9
+    if domain:
+        lo, hi = lo_lg, hi_lg
+    else:
+        lo, hi = np.percentile(v, [2, 98])
+        if hi <= lo:
+            lo, hi = float(v.min()), float(v.max()) + 1e-9
     ticks = [t for t in (AGRO_TICKS.get(code) or []) if lo_lg <= t <= hi_lg
              and lo * 0.9 <= t <= max(hi, lo * 1.02) * 1.1]
     # widen the window to include the agronomic anchors (clipped to the

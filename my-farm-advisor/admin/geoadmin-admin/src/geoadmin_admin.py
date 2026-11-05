@@ -28,6 +28,46 @@ GEOADMIN_LEVELS = ("l0_countries", "l1_states", "l2_counties")
 # checksum journal in metadata.json.
 GADM_CAN_SHP_URL = "https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_CAN_shp.zip"
 GADM_CAN_ARCHIVE = "gadm41_CAN_shp.zip"
+GADM_SHP_URL_TEMPLATE = "https://geodata.ucdavis.edu/gadm/gadm4.1/shp/gadm41_{iso3}_shp.zip"
+
+
+def gadm_country_sources(iso3: str) -> dict:
+    """Standardized L1/L2 sources for ANY country from the GADM 4.1 archive.
+
+    Canada (the first implementation) keeps its canonical slugs and its
+    StatCan PRUID enrichment. Every other ISO3 gets its own per-country level
+    roots (l1_states_<iso>, l2_counties_<iso>) and deterministic synthetic
+    codes ISO3+index in the FIPS slots, with raw GID_1/GID_2 preserved for
+    cross-reference. GADM Terms of Use: free to use, cite GADM, no
+    redistribution of the boundaries themselves.
+    """
+    iso3 = iso3.strip().upper()
+    if len(iso3) != 3 or not iso3.isalpha():
+        raise ValueError(f"--gadm-iso wants ISO3 codes, got {iso3!r}")
+    iso = iso3.lower()
+    suffix = "" if iso3 == "CAN" else f"_{iso}"
+    url = GADM_SHP_URL_TEMPLATE.format(iso3=iso3)
+    archive = f"gadm41_{iso3}_shp.zip"
+    return {
+        f"l1_states{suffix or '_canada'}": GeoadminSource(
+            level_slug=f"l1_states{suffix}" if iso3 != "CAN" else "l1_states",
+            source_name="gadm",
+            source_url=url,
+            archive_name=archive,
+            output_geojson=f"states{'_canada' if iso3 == 'CAN' else '_' + iso}.geojson",
+            output_parquet=f"states{'_canada' if iso3 == 'CAN' else '_' + iso}.parquet",
+            vintage="gadm-4.1",
+        ),
+        f"l2_counties{suffix or '_canada'}": GeoadminSource(
+            level_slug=f"l2_counties{suffix}" if iso3 != "CAN" else "l2_counties",
+            source_name="gadm",
+            source_url=url,
+            archive_name=archive,
+            output_geojson=f"counties{'_canada' if iso3 == 'CAN' else '_' + iso}.geojson",
+            output_parquet=f"counties{'_canada' if iso3 == 'CAN' else '_' + iso}.parquet",
+            vintage="gadm-4.1",
+        ),
+    }
 # Water overlay cutoff: keep lakes/reservoirs at or above this area so the
 # layer stays tiny while every lake a continental map can see survives.
 MIN_LAKE_KM2 = 150.0
@@ -105,12 +145,18 @@ class GeoadminSource:
 
 
 def geoadmin_level_roots() -> dict[str, Path]:
-    return {
+    roots = {
         "l0_countries": _geoadmin_level_root("l0_countries"),
         "l1_states": _geoadmin_level_root("l1_states"),
         "l2_counties": _geoadmin_level_root("l2_counties"),
         "lakes": _geoadmin_level_root("lakes"),
     }
+    base = _geoadmin_root()
+    if base.exists():
+        for extra in sorted(base.iterdir()):
+            if extra.is_dir() and (extra.name.startswith("l1_states_") or extra.name.startswith("l2_counties_")):
+                roots[extra.name] = extra
+    return roots
 
 
 def build_source_catalog(census_year: int) -> dict[str, GeoadminSource]:
@@ -183,7 +229,12 @@ def download_source_archive(source: GeoadminSource, *, force: bool = False) -> P
     # The Canada zip feeds both the l1 and l2 levels; reuse the copy fetched
     # for the sibling level instead of pulling 138 MB twice (real copy — no
     # symlinks in project data).
-    for sibling in ("l1_states", "l2_counties"):
+    base = source.level_slug.split("_states_")[0] if "_states_" in source.level_slug else None
+    iso = source.level_slug.split("_")[-1] if source.level_slug.split("_")[-1] not in ("states", "counties") else None
+    siblings = ["l1_states", "l2_counties"]
+    if iso and iso != "usa":
+        siblings += [f"l1_states_{iso}", f"l2_counties_{iso}"]
+    for sibling in siblings:
         sibling_target = _geoadmin_level_root(sibling) / "raw" / source.archive_name
         if sibling_target != target and sibling_target.exists() and not force:
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -206,6 +257,8 @@ def _keep_columns(frame: gpd.GeoDataFrame, columns: list[str]) -> gpd.GeoDataFra
 def standardize_geoadmin_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
     if source.output_geojson in ("states_canada.geojson", "counties_canada.geojson"):
         return _standardize_canada_layer(source, archive_path)
+    if source.source_name == "gadm":
+        return _standardize_gadm_layer(source, archive_path)
     if source.level_slug == "lakes":
         return _standardize_lakes_layer(source, archive_path)
     frame = gpd.read_file(archive_path)
@@ -298,6 +351,54 @@ def _canada_pruid(name: object) -> str | float:
         if candidate in CAN_PRUID_BY_NAME:
             return CAN_PRUID_BY_NAME[candidate]
     return float("nan")
+
+
+def _standardize_gadm_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
+    """GADM 4.1 for any ISO3 -> the same standardized schemas as TIGER/StatCan."""
+    iso3 = source.archive_name.split("_")[1]
+    layer = "1" if source.level_slug.startswith("l1") else "2"
+    frame = gpd.read_file(archive_path, layer=f"gadm41_{iso3}_{layer}")
+    if frame.crs is None:
+        frame = frame.set_crs("EPSG:4326")
+    frame = frame.to_crs("EPSG:4326")
+    if layer == "1":
+        names = sorted(frame["NAME_1"].astype(str).unique())
+        code = {n: f"{iso3}{i:03d}" for i, n in enumerate(names, start=1)}
+        out = gpd.GeoDataFrame(
+            {
+                "state_fips": frame["NAME_1"].map(code),
+                "state_code": "",
+                "state_name": frame["NAME_1"],
+                "region_code": "",
+                "division_code": "",
+                "gadm_gid_1": frame["GID_1"],
+                "country": iso3,
+            },
+            geometry=frame.geometry,
+            crs="EPSG:4326",
+        )
+    else:
+        parents = sorted(frame["NAME_1"].astype(str).unique())
+        pcode = {n: f"{iso3}{i:03d}" for i, n in enumerate(parents, start=1)}
+        frame = frame.sort_values(["NAME_1", "NAME_2"])
+        child = frame.groupby("NAME_1").cumcount() + 1
+        ccode = frame["NAME_1"].map(pcode) + child.astype(str).str.zfill(3)
+        out = gpd.GeoDataFrame(
+            {
+                "fips": ccode,
+                "state_fips": frame["NAME_1"].map(pcode),
+                "county_fips": child.astype(str).str.zfill(3),
+                "county_name": frame["NAME_2"],
+                "county_name_full": frame["NAME_2"].astype(str) + " (" + frame["TYPE_2"].fillna("Division").astype(str) + ")",
+                "gadm_gid_2": frame["GID_2"],
+                "country": iso3,
+            },
+            geometry=frame.geometry,
+            crs="EPSG:4326",
+        )
+    out["source_name"] = source.source_name
+    out["source_vintage"] = source.vintage
+    return cast(gpd.GeoDataFrame, out)
 
 
 def _standardize_canada_layer(source: GeoadminSource, archive_path: Path) -> gpd.GeoDataFrame:
@@ -460,7 +561,7 @@ def write_standardized_outputs(
     *,
     write_lookup: bool = True,
 ) -> dict[str, Path]:
-    level_root = geoadmin_level_roots()[source.level_slug]
+    level_root = _geoadmin_level_root(source.level_slug)
     level_root.mkdir(parents=True, exist_ok=True)
     geojson_path = level_root / source.output_geojson
     parquet_path = level_root / source.output_parquet
@@ -482,7 +583,7 @@ def write_standardized_outputs(
         encoding="utf-8",
     )
     outputs = {"geojson": geojson_path, "parquet": parquet_path, "metadata": metadata_path}
-    if source.level_slug == "l2_counties" and write_lookup:
+    if source.level_slug.startswith("l2_counties") and write_lookup:
         country_suffix = Path(source.output_geojson).stem.replace("counties_", "")
         lookup_name = (
             "fips_lookup.parquet" if country_suffix == "usa" else f"fips_lookup_{country_suffix}.parquet"
@@ -508,8 +609,18 @@ def write_combined_fips_lookup() -> Path | None:
     usa = level_root / "fips_lookup.parquet"
     if usa.exists():
         frames.append(pd.read_parquet(usa))
-    for extra in sorted(level_root.glob("fips_lookup_*.parquet")):
-        frames.append(pd.read_parquet(extra))
+    roots = [level_root] + sorted(
+        root for slug, root in geoadmin_level_roots().items() if slug != "l2_counties"
+    )
+    # Per-country GADM levels write to their own roots (l2_counties_<iso>).
+    roots += [r for r in _geoadmin_root().glob("l2_counties_*") if r.is_dir()]
+    seen: set = set()
+    for root in roots:
+        for extra in sorted(root.glob("fips_lookup_*.parquet")):
+            if extra.resolve() in seen:
+                continue
+            seen.add(extra.resolve())
+            frames.append(pd.read_parquet(extra))
     if not frames:
         return None
     combined = cast(

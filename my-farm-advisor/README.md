@@ -25,7 +25,7 @@ with **no API keys, logins, or paid services anywhere in the default path**:
 | Terrain | USGS 3DEP via The National Map — up to **1 m LiDAR** where mapped; ILHMP (Illinois) | NRCan CanElevation HRDEM 10 m (OGL-Canada) next; today Copernicus GLO-30 | ELVIS/Vicmap state LiDAR next; today GA-tier floor | Copernicus DEM GLO-30, NASADEM 1″, ALOS AW3D30 — resolution-ranked auto-select |
 | Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
 | Imagery | Sentinel-2 L2A (10 m, ~5 d) + Landsat C2 L2 (30 m; archive 1982→, pipeline default L8+L9 for the 8-day window) — keyless PC STAC | ← | ← | ←; Sentinel-1 SAR (VV/VH) wired into WorldCereal — real radar via free optional CDSE backend, NODATA in keyless default |
-| Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 | GADM L1/L2 | GADM L1/L2 |
+| Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 (PRUID-enriched) | `--gadm-iso AUS` (live-verified: 568 LGA units) | `--gadm-iso <ISO3>` — any country; L0 worldwide already |
 | Corn RM / Soybean MG (**derived**) | Heuristic FIPS models computed in-house from our own POWER weather — annual `rm_by_fips_YYYY` + 5-year averages | provincial analog | season calendar | season calendar |
 
 Maturity maps are **models, not licensed data**. No open authoritative

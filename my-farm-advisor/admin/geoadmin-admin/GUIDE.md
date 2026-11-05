@@ -42,3 +42,17 @@ Build with `download_geoadmin.py --levels lakes`. Label at least the five Great
 Lakes italic blue. The reference implementation is
 `scripts/render_maturity_maps.py` in a reference project (`research/figures/`
 outputs).
+
+## Any-country L1/L2 (`--gadm-iso`)
+
+`download_geoadmin.py --gadm-iso AUS [MEX DEU ...]` builds GADM 4.1 admin
+levels for **any ISO3 country** into per-country roots (`l1_states_<iso>`,
+`l2_counties_<iso>`) with the same standardized schemas as US/Canada — synthetic
+`<ISO3><index>` codes in the FIPS slots, raw `GID_1/GID_2` kept per row — and
+merges them into the single combined county-role lookup that weather
+aggregation and FIPS-context consumers read. Verified live: `--gadm-iso AUS`
+→ 11 states/territories, 568 LGA-level units, combined lookup 4,096 rows.
+L0 (all countries) comes from Natural Earth already. GADM Terms of Use: free
+to use, cite GADM, no redistribution of the boundary files themselves; Canada
+keeps its StatCan PRUID enrichment. One archive download per country (cached,
+sha256-journalled in `metadata.json`).

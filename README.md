@@ -79,7 +79,18 @@ national atlases where they do, and the global 250 m floor everywhere:
 | US — SSURGO survey polygons | Canada — SoilGrids global floor | Australia — national Soil Atlas |
 | --- | --- | --- |
 | ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_soilgrids_maps.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) |
-| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | 7 properties + relief, field-mean annotated per panel (pH 6.8, CEC 21.2 cmol/kg) | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units |
+| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | 7 properties + relief on a 3-column grid, field-mean annotated per panel (pH 6.8, CEC 21.2 cmol/kg) | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units |
+
+### Terrain derivatives — ready the moment the DEM lands
+
+The ingest computes the full derivative stack beside the raw DEM; here is the
+same 9-layer view for each demo field, masked to the boundary. Iowa is the
+**USGS 3DEP 1 m LiDAR** payoff; the others show the global 30 m floor:
+
+| Iowa (≈1 m LiDAR) | Ontario (≈25 m) | Australia (≈28 m) |
+| --- | --- | --- |
+| ![Iowa terrain derivatives](my-farm-advisor/data-pipeline/examples/terrain-derivatives/output/ia-r1_terrain_derivatives.png) | ![Ontario terrain derivatives](my-farm-advisor/data-pipeline/examples/terrain-derivatives/output/on-r1_terrain_derivatives.png) | ![Australia terrain derivatives](my-farm-advisor/data-pipeline/examples/terrain-derivatives/output/au-r3_terrain_derivatives.png) |
+| Elevation, hillshade, slope, aspect, D8 flow accumulation, wetness index, TPI, relative elevation, erosion proxy — rendered by [`render_terrain_derivatives.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/render_terrain_derivatives.py) | Same nine layers at global resolution — the pipeline degrades resolution, never layers | Flow channels and terrace-like TWI bands visible even at 30 m |
 
 ### Derived planning layers — computed from our own weather, not licensed
 
@@ -87,6 +98,12 @@ national atlases where they do, and the global 250 m floor everywhere:
 | --- | --- |
 | ![Corn RM](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_by_fips_2023.png) | ![Soybean MG](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_by_fips_2023.png) |
 | County GDD from our POWER pipeline → RM surface; recomputed per year; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
+
+Both maps are also the admin-geometry demo: **L0 countries, L1 states/provinces
+and L2 counties/census divisions** feed the choropleth, and the cached Natural
+Earth lakes layer paints water over the grid so the maps read like maps.
+Canada's census-divisions version and a combined North-America view render with
+one flag (`--country canada|north-america`).
 
 ### One page per field, and weather you can audit
 
@@ -108,10 +125,20 @@ Sentinel-2 (no accounts, no keys).
 
 ### Breeding operations — designs, fieldbooks, and selection
 
-| Boundary-aware trial placement | Alpha-lattice design | Genomic breeding values |
+| Boundary-aware trial placement | RCBD layout | Alpha-lattice design |
 | --- | --- | --- |
-| ![Trial placement](my-farm-breeding-trial-management/examples/field-trial-placement/output/trial_map_maximized.png) | ![Alpha lattice](my-farm-breeding-trial-management/examples/alpha-lattice/output/alpha_lattice_field_map.png) | ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) |
-| Maximized 6-var × 4-block RCBD rotated into one lobe of an irregular field, 9 m headlands respected — trial geometry planned against the real boundary | 24 treatments × 3 reps, blocks of 4, randomized per replicate | Top-15 genotypes with 95 % CIs after BLUP |
+| ![Trial placement](my-farm-breeding-trial-management/examples/field-trial-placement/output/trial_map_maximized.png) | ![RCBD](my-farm-breeding-trial-management/examples/rcbd-design/output/rcbd_layout.png) | ![Alpha lattice](my-farm-breeding-trial-management/examples/alpha-lattice/output/alpha_lattice_field_map.png) |
+| Maximized 6-var × 4-block RCBD rotated into one lobe of an irregular field, 9 m headlands respected — trial geometry planned against the real boundary | Randomized complete blocks, four reps across twelve treatments | 24 treatments × 3 reps, blocks of 4, checks woven through entries |
+
+| Field-book plot map | Pedigree lineage | Selection index ranking |
+| --- | --- | --- |
+| ![Field book](my-farm-breeding-trial-management/examples/field-book/output/fieldbook_plot_map.png) | ![Pedigree](my-farm-breeding-trial-management/examples/pedigree-management/output/pedigree_lineage.png) | ![Selection index](my-farm-breeding-trial-management/examples/selection-index/output/selection_index_top15.png) |
+| Grower-view plot layout straight from a generated fieldbook | Backcross lineage P → F1 → BC1–BC3 as a directed graph | Top-15 genotypes by weighted multi-trait index |
+
+| Multi-year genomic values | Trial site footprint (BMS) |
+| --- | --- |
+| ![GEBV ranking](my-farm-breeding-trial-management/examples/breeding-value-ranking/output/gebv_top15_ci_plot.png) | ![BMS sites](my-farm-breeding-trial-management/examples/bms-client/output/bms_trial_site_map.png) |
+| Top-15 genotypes with 95 % CIs after BLUP | Where trials live, straight from a breeding-management-system client |
 
 ### Quantitative genetics — mapping and diagnostics
 
@@ -119,6 +146,16 @@ Sentinel-2 (no accounts, no keys).
 | --- | --- | --- |
 | ![QMapper ideogram](my-farm-qtl-analysis/examples/qmapper-ideogram/output/qmapper_combined.png) | ![QQ before/after GC](my-farm-qtl-analysis/examples/genomic-control/output/qq_before_after_gc.png) | ![NRM heatmap](my-farm-qtl-analysis/examples/pedigree-kinship/output/pedigree_nrm_heatmap.png) |
 | Significant QTL flagged per chromosome, thresholds documented | Inflation before correction, realigned after — the QC story in one panel | Inbreeding visible on the diagonal; relatedness blocks from a demo pedigree |
+
+| Classical interval mapping | LD decay | eQTL locus detail |
+| --- | --- | --- |
+| ![LOD curve](my-farm-qtl-analysis/examples/classical-qtl/output/qtl_lod_example.png) | ![LD decay](my-farm-qtl-analysis/examples/ld-decay/output/ld_analysis.png) | ![eQTL locuszoom](my-farm-qtl-analysis/examples/eqtl-cis/output/eqtl_locuszoom_example.png) |
+| Peak LOD 6.2 against a LOD-3 threshold — the 1990s method, fully reproducible | Exponential r² decay fit + 20-SNP pairwise heatmap | Lead SNP at p=2e-15 next to the gene TSS — the regulatory-QTL view |
+
+| Population structure + admixture | Genomic prediction accuracy |
+| --- | --- |
+| ![Admixture](my-farm-qtl-analysis/examples/admixture/output/admixture_plot.png) | ![Genomic prediction](my-farm-qtl-analysis/examples/genomic-prediction/output/genomic_prediction.png) |
+| PCA clusters, K=3 ancestry bars, sorted panel, variance explained | True vs predicted GEBV (r=0.56), distributions, top-rank selection — the breeding-value payoff |
 
 ## Global data coverage — the best available data for your location
 

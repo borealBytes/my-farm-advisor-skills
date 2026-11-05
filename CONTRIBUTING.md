@@ -32,6 +32,26 @@ commit.** Concretely:
 - No G2F-2026 (or any competition) data or absolute machine paths in the skill
   tree — env-var paths (`DATA_PIPELINE_DATA_ROOT`) and relative links only.
 
+## Every feature ships with a vision-reviewed demo figure
+
+New capabilities are not "done" until there is a rendered example someone can
+understand at a glance:
+
+- **One figure per output type, per relevant geography.** Country-specific data
+  (US SSURGO, Canada ACI/SoilGrids, Australia SLGA/ASF, …) gets its own example,
+  **plus** at least one figure from a country with no specialized source so the
+  global floor is visible. Same for breeding and QTL: every workflow family
+  (design, placement, fieldbook, selection, mapping, QC diagnostics, terrain
+  derivatives, planning layers) must have at least one plotted demo under
+  `examples/**/output/`.
+- **Vision review before commit.** Render the figure, then inspect it with a
+  vision model (and your own eyes) checking: no empty/blank panels, masking
+  correct, legends and labels legible at README size, numbers consistent with
+  their source. A figure that fails review gets fixed or dropped — never
+  committed "as-is for now".
+- Figures must be the **best available version** of the view (overlays on,
+  labels de-cluttered, honest caveats in the caption — caveats yes, bugs no).
+
 ## Before pushing
 
 ```bash

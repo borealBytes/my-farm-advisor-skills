@@ -131,7 +131,11 @@ def render_field(
 
     band_keys = list(raster_paths)
     n = len(band_keys)
-    fig, axes = plt.subplots(1, n + 1, figsize=(3.1 * (n + 1) + 1.2, 3.6), constrained_layout=True)
+    total = n + 1
+    cols = min(3, total)
+    rows = -(-total // cols)
+    fig, axes = plt.subplots(rows, cols, figsize=(3.1 * cols + 1.2, 3.5 * rows), constrained_layout=True)
+    axes = np.atleast_1d(axes).ravel()
     dem = None
     if dem_path and dem_path.exists():
         dem = _clip_raster(dem_path, bounds, out_png.parent / f"{field_slug}_dem_clip.tif", res_deg=0.0003)
@@ -190,6 +194,8 @@ def render_field(
         fields.to_crs("EPSG:4326").plot(ax=ax, facecolor="none", edgecolor="red", linewidth=1.4)
         _geo_ticks(ax)
 
+    for _ax in axes[total:]:
+        _ax.axis("off")
     fig.suptitle(f"{field_slug} — gridded soil properties + relief {title_extra}", fontsize=11)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=170)

@@ -10,6 +10,10 @@ Only these skill roots are in scope unless the task explicitly adds a new skill:
 
 - `my-farm-advisor/`: umbrella farm advisory, farm data pipelines, field management, imagery, soil, weather, EDA, strategy, and admin maps.
 - `my-farm-breeding-trial-management/`: breeding operations, trial design, fieldbooks, germplasm, selection, crossing, and field trial placement.
+
+Maturity: `my-farm-advisor` and its data pipeline are the active build focus — the data foundation
+everything else stands on. The breeding and QTL skills are initial stabs (real, runnable examples,
+fewer than coming) and will expand against that foundation.
 - `my-farm-qtl-analysis/`: QTL and GWAS analysis, QC, population structure, genomic prediction, and reporting.
 
 ## Dependency boundary

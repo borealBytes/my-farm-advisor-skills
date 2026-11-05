@@ -167,6 +167,33 @@ sequenceDiagram
     Script-->>User: Answer with provenance + caveats
 ```
 
+## Progressive disclosure — why the catalog is split this way
+
+A large skill tree can quietly destroy an agent: if everything loads into the
+prompt, a 656-file / 18 MB catalog becomes context-window tax on every session,
+and the model drowns in instructions it doesn't need. This repo is structured
+the opposite way — **only the routing surface is resident; knowledge loads on
+demand as the request earns it**:
+
+| Level | Files | Size in this catalog | When it enters context |
+| --- | --- | --- | --- |
+| L0 — discovery | `SKILL.md` frontmatter (name + trigger description) | a few lines each | always; it's what the harness matches the request against |
+| L1 — router | 4 × `SKILL.md` bodies | 13.7 KB total | when a request matches a skill |
+| L2 — family map | 13 × `INDEX.md` | 12.8 KB total | after routing picks the workflow family |
+| L3 — operating rules | 29 × subtree `AGENTS.md` | 47.3 KB total | only for the subtree being edited or run |
+| L4 — depth | 200+ guides, scripts, examples (≈750 KB of docs) | ~97 % of all bytes | only the one or two files the task actually needs |
+
+A typical Ontario soil question touches roughly **3–8 KB of instructions** —
+the SKILL.md router line, the soil INDEX row, the soil-subtree AGENTS.md, and
+`soil-routing.md` — while the GWAS, breeding-design, and imagery manuals stay
+on disk costing nothing. Routing itself is automatic: the L0 descriptions are
+written as triggers ("use when…"), the L1/L2 tables map intents to files, and
+the validator fails the build if any of those links rot, so an agent can trust
+the ladder instead of reading the whole tree to find things. That's also what
+makes the catalog harness-portable: OpenClaw, Hermes, Claude-style skill
+runtimes, or plain `grep` — every level is a Markdown file with a stable name,
+and nothing above L0 assumes a particular agent framework.
+
 ## How data-source routing decides
 
 Country-aware tiering (soil shown; the same ladder governs boundaries and

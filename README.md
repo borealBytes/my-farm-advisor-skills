@@ -73,7 +73,7 @@ keys, logins, or paid services anywhere in the default path.
 | **Field boundaries** | USDA Crop Sequence Boundaries (US, field-level polygons every year) | OSM/Overpass farm rules (CA, AU, anywhere) + new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md) |
 | **Soil** | SSURGO (US, tested/method flags); Ontario detailed soil survey (CA); Soil Atlas of Australia via Gaia-DAP (AU) | SoilGrids 250 m with verified scale table; country-aware routing in [`soil-routing.md`](my-farm-advisor/soil/soil-routing.md) |
 | **Crop rotation history** | USDA CDL, 2008→ (US); AAFC ACI, 2017→ (CA) | Per-year WorldCereal default-model inference on keyless Sentinel-2 (any country) — see below |
-| **Imagery** | Landsat 5–9 + Sentinel-2 harmonized archives (all 2000+ countries, 30 m / 10 m) via Planetary Computer STAC | Same archive — this tier *is* global; Sentinel-1 currently NODATA on the keyless path |
+| **Imagery** | Sentinel-2 L2A (10 m, ~5-day revisit) + Landsat Collection 2 L2 (30 m; collection back to 1982 — pipeline defaults to Landsat 8+9 for the combined 8-day window) | Same archives are global via keyless Planetary Computer STAC; Sentinel-1 C-band SAR (VV/VH) is wired into the WorldCereal input cube — real radar via the free optional CDSE backend, constant NODATA in the keyless default (documented trade-off) |
 | **Weather** | NASA POWER field-centroid Zarr (station-assimilated, any coordinate) | Same |
 | **Admin & context** | geoadmin + combined FIPS (US); corn RM / soybean MG zones (US + CA) | GADM L1/L2, choropleth maps |
 

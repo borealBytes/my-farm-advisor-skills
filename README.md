@@ -30,7 +30,7 @@ boundary (red).
 | Iowa, US — 172 ha | Ontario, CA — 593 ha | Narrabri, AU — 1,233 ha |
 | --- | --- | --- |
 | ![Iowa field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/ia-r1_field_map.png) | ![Ontario field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/on-r1_field_map.png) | ![Australia field stack](my-farm-advisor/data-pipeline/examples/field-maps/output/au-r3_field_map.png) |
-| SSURGO map units; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF); terrain panel from the global 30 m DEM |
+| SSURGO map units; terrain auto-resolved to USGS 3DEP **1 m LiDAR**; WorldCereal independently called **soybean** on a documented 2023 soy field | Ontario soil survey components (Brookston/Perth/Normandale); winter-window inference | Soil Atlas of Australia clay % (SLGA/ASF); terrain panel from the global 30 m DEM |
 
 ### Per-year crop classification anywhere — keyless satellite imagery
 
@@ -57,28 +57,35 @@ Sentinel-2 (no accounts, no keys).
 | ![QMapper ideogram](my-farm-qtl-analysis/examples/qmapper-ideogram/output/qmapper_combined.png) | ![QQ before/after GC](my-farm-qtl-analysis/examples/genomic-control/output/qq_before_after_gc.png) |
 | Significant QTL flagged per chromosome, thresholds documented | Inflation before correction, realigned after — the QC story in one panel |
 
-## Global data coverage (any country, zero accounts)
+## Global data coverage — the best available data for your location
 
-Non-US fields get the same source lineage as US fields. No API keys, logins,
-or paid services are required in the default path.
+"Global" here does not mean one flattened global layer everywhere. It means a
+**ladder**: the highest-resolution authoritative source that covers the field's
+country, with a verified global wall underneath so *no location ever falls
+through*. Ingest scripts pick the top of the ladder automatically (the terrain
+resolver ranks adapters by measured resolution and provenance and warns above
+its 30 m coarseness threshold), and every run records which source won. No API
+keys, logins, or paid services anywhere in the default path.
 
-| Capability | United States | Canada | Australia | Any other country |
-| --- | --- | --- | --- | --- |
-| **Field boundaries** | USDA Crop Sequence Boundaries (GeoParquet) | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM + new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md) |
-| **Soil** | SSURGO (tested/method flags) | Ontario detailed soil survey | Soil Atlas of Australia via Gaia-DAP | SoilGrids 250 m (verified scale table) |
-| **Crop rotation history** | USDA CDL, 2008→ | AAFC ACI, 2017→ | WorldCereal per-year inference | WorldCereal per-year inference |
-| **Terrain** | Copernicus DEM 30 m | Copernicus DEM 30 m | Copernicus DEM 30 m | Copernicus DEM 30 m + full derivative suite |
-| **Weather** | NASA POWER | NASA POWER | NASA POWER | NASA POWER (public Zarr, field centroids) |
-| **Admin / context** | geoadmin + combined FIPS | geoadmin/GADM, corn RM & soybean MG | GADM L1/L2 | GADM L1/L2, choropleths |
+| Capability | Regional / national tier (best available) | Global floor (always works) |
+| --- | --- | --- |
+| **Terrain** | USGS The National Map — 3DEP DEM at 1 m / 1/9° / 1/3° / 2 m / 10 m where mapped (US); ILHMP LiDAR (Illinois, sub-metre) | Copernicus DEM GLO-30 (COG), NASADEM 1″, ALOS AW3D30 — resolution-ranked auto-selection with full derivative suite (slope, aspect, hillshade, D8 flow, contours) |
+| **Field boundaries** | USDA Crop Sequence Boundaries (US, field-level polygons every year) | OSM/Overpass farm rules (CA, AU, anywhere) + new-country checklist in [`field-boundary-sources.md`](my-farm-advisor/data-pipeline/references/field-boundary-sources.md) |
+| **Soil** | SSURGO (US, tested/method flags); Ontario detailed soil survey (CA); Soil Atlas of Australia via Gaia-DAP (AU) | SoilGrids 250 m with verified scale table; country-aware routing in [`soil-routing.md`](my-farm-advisor/soil/soil-routing.md) |
+| **Crop rotation history** | USDA CDL, 2008→ (US); AAFC ACI, 2017→ (CA) | Per-year WorldCereal default-model inference on keyless Sentinel-2 (any country) — see below |
+| **Imagery** | Landsat 5–9 + Sentinel-2 harmonized archives (all 2000+ countries, 30 m / 10 m) via Planetary Computer STAC | Same archive — this tier *is* global; Sentinel-1 currently NODATA on the keyless path |
+| **Weather** | NASA POWER field-centroid Zarr (station-assimilated, any coordinate) | Same |
+| **Admin & context** | geoadmin + combined FIPS (US); corn RM / soybean MG zones (US + CA) | GADM L1/L2, choropleth maps |
 
-The by-year tier for rotation history is the open
-[WorldCereal default models](https://github.com/WorldCereal/worldcereal-classification)
-(MIT) applied per year on keyless Planetary Computer Sentinel-2 via
-[`apply_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/ingest/apply_worldcereal.py);
-season windows come from the crop calendar (Southern-Hemisphere cross-year
-correct), and every output ships provenance plus honest regional-accuracy
-caveats. Details in [`crop-rotation-sources.md`](my-farm-advisor/data-pipeline/references/crop-rotation-sources.md)
-and the capability matrix in
+**Rotation history for any country, any year.** Where no national map exists,
+[`apply_worldcereal.py`](my-farm-advisor/data-pipeline/src/scripts/ingest/apply_worldcereal.py)
+runs the open [WorldCereal default models](https://github.com/WorldCereal/worldcereal-classification)
+(MIT) per year on Planetary Computer Sentinel-2 — zero accounts, 12 monthly
+composites from the crop-calendar season window (Southern-Hemisphere cross-year
+correct), provenance + honest regional-accuracy caveats with every output. The
+routing order and the fine-tuning upgrade path are in
+[`crop-rotation-sources.md`](my-farm-advisor/data-pipeline/references/crop-rotation-sources.md).
+Capability matrix details in
 [`my-farm-advisor/README.md`](my-farm-advisor/README.md#global-data-coverage-any-country-zero-accounts).
 
 ## How the catalog is organized

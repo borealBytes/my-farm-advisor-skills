@@ -22,7 +22,7 @@ with **no API keys, logins, or paid services anywhere in the default path**:
 | Field boundaries | USDA CSB GeoParquet + OSM | OSM/Overpass farm rules | OSM/Overpass farm rules | OSM/Overpass ([playbook](data-pipeline/references/field-boundary-sources.md)) |
 | Soil (profile) | SSURGO / gNATSGO flags | Ontario detailed DSS + AAFC | ASF via Gaia-DAP (ANSIS) | SoilGrids 250 m global fallback, scale-table verified |
 | Crop rotation history | USDA CDL 2008→ | AAFC ACI 2017→ | WorldCereal models, per-year | WorldCereal models, per-year ([routing](data-pipeline/references/crop-rotation-sources.md)) |
-| Terrain (30 m DEM) | Copernicus DEM global — same product everywhere | ← | ← | ← |
+| Terrain | USGS 3DEP via The National Map — up to **1 m LiDAR** where mapped; ILHMP (Illinois) | ← Copernicus DEM GLO-30, NASADEM 1″, ALOS AW3D30 (resolution-ranked auto-select) | ← | ← |
 | Weather | NASA POWER public S3 Zarr at field centroid | ← | ← | ← |
 | Admin boundaries / choropleth | geoadmin L1/L2 + combined FIPS | GADM L1/L2 | GADM L1/L2 | GADM L1/L2 |
 | Corn RM / Soybean MG | FIPS maturity model | provincial analog | — (season calendar) | season calendar |

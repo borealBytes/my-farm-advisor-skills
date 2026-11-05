@@ -79,8 +79,8 @@ national atlases where they do, and the global 250 m floor everywhere:
 
 | US — SSURGO survey polygons | Canada — Ontario Detailed Soil Survey (polygon) | Australia — national Soil Atlas | Global floor — SoilGrids 250 m (Brazil) |
 | --- | --- | --- | --- |
-| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![Soil card](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_soil_properties_grid.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
-| 16 mapped soil components inside one boundary — names, MUKEYs, horizon tables behind every color | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey, no USDA query, dataset named honestly in the title | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units | Cerrado field where no national layer exists: 6 properties + relief at 250 m (clay 32.2 %, pH 5.38) — the floor every country gets |
+| ![SSURGO components](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_ssurgo_component_map.png)<br>![USDA texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/ia-r1_texture_triangle.png) | ![Canada survey polygons](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_canada_survey_polygons.png)<br>![Ontario texture triangle](my-farm-advisor/data-pipeline/examples/soil-maps/output/on-r1_texture_triangle.png) | ![AU Soil Atlas panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/au-r3_soil_atlas_maps.png) | ![SoilGrids panels](my-farm-advisor/data-pipeline/examples/soil-maps/output/br-r1_soilgrids_maps.png) |
+| 16 mapped components inside one boundary — map **and** USDA texture triangle: one point per component (size = abundance), star = comppct-weighted mean (loam, clay 27 / silt 40 / sand 33). Canonical 12-class geometry from the CRAN `soiltexture` package, not eyeballed ([`generate_soil_texture_triangles.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_soil_texture_triangles.py)) | The same polygon treatment where SSURGO doesn't reach: ON-DSS components (Brookston/Perth/Normandale) rendered from the cached national survey — and classified onto the very same triangle, one renderer for every survey that speaks the SSURGO schema | vertisol reality check: 42.8 % clay at 0–5 cm, pH 6.6; unscaled bands labeled honestly as native units | Cerrado field where no national layer exists: 6 properties + relief at 250 m (clay 32.2 %, pH 5.38) — the floor every country gets |
 
 ### Terrain derivatives — ready the moment the DEM lands
 
@@ -134,9 +134,10 @@ number traceable to its cached source layer.
 | ![Cumulative NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_cumulative.png) | ![Average NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_crop_average.png) | ![Peak NDVI](my-farm-advisor/data-pipeline/examples/field-components/output/ia-r1_ndvi_peak95_corn.png) |
 | Per-crop subplots, mean lines with 5th–95th percentile envelopes, only years whose CDL crop-year label matches | Field-masked mean over all crop-year scenes | Mid-season peak window — the biomass ceiling |
 
-A fixed-field soil card (properties, water & CEC, complexity counts, drainage
-summary) sits beside the SSURGO component map under the soil tiers above —
-[`generate_ssurgo_cards.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_ssurgo_cards.py).
+The soil card generator ([`generate_ssurgo_cards.py`](my-farm-advisor/data-pipeline/src/scripts/reporting/generate_ssurgo_cards.py))
+still feeds the compact soil panel of the full-season field report; the standalone
+per-field soil figure is the USDA **texture triangle** above — sand/silt/clay lives in
+the triangle, not in bar charts of unrelated numbers side by side.
 
 ### Per-year crop classification anywhere — keyless satellite imagery
 

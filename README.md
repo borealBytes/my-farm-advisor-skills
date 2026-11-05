@@ -275,6 +275,32 @@ flowchart LR
     class fail bad
 ```
 
+## Your own boundaries are the seed of everything
+
+The field-boundary layers above (CSB, OSM) are **starting material**: great for
+experimenting, benchmarking, and coverage demos, and honestly useful for some
+tasks even for real operations. But if you farm or trial ground, the pipeline
+was built to run against *your* polygons:
+
+1. Drop your field boundaries in — shapefile, KML/KMZ, GeoPackage, GeoJSON,
+   Google-Earth export, whatever fell off the cab monitor. Any format works
+   because the agent converts it; the pipeline canonical form is per-field
+   boundary GeoJSON in WGS84.
+2. Tell the agent: *"initialize the data pipeline against these boundaries."*
+3. Everything downstream fills out **in the context of your fields**: FIPS /
+   province scoping, SSURGO or SoilGrids soils under each polygon, Copernicus
+   and (where mapped) 3DEP terrain, NASA POWER weather at each centroid,
+   Sentinel-2/Landsat scenes clipped to the boundary, per-year crop-type
+   inference, and the reports and dashboards on top.
+
+Your boundaries stay **yours**: they live in your runtime data root
+(`$DATA_PIPELINE_DATA_ROOT`, gitignored) and never need to leave your machine —
+the skill author never sees them. That's what makes this a private analytics
+base rather than someone else's web app: the published catalog is the
+methodology, and your farm folder is the instantiation. For quick exploration
+without your own polygons, `bootstrap_farm_from_county.py` samples deterministic
+public fields from any county and runs the whole pipeline on them.
+
 ## Built to be extended — your crop, your region, your operation
 
 This catalog is a **base**, not a finished product. Every capability is a

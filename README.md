@@ -189,10 +189,23 @@ the SKILL.md router line, the soil INDEX row, the soil-subtree AGENTS.md, and
 on disk costing nothing. Routing itself is automatic: the L0 descriptions are
 written as triggers ("use when…"), the L1/L2 tables map intents to files, and
 the validator fails the build if any of those links rot, so an agent can trust
-the ladder instead of reading the whole tree to find things. That's also what
-makes the catalog harness-portable: OpenClaw, Hermes, Claude-style skill
-runtimes, or plain `grep` — every level is a Markdown file with a stable name,
-and nothing above L0 assumes a particular agent framework.
+the ladder instead of reading the whole tree to find things.
+
+**Harness portability.** Every level is a Markdown file with a stable name, and
+nothing above L0 assumes a particular agent framework. **Hermes and OpenCode
+are the first-class, continuously tested harnesses**; OpenClaw (this catalog's
+birthplace), Pi, Claude-style skill runtimes, and Codex should work through the
+same plain-file contract, and plain `grep` always does.
+
+**Frontier models are not required.** The progressive-disclosure design exists
+so that modest models can drive big workflows: the router files are small, the
+scripts are deterministic, and provenance is in the data rather than in the
+model's head. A lot of this catalog was built and is tested daily against
+inexpensive models — Qwen 3.8 Flash Next and DeepSeek 4.1 Flash, including
+locally served — and it began life on frontier GPT/Claude models back when the
+cheap options couldn't hold a multi-step pipeline. They can now; the ecosystem
+is moving fast, and this catalog is written to ride that curve rather than pay
+a token tax to it.
 
 ## How data-source routing decides
 
@@ -253,6 +266,34 @@ flowchart LR
     class pass ok
     class fail bad
 ```
+
+## Built to be extended — your crop, your region, your operation
+
+This catalog is a **base**, not a finished product. Every capability is a
+pattern with a seam: the country-aware soil router takes the provider you
+write for your province or parish; the maturity machinery takes the phenology
+model for the crop you actually grow; the design library takes your plot
+constraints; the reporting templates take the metrics your organization buys.
+The three per-domain playbooks in
+[`data-pipeline/references/`](my-farm-advisor/data-pipeline/references/)
+(boundaries, rotation, soil) document exactly how a new country or provider
+gets onboarded — discover, license-check, ingest module, provenance, validator.
+
+Who we expect to fork and extend this, and what they'd plug in first:
+
+| Reader | Extends first |
+| --- | --- |
+| Grower / farm manager | Their fields' boundaries, the reports and dashboards they read |
+| Processor / grain buyer | Delivery-zone analytics, contract-area crop maps |
+| Insurance / investment | Damage-evidence pipelines, area-yield views, region benchmarks |
+| Extension agent | Local variety trials, regional rotation analytics |
+| Research / breeding company | Trial designs, germplasm integrations, their own QTL pipelines |
+| Seed company | Maturity models and zones for their genetics specifically |
+
+The point of publishing it as skills rather than an application: the analysis
+interface is natural language ("show me last week's canopy for the home field"),
+the reproducibility layer is scripts + provenance, and anyone — farmer or
+geneticist — gets both without us choosing their agent harness for them.
 
 ## The three skills in detail
 

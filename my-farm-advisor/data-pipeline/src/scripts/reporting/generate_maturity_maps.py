@@ -81,10 +81,15 @@ def _render_map(
 _REGION_TITLES = {
     "usa": "Contiguous U.S.",
     "canada": "Canada (Census Divisions)",
-    "north-america": "North America",
+    "north-america": "U.S. + Southern Canada",
 }
 # Empty suffix keeps the historical US-only output paths byte-identical.
 _OUTPUT_SUFFIXES = {"usa": "", "canada": "_canada", "north-america": "_northamerica"}
+
+# North-America maps stop ~250 mi north of the contiguous-U.S. northern border
+# (49 N + 250 mi ≈ 52.6 N): the Canadian Prairies' corn/soy belt is in, the
+# boreal waste is not, and the picture stays about what corn actually grows.
+_NORTH_AMERICA_LAT_CAP = 52.6
 
 
 def _load_region_counties(country: str, counties_dir: Path) -> gpd.GeoDataFrame:
@@ -97,7 +102,13 @@ def _load_region_counties(country: str, counties_dir: Path) -> gpd.GeoDataFrame:
         frames.append(gpd.GeoDataFrame(usa[["fips", "geometry"]]))
     if country in ("canada", "north-america"):
         canada = gpd.read_file(Path(counties_dir) / "counties_canada.geojson")
-        frames.append(gpd.GeoDataFrame(canada[["fips", "geometry"]]))
+        canada = gpd.GeoDataFrame(canada[["fips", "geometry"]]).to_crs("EPSG:4326")
+        if country == "north-america":
+            inside = canada[canada.geometry.centroid.y <= _NORTH_AMERICA_LAT_CAP]
+            canada = gpd.GeoDataFrame(inside[["fips", "geometry"]], crs="EPSG:4326").to_crs(
+                gpd.read_file(Path(counties_dir) / "counties_usa.geojson").crs
+            )
+        frames.append(canada[["fips", "geometry"]] if hasattr(canada, "crs") else canada)
     if len(frames) > 1:
         region = gpd.GeoDataFrame(pd.concat(frames, ignore_index=True), crs=frames[0].crs)
     else:
@@ -131,12 +142,18 @@ def main() -> int:
     soy_map = counties.merge(soy[["fips", "mg_optimal"]], on="fips", how="left")
     region_title = _REGION_TITLES[args.country]
     suffix = _OUTPUT_SUFFIXES[args.country]
+    geo_note = ""
+    if args.country != "usa":
+        geo_note = (
+            " | Geography: L2 U.S. counties + Canadian census divisions north of the border, "
+            "capped ~250 mi (400 km) into Canada"
+        )
 
     _render_map(
         corn_map,
         value_column="rm_relative_maturity",
         title=f"Heuristic Corn RM by FIPS - {region_title} ({args.year})",
-        subtitle="Planning layer only - derived from county GDD, not recommendation-grade guidance",
+        subtitle="Planning layer only - derived from county GDD, not recommendation-grade guidance" + geo_note,
         output_path=shared_corn_maturity_reports_dir() / f"rm_by_fips_{args.year}{suffix}.png",
         cmap="YlGn",
     )
@@ -144,7 +161,7 @@ def main() -> int:
         soy_map,
         value_column="mg_optimal",
         title=f"Heuristic Soybean MG by FIPS - {region_title} ({args.year})",
-        subtitle="Planning layer only - latitude-based maturity heuristic, not a planting prescription",
+        subtitle="Planning layer only - latitude-based maturity heuristic, not a planting prescription" + geo_note,
         output_path=shared_soybean_maturity_reports_dir() / f"mg_by_fips_{args.year}{suffix}.png",
         cmap="YlOrBr",
     )

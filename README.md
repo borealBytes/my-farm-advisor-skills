@@ -96,14 +96,16 @@ same 9-layer view for each demo field, masked to the boundary. Iowa is the
 
 | Corn relative maturity (model-derived) | Soybean MG (model-derived) |
 | --- | --- |
-| ![Corn RM](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_by_fips_2023.png) | ![Soybean MG](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_by_fips_2023.png) |
+| ![Corn RM North America](my-farm-advisor/data-pipeline/examples/maturity/output/corn_rm_northamerica_2023.png) | ![Soybean MG North America](my-farm-advisor/data-pipeline/examples/maturity/output/soybean_mg_northamerica_2023.png) |
 | County GDD from our POWER pipeline → RM surface; recomputed per year; subtitle states its own limits | Latitude + heat-unit heuristic; planning layer, not a prescription — the caption says so |
 
-Both maps are also the admin-geometry demo: **L0 countries, L1 states/provinces
-and L2 counties/census divisions** feed the choropleth, and the cached Natural
-Earth lakes layer paints water over the grid so the maps read like maps.
-Canada's census-divisions version and a combined North-America view render with
-one flag (`--country canada|north-america`).
+Both maps are the admin-geometry demo at every level: **L0 countries, L1
+states/provinces, L2 counties and Canadian census divisions** feed the
+choropleth, and the cached Natural Earth lakes layer paints water over the
+grid so the maps read like maps. Canada is capped ~250 mi (400 km) north of
+the border — the Prairie corn/soy belt is in, the boreal void isn't, so the
+picture stays about what actually grows. US-only, Canada-only, and combined
+views all render from one flag (`--country usa|canada|north-america`).
 
 ### One page per field, and weather you can audit
 

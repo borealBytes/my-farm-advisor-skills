@@ -270,7 +270,7 @@ def _download_landsat_scene(
         field_geom,
         paths["qa"],
     )
-    ndvi_path = compute_landsat_ndvi(red_path, nir_path, qa_path, paths["qa"])
+    ndvi_path = compute_landsat_ndvi(red_path, nir_path, qa_path, paths["ndvi"])
     return {
         "scene_id": feature["id"],
         "scene_date": scene_date.date().isoformat(),

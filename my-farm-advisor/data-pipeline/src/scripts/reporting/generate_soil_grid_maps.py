@@ -122,8 +122,9 @@ def _panel_frame_labels(ax, ff, _fflib) -> None:
     ax.tick_params(labelsize=5.8)
     ax.grid(alpha=0.15, lw=0.4)
     ax.set_aspect("equal", adjustable="datalim")
-    ax.set_xlim(0, float(ff.geometry.total_bounds[2]))
-    ax.set_ylim(0, float(ff.geometry.total_bounds[3]))
+    _L, _R, _B, _T = _fflib.view_extent(0, float(ff.geometry.total_bounds[2]), 0, float(ff.geometry.total_bounds[3]))
+    ax.set_xlim(_L, _R)
+    ax.set_ylim(_B, _T)
     _fflib.decorate(ax, ff, arrow_r=0.085, arrow_fs=8.5, callout=False,
                     arrow_xy=(0.955, 0.05))
 
@@ -339,8 +340,9 @@ def render_field(
                          _p.y0 + (_p.height - _side) / 2, _side, _side])
     _ = ff.geometry.total_bounds
     for _a in _used:
-        _a.set_xlim(0, float(_[2]))
-        _a.set_ylim(0, float(_[3]))
+        _L, _R, _B, _T = _fflib.view_extent(0, float(_[2]), 0, float(_[3]))
+        _a.set_xlim(_L, _R)
+        _a.set_ylim(_B, _T)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=170)
     plt.close(fig)

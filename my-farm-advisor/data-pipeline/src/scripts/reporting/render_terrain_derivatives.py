@@ -107,6 +107,8 @@ def main() -> int:
                            extent=list(ext), origin="upper")
         cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
         cb.set_label(unit, fontsize=6); cb.ax.tick_params(labelsize=5)
+        _L, _R, _B, _T = _fflib.view_extent(*ext)
+        ax.set_xlim(_L, _R); ax.set_ylim(_B, _T)
         ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.2)
         ax.set_title(title, fontsize=9)
         ax.set_xlabel(_fflib.crs_note(ff), fontsize=5.6)

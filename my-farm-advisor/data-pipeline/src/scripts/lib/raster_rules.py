@@ -127,5 +127,10 @@ def outer_crop(src, geoms, *, nodata=None):
     tr = Affine(tr.a, tr.b, tr.c + col_off * tr.a, tr.d, tr.e, tr.f + row_off * tr.e)
     from rasterio.features import geometry_mask
     m = geometry_mask(shp, out_shape=(height, width), transform=tr, invert=True, all_touched=True)
-    filled = np.where(m, out, nodata if nodata is not None else src.nodata)
+    if nodata is None:
+        nodata = src.nodata
+        if nodata is None:
+            nodata = (np.nan if np.issubdtype(out.dtype, np.floating)
+                      else int(np.iinfo(out.dtype).max))
+    filled = np.where(m, out, nodata)
     return filled, tr, ~m

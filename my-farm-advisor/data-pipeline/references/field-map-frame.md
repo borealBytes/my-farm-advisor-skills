@@ -5,7 +5,7 @@ maps, trial-placement plans, NDVI/terrain field maps — uses this frame. Never
 plot a single field on geodetic degree axes; at field scale degrees are
 uninterpretable ticks with no meaning.
 
-## The standard (implemented in `generate_soil_texture_triangles.py`)
+## The standard (implemented in `src/scripts/lib/field_frame.py` — all renderers call it)
 
 1. **Project to the local UTM zone**: `zone = floor((lon + 180) / 6) + 1`,
    EPSG `32600 + zone` (north) / `32700 + zone` (south). Metres are the only
@@ -14,7 +14,10 @@ uninterpretable ticks with no meaning.
    field bounding box so the field starts at `(0, 0)`. Axis labels:
    `"m E from SW corner (UTM {zone})"` and `"m N"`. Every coordinate the
    reader sees is "how far into my field".
-3. **North arrow, boxed, top-right**: bold `N` in a white rounded box with a
+3. **Pad the viewport**: `field_frame.view_extent()` grows every panel's axis
+   bounds by 4% of the long side so the boundary never touches an edge — a
+   flush boundary reads as "cut off", not "fills the frame".
+4. **North arrow, boxed, top-right**: bold `N` in a white rounded box with a
    heavy upward shaft, placed in axes-fraction coords so it never moves with
    data zoom. Non-negotiable — a metre-axis field map without a north arrow
    forces the reader to guess orientation.

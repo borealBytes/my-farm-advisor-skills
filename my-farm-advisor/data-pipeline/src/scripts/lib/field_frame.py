@@ -280,3 +280,14 @@ def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
     ax.text(x_lo + 60 + f.scale_len / 2, scale_y + 0.02, f"{f.scale_len:.0f} m",
             transform=tr, fontsize=6.6, ha="center", color="#111827",
             bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))
+
+
+VIEW_PAD_FRAC = 0.04
+
+
+def view_extent(x_min, x_max, y_min, y_max, pad_frac: float = VIEW_PAD_FRAC):
+    """Viewport bounds with a small margin so the field boundary never
+    touches an axis edge — part of the frame contract for every panel that
+    shows the polygon (README figures, dashboards, web maps alike)."""
+    m = pad_frac * max(x_max - x_min, y_max - y_min)
+    return (x_min - m, x_max + m, y_min - m, y_max + m)

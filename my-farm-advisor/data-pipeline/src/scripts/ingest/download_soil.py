@@ -87,7 +87,10 @@ def _australia_soil_rows(fields, *, field_slug_map, grower_slug, farm_slug):
         field_id = str(row["field_id"])
         field_slug = field_slug_map.get(field_id, field_id)
         soil_dir = field_soil_summary_path(grower_slug, farm_slug, field_slug).parent
-        bbox = tuple(row.geometry.bounds)
+        # raster_rules: pad fetch bbox by >= one SLGA cell (coarsest grid is
+        # 1 arc-second ~= 0.017 deg) so boundary cells are complete
+        bbox = (row.geometry.bounds[0] - 0.017, row.geometry.bounds[1] - 0.017,
+                row.geometry.bounds[2] + 0.017, row.geometry.bounds[3] + 0.017)
         for prop in AUSTRALIA_PROPERTIES:
             out_path = soil_dir / "slga_asf" / f"{prop.lower()}_{AUSTRALIA_DEPTH}.tif"
             try:
@@ -350,6 +353,40 @@ def _write_field_polygon_caches(
         polygons.to_file(cache_path, driver="GeoJSON")
 
 
+def _enrich_ssurgo_horizons(df: "pd.DataFrame") -> "pd.DataFrame":
+    """Add subsoil attributes SSURGO knows but the base fetch omits, published
+    under the Ontario provider's column NAMES so one renderer serves both:
+    ph_cacl2, ksat_cm_hr (SSURGO ksatb_r is mm/hr -> x0.1), base_sat_pct.
+    """
+    if df.empty or "mukey" not in df.columns:
+        return df
+    mukeys = sorted({str(m) for m in df["mukey"].dropna().unique()})
+    if not mukeys:
+        return df
+    sql = f"""
+    SELECT c.mukey, c.compname, ch.hzdept_r, ch.hzdepb_r,
+           ch.phcacl2_r, ch.ksatb_r, ch.bysat
+    FROM component c
+    JOIN chorizon ch ON ch.cokey = c.cokey
+    WHERE c.mukey IN ({", ".join(repr(m) for m in mukeys)})
+    """
+    try:
+        rows = _query_sda(sql)
+    except Exception:
+        rows = []
+    if not rows:
+        for col in ("ph_cacl2", "ksat_cm_hr", "base_sat_pct"):
+            df[col] = df.get(col, float("nan"))
+        return df
+    e = pd.DataFrame(rows, columns=["mukey", "compname", "hzdept_r", "hzdepb_r",
+                                    "ph_cacl2", "ksat_mm_hr", "base_sat_pct"])
+    e["mukey"] = e["mukey"].astype(str)
+    e["ksat_cm_hr"] = pd.to_numeric(e.pop("ksat_mm_hr"), errors="coerce") * 0.1
+    out = df.merge(e.drop(columns=["ksat_mm_hr"]),
+                   on=["mukey", "compname", "hzdept_r", "hzdepb_r"], how="left")
+    return out
+
+
 def _write_restrictions(
     soil_data: pd.DataFrame,
     field_slug_map: dict,
@@ -538,6 +575,8 @@ def main():
 
     if not soil_data.empty and "soil_source" not in soil_data.columns:
         soil_data["soil_source"] = "ssurgo"
+    if not soil_data.empty:
+        soil_data = _enrich_ssurgo_horizons(soil_data)
 
     ontario_polygons = None
     if not ontario_fields.empty and ontario_module is not None:

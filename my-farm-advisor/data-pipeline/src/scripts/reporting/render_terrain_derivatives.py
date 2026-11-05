@@ -25,6 +25,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+import rasterio.warp
 
 LAYER_ORDER = [
     ("dem_conditioned.tif", "Elevation (filled DEM)", "m", "terrain", False),
@@ -57,13 +58,27 @@ def main() -> int:
             raise SystemExit(f"no field boundary under {fdir/'boundary'}")
         bpath = cands[0]
     fields = gpd.read_file(bpath).to_crs("EPSG:4326")
-    poly = fields.union_all()
-    b = fields.total_bounds
-    pad = 0.002
-    bounds = (b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad)
+
+    # --- field-local frame, same library as every other static figure ------
+    # (lib/field_frame.py; references/field-map-frame.md). The DEM is warped
+    # STRAIGHT into the rotated grid via a rotated GDAL geotransform — one
+    # resample, no rotate-the-array step, so the metre grid is honest.
+    import sys as _sys
+    from math import cos as _c, sin as _s, radians as _rad
+    from rasterio.transform import Affine
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    import field_frame as _fflib
 
     fig, axes = plt.subplots(3, 3, figsize=(9.6, 9.2), constrained_layout=True)
+    fig.canvas.draw()
+    _rb = axes[0, 0].get_position()
+    _sz = fig.get_size_inches()
+    ff = _fflib.frame_for(fields, panel_h_in=_rb.height * _sz[1],
+                         panel_w_in=_rb.width * _sz[0])
+    poly_zone = fields.to_crs(ff.epsg).union_all()
     src_note = ""
+    _into_frame = lambda ds, dst_res: _fflib.reproject_into_frame(ds, ff, dst_res, poly_metric=poly_zone)
+
     for ax, (fn, title, unit, cmap, log) in zip(axes.ravel(), LAYER_ORDER):
         p = tdir / fn
         if not p.exists():
@@ -71,27 +86,9 @@ def main() -> int:
             ax.axis("off")
             continue
         with rasterio.open(p) as ds:
-            arr = ds.read(1, masked=True).astype("float64")
-            ext0 = ds.bounds
-            crs = ds.crs
-            res = ds.res[0]
-            tr = ds.transform
-        from rasterio.features import geometry_mask
-        from rasterio.transform import from_bounds
-        from rasterio.warp import transform as wtransform
-        # Panel axes are always lat/lon; rasters may be projected (US 3DEP clips) —
-        # mask in the raster's own CRS, then re-express bounds in EPSG:4326.
-        poly_use = poly if str(crs).upper() == "EPSG:4326" else gpd.GeoDataFrame(geometry=[poly], crs="EPSG:4326").to_crs(crs).geometry.iloc[0]
-        gm = geometry_mask([poly_use], out_shape=arr.shape,
-                           transform=tr, invert=True)
-        o = wtransform(crs, "EPSG:4326", [ext0[0], ext0[2]], [ext0[1], ext0[3]])
-        ext = (o[0][0], o[1][0], o[0][1], o[1][1])
-        if crs.is_geographic:
-            res_m = res * 111320
-        else:
-            res_m = res
+            res_m = ds.res[0] * (111320 if ds.crs.is_geographic else 1)
+            show, ext = _into_frame(ds, res_m)
         src_note = src_note or f"\u2248{res_m:.0f} m native grid"
-        show = np.ma.masked_where(~gm, np.ma.masked_invalid(np.array(arr, dtype="float64", copy=True)))
         def _vminmax(m):
             d = np.array(np.ma.filled(m, np.nan), dtype="float64", copy=True).ravel()
             d = d[np.isfinite(d)]
@@ -105,16 +102,20 @@ def main() -> int:
         if cmap is None:  # aspect: cyclic
             im = ax.imshow(show, cmap="hsv", vmin=0, vmax=360,
                            extent=[ext[0], ext[2], ext[1], ext[3]], origin="upper")
-            cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03); cb.set_label(unit, fontsize=6)
         else:
             im = ax.imshow(show, cmap=cmap, vmin=vmin, vmax=vmax,
                            extent=[ext[0], ext[2], ext[1], ext[3]], origin="upper")
-            cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03); cb.set_label(unit, fontsize=6)
-        cb.ax.tick_params(labelsize=5)
-        fields.plot(ax=ax, facecolor="none", edgecolor="red", linewidth=1.2)
+        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
+        cb.set_label(unit, fontsize=6); cb.ax.tick_params(labelsize=5)
+        ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.2)
         ax.set_title(title, fontsize=9)
-        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xlabel(_fflib.crs_note(ff), fontsize=5.6)
+        ax.set_ylabel("field-local m", fontsize=6)
+        ax.tick_params(labelsize=5.8)
+        _fflib.decorate(ax, ff, arrow_r=0.10, arrow_fs=10, callout=False)
     fig.suptitle(f"{args.field} — terrain derivatives ({src_note})", fontsize=11)
+    fig.text(0.01, 0.006, "rasters warped into the field-local frame in one resample \u2014 "
+             "hillshade lighting rotates with the frame", fontsize=6, color="#6b7280")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=170)
     plt.close(fig)

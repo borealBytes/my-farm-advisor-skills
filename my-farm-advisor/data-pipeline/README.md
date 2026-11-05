@@ -8,6 +8,9 @@ Soil provider selection by boundary `country`:
 Per-year crop rotation/crop-type sources by country (CDL, AAFC ACI, and the
 keyless WorldCereal default-model path for every other country):
 [references/crop-rotation-sources.md](references/crop-rotation-sources.md).
+The best-available-data ladder and the keyless RDM regional-reference API
+(`scripts/ingest/download_rdm_reference.py`):
+[references/worldcereal-rdm.md](references/worldcereal-rdm.md).
 - Field-scale maps (any figure drawing one field polygon) use the field-local
   UTM frame, origin-at-SW-corner axes and boxed north arrow, with optional
   viewport rotation — [references/field-map-frame.md](references/field-map-frame.md).
@@ -28,7 +31,9 @@ detailed survey (CA), Australia's Soil Atlas via Gaia-DAP (AU), or SoilGrids
 250 m as the global floor; rotation history from CDL (US), AAFC ACI (CA), or
 the WorldCereal default crop models applied per year on keyless Microsoft
 Planetary Computer Sentinel-2 (`scripts/ingest/apply_worldcereal.py`,
-verification figures via `scripts/render_worldcereal.py`, plus a USDA CDL
+regional reference samples/parcels from the keyless WorldCereal RDM REST API
+(`scripts/ingest/download_rdm_reference.py`, EWOC-legend joined — rung 2 of the
+best-available-data ladder), verification figures via `scripts/render_worldcereal.py`, plus a USDA CDL
 comparator panel via `scripts/render_worldcereal_cdl.py` — in-field class
 shares and an explicit agree/disagree verdict); terrain from the
 resolution-ranked DEM resolver (USGS 3DEP/TNM where mapped — up to 1 m — with

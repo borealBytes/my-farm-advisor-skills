@@ -60,7 +60,13 @@ Open the subtree index that matches the request:
   `data-pipeline/references/field-boundary-sources.md`. Crop rotation / cropping-history layers per
   country (year-by-year requirement; US CDL, CA ACI, AU gap; global fallback = WorldCereal default
   models via `src/scripts/ingest/apply_worldcereal.py`) are in
-  `data-pipeline/references/crop-rotation-sources.md`. **Before any satellite crop-type
+  `data-pipeline/references/crop-rotation-sources.md`. The **WorldCereal RDM**
+  (keyless REST at `https://ewoc-rdm-api.iiasa.ac.at`) is rung 2 of the
+  best-available-data ladder — check for a regional reference collection
+  (`src/scripts/ingest/download_rdm_reference.py`, legend
+  `src/scripts/data/ewoc_legend.csv`) before trusting the default model in a
+  contributor-data region; see `data-pipeline/references/worldcereal-rdm.md`.
+  **Before any satellite crop-type
   classification, look up the region×year growing-season window** (the toolbox's
   `worldcereal.seasons.get_season_dates_for_extent`, else national/state calendars — never guess
   months; SH seasons cross calendar years) and classify only imagery in that window; report

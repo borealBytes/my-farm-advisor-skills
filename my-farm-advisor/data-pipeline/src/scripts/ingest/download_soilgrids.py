@@ -48,6 +48,8 @@ from reporting_bootstrap import (  # pyright: ignore[reportMissingImports]
 
 ensure_skill_path("soilgrids-global")
 
+SG_CELL_M = 250.0  # SoilGrids global grid cell (raster_rules floor for the bbox buffer)
+
 import soilgrids_global as sg  # pyright: ignore[reportMissingImports]
 
 STATS_COLUMNS = [
@@ -206,7 +208,10 @@ def main():
         field_slug = field_slug_map.get(field_id) or field_slug_from_id(field_id)
         validate_path_slug(field_slug, "field_slug")
         geometry = field.geometry
-        bbox = sg.field_bbox(geometry, buffer_meters=args.buffer_meters)
+        # raster_rules: bbox margin >= one full source cell (250 m grid) — a
+        # sub-cell bbox drops boundary cells and makes edge coverage unmeasurable
+        _eff_buf = max(args.buffer_meters, SG_CELL_M * 1.2)
+        bbox = sg.field_bbox(geometry, buffer_meters=_eff_buf)
         for band in bands:
             for depth in depths:
                 raster_path = shared_soilgrids_field_dir(field_slug) / f"soilgrids_{band}_{depth}.tif"
@@ -228,7 +233,7 @@ def main():
                     bbox,
                     raster_path,
                     polygon=geometry,
-                    buffer_note=f"bbox buffered {args.buffer_meters:g} m; zonal mask = field polygon",
+                    buffer_note=f"bbox buffered {_eff_buf:g} m (>=1.2 x the 250 m source cell, raster_rules); zonal mask = field polygon",
                 )
                 _journal_record(journal, raster_path, record)
                 rows.append(_row_from_record(field_id, field_slug, record))

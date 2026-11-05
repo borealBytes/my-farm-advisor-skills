@@ -238,6 +238,7 @@ def _download_sentinel_scene(
             "scl": _relative_to_repo(scl_path),
         },
         "ndvi_tif": _relative_to_repo(ndvi_path),
+        "coverage": _coverage_of(red_path, field_geom),
     }
 
 
@@ -269,7 +270,7 @@ def _download_landsat_scene(
         field_geom,
         paths["qa"],
     )
-    ndvi_path = compute_landsat_ndvi(red_path, nir_path, qa_path, paths["ndvi"])
+    ndvi_path = compute_landsat_ndvi(red_path, nir_path, qa_path, paths["qa"])
     return {
         "scene_id": feature["id"],
         "scene_date": scene_date.date().isoformat(),
@@ -281,7 +282,19 @@ def _download_landsat_scene(
             "qa_pixel": _relative_to_repo(qa_path),
         },
         "ndvi_tif": _relative_to_repo(ndvi_path),
+        "coverage": _coverage_of(red_path, field_geom),
     }
+
+
+def _coverage_of(tif_path: Path, field_geom) -> dict | None:
+    """raster_rules field/pixel overlap stats journalled in the manifest."""
+    try:
+        import sys as _s
+        _s.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+        import raster_rules as _rr
+        return _rr.coverage(tif_path, field_geom)
+    except Exception:
+        return None
 
 
 def _load_sensor_manifest(

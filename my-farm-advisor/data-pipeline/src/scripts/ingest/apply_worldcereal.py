@@ -99,6 +99,16 @@ def _field_bounds(fdir: Path, field_id: str):
     return gdf.geometry.union_all().bounds
 
 
+WC_PAD_DEG = 0.0003  # ~33 m at 10 m native = >=1 source cell; raster_rules margin
+
+
+def _pad_bbox(bbox):
+    """Every COG read window includes margin: the fetch bbox is padded by at
+    least one native cell so boundary cells are complete (lib/raster_rules.py)."""
+    return (bbox[0] - WC_PAD_DEG, bbox[1] - WC_PAD_DEG,
+            bbox[2] + WC_PAD_DEG, bbox[3] + WC_PAD_DEG)
+
+
 def _resolve_window(bbox, year: int, season: str):
     from openeo_gfmap import BoundingBoxExtent
     from worldcereal.seasons import get_season_dates_for_extent
@@ -335,7 +345,7 @@ def main() -> int:
     except ImportError:
         DEFAULT_SEASONAL_MODEL_URL = None
 
-    bbox = _field_bounds(fdir, args.field)
+    bbox = _pad_bbox(_field_bounds(fdir, args.field))
     epsg = args.epsg or _utm_epsg((bbox[0] + bbox[2]) / 2,
                                   (bbox[1] + bbox[3]) / 2)
 

@@ -390,10 +390,16 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
 
     df = pd.read_csv(csv_path)
     df = df.dropna(subset=["claytotal_r"]).copy()
+    # optional subsoil attributes (present after the enriched SSURGO ingest and
+    # in the Ontario provider; absent in older CSVs, which then show empty)
+    for _c in ("cec7_r", "dbthirdbar_r", "ksat_cm_hr", "ph_cacl2"):
+        if _c not in df.columns:
+            df[_c] = float("nan")
     df["slice"] = df["hzdept_r"].astype(int).astype(str) + "-" + df["hzdepb_r"].astype(int).astype(str) + " cm"
     g = df.groupby(["compname", "comppct_r", "slice"], as_index=False).agg(
         hzdept=("hzdept_r", "min"), om=("om_r", "mean"), ph=("ph1to1h2o_r", "mean"),
         awc=("awc_r", "mean"), clay=("claytotal_r", "mean"), sand=("sandtotal_r", "mean"),
+        cec=("cec7_r", "mean"), bd=("dbthirdbar_r", "mean"),
     ).sort_values(["comppct_r", "hzdept"], ascending=[False, True])
     g = g.head(14)
 
@@ -438,81 +444,38 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
                 for i, n in enumerate(_names)}
         _poly = _poly.assign(comp=_poly["mukey"].map(_dom),
                              c=_poly["mukey"].map(_dom).map(_col))
-        # field-local UTM metres, (0,0) pinned to the SW corner of the field
-        # bounding box — degrees are noise at field scale
-        _lon0 = float(_poly.dissolve().geometry.iloc[0].centroid.x)
-        _lat0 = float(_poly.dissolve().geometry.iloc[0].centroid.y)
-        _zone = int((_lon0 + 180) // 6) + 1
-        _epsg = (32600 if _lat0 >= 0 else 32700) + _zone
-        _gu = _poly.to_crs(_epsg)
         ax_m = fig.add_subplot(gs[0])
-        # --- field-local frame with automatic viewport fit -------------------
-        # 1) pin (0,0) at the SW corner; 2) measure the panel's real aspect
-        # after layout; 3) rotate the geometry so the field's long edge runs
-        # along the panel's long axis; 4) re-pin (0,0) at the SW corner of the
-        # ROTATED bbox (what the reader's ruler starts from); 5) the north
-        # arrow counter-rotates, the metre grid does not.
-        import math as _math
-        import shapely.affinity as _aff
-        _x0, _y0, _, _ = _gu.total_bounds
-        _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
+        # --- field-local frame: the shared library does the geometry --------
+        # (0,0) at the SW corner of the ROTATED bbox, long edge auto-fitted to
+        # this panel's real aspect, tilt canonical to (-90, +90], true-north
+        # arrow (convergence-aware), rotation callout, 500 m scale bar.
+        # lib/field_frame.py is the single deterministic entry point for every
+        # static field figure; see references/field-map-frame.md.
+        import sys as _sys
+        _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+        import field_frame as _fflib
         fig.canvas.draw()
         _rb = ax_m.get_position()
-        _panel_h, _panel_w = _rb.height * fig.get_size_inches()[1], _rb.width * fig.get_size_inches()[0]
-        _long_axis = "vertical" if _panel_h >= _panel_w else "horizontal"
-        _pts = list(_gu.dissolve().geometry.iloc[0].minimum_rotated_rectangle.exterior.coords)
-        _edges = list(zip(_pts, _pts[1:]))[:4]
-        (_x1, _y1), (_x2, _y2) = max(_edges, key=lambda e: (e[1][0]-e[0][0])**2 + (e[1][1]-e[0][1])**2)
-        _theta = _math.degrees(_math.atan2(_y2 - _y1, _x2 - _x1))
-        _rot = (_theta - 90.0) if _long_axis == "vertical" else _theta
-        # canonical tilt in (-90, 90]: a longer rotation would apply the same
-        # long-edge alignment but flip north below the horizon
-        _rot = ((_rot + 90.0) % 180.0) - 90.0
-        if abs(_rot) < 0.5:
-            _rot = 0.0
-        if _rot != 0.0:
-            _gu = _gu.assign(geometry=_gu.geometry.map(lambda g: _aff.rotate(g, -_rot, origin=(0, 0))))
-            _x0, _y0, _, _ = _gu.total_bounds
-            _gu = _gu.assign(geometry=_gu.geometry.translate(xoff=-_x0, yoff=-_y0))
-        if abs(_rot) <= 0.05:
-            _rot = 0.0
+        _sz = fig.get_size_inches()
+        ff = _fflib.frame_for(_poly, panel_h_in=_rb.height * _sz[1],
+                              panel_w_in=_rb.width * _sz[0])
+        _gu, _epsg, _rot = ff.geometry, ff.epsg, ff.rot
+        _zone = _epsg - (32600 if _epsg < 32700 else 32700)
         _gu.plot(ax=ax_m, color=_gu["c"].fillna("#d1d5db"),
                  linewidth=0.4, edgecolor="#4b5563")
         _gu.dissolve().boundary.plot(ax=ax_m, color="#111827", lw=1.1)
-        _axlab = (f"m E from SW corner (UTM {_zone})" if _rot == 0.0 else
-                  f"field-local m (rotated {_rot:+.0f}\u00b0 from E, UTM {_zone})")
-        ax_m.set_xlabel(_axlab, fontsize=7.6)
-        ax_m.set_ylabel("m N" if _rot == 0.0 else "m (rotated frame)", fontsize=7.6)
-        ax_m.tick_params(labelsize=7.2)
+        ax_m.set_xlabel(_fflib.crs_note(ff), fontsize=7.0)
+        ax_m.set_ylabel("field-local m", fontsize=7.6)
         ax_m.tick_params(labelsize=6.4)
         ax_m.grid(alpha=0.18, lw=0.4)
-        # north arrow, top-right, boxed for contrast; the geometry was rotated
-        # CW by _rot, so true north in the panel points (sin rot, cos rot)
-        _rad = _math.radians(_rot)
-        _dx, _dy = _math.sin(_rad), _math.cos(_rad)
-        _cx, _cy, _r = 0.87, 0.845, 0.135
-        ax_m.annotate("", xy=(_cx + _r * _dx, _cy + _r * _dy),
-                      xytext=(_cx - _r * 0.72 * _dx, _cy - _r * 0.72 * _dy),
-                      xycoords="axes fraction",
-                      arrowprops=dict(arrowstyle="-|>", lw=3.0, color="#111827",
-                                      mutation_scale=20))
-        ax_m.text(_cx + _r * 1.30 * _dx, _cy + _r * 1.30 * _dy, "N",
-                  transform=ax_m.transAxes, fontsize=16, fontweight="bold",
-                  ha="center", va="center", color="#111827",
-                  bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#111827", lw=1.0))
-        if _rot != 0.0:
-            ax_m.text(0.02, 0.98, f"field rotated {_rot:+.0f}\u00b0 to fit — N shown by arrow",
-                      transform=ax_m.transAxes, fontsize=6.8, style="italic",
-                      color="#374151", va="top")
-        # 500 m scale bar (axes-x / data-y blend so the tick length is honest)
-        import matplotlib.transforms as _mt
-        _tr = _mt.blended_transform_factory(ax_m.transData, ax_m.transAxes)
-        _x_lo = ax_m.get_xlim()[0]
-        ax_m.plot([_x_lo + 60, _x_lo + 560], [0.035, 0.035], transform=_tr,
-                  color="#111827", lw=2.0, clip_on=False)
-        ax_m.text(_x_lo + 310, 0.055, "500 m", transform=_tr, fontsize=6.6,
-                  ha="center", color="#111827")
+        ax_m.set_aspect("equal", adjustable="datalim")
         ax_m.set_title("map units — dominant component", fontsize=8.6, weight="bold", pad=13)
+        _ha = float(_poly.assign(a=_poly.to_crs(_epsg).geometry.area)["a"].sum()) / 1e4
+        ax_m.text(0.5, 1.015, f"{_ha:,.1f} ha — {_fflib.crs_note(ff)}",
+                  transform=ax_m.transAxes, ha="center", va="bottom", fontsize=5.8,
+                  color="#4b5563")
+        ax_m.text(0.5, 0.998, _fflib.crs_note(ff, full=True).split("; ", 1)[1] if ff.rotated else "", transform=ax_m.transAxes, ha="center", va="bottom", fontsize=5.6, color="#6b7280")
+        _fflib.decorate(ax_m, ff)
         _hand = [mpatches.Patch(facecolor=_col[n], edgecolor="#4b5563",
                                 label=f"{n} — {float(_pct.get(n, 0)):.1f}% of field")
                  for n in _names if n in _col]
@@ -520,13 +483,14 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         ax_m.legend(handles=_hand, fontsize=7.4, loc="upper left",
                     bbox_to_anchor=(0.0, -0.115), ncol=2, frameon=True, framealpha=0.95,
                     borderpad=0.5, labelspacing=0.4, columnspacing=0.9)
-    cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "Clay %", "Sand %"]
+    cols = ["Component", "Rel. %", "Depth", "OM %", "pH", "AWC", "CEC", "BD"]
     cells = [
         [r.compname, f"{r.comppct_r:.0f}", r.slice,
          "" if pd.isna(r.om) else f"{r.om:.1f}",
          "" if pd.isna(r.ph) else f"{r.ph:.1f}",
          "" if pd.isna(r.awc) else f"{r.awc:.2f}",
-         f"{r.clay:.0f}", "" if pd.isna(r.sand) else f"{r.sand:.0f}"]
+         "" if pd.isna(r.cec) else f"{r.cec:.1f}",
+         "" if pd.isna(r.bd) else f"{r.bd:.2f}"]
         for r in g.itertuples()
     ]
     tbl = ax_t.table(cellText=cells, colLabels=cols, loc="upper left", cellLoc="center")
@@ -567,7 +531,10 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
     bins = np.arange(0, 101, 5.0)  # profile starts at the surface (0 cm)
     panels = [("OM %", _interp_profile(df, "om_r", bins), plt.get_cmap("Reds")),
               ("pH", _interp_profile(df, "ph1to1h2o_r", bins), plt.get_cmap("coolwarm_r")),
-              ("AWC", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues"))]
+              ("AWC", _interp_profile(df, "awc_r", bins), plt.get_cmap("Blues")),
+              # ksatb_r published as ksat_cm_hr; spans orders of magnitude —
+              # a linear axis would be a straight line at zero
+              ("Ksat (cm/h)", _interp_profile(df, "ksat_cm_hr", bins), plt.get_cmap("Greens"))]
     have = [(n, y, c) for n, y, c in panels if y is not None]
     # fifth profile: sand+silt+clay interpolated the same way, normalized to a
     # 100 % stack down the profile — you watch texture change with depth
@@ -600,18 +567,26 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         if any(w in k for w in ("water", "saturat", "perched", "aquic")):
             return "#1d4ed8"
         return "#7c2d12"
-    n_cols2 = len(have) + (1 if has_tex else 0) + (1 if (has_restr or known_restr) else 0)
-    ratios2 = [1] * (len(have) + (1 if has_tex else 0))
-    if has_restr or known_restr:
-        ratios2.append(0.80)
+    # restriction layers are NOT a column of their own — they ride on top of
+    # the texture stack (see below), so the panel grid is profiles + texture
+    n_cols2 = len(have) + (1 if has_tex else 0)
+    ratios2 = [1] * n_cols2
     gs2 = gridspec.GridSpecFromSubplotSpec(1, n_cols2, subplot_spec=gs[-1], wspace=0.30,
                                            width_ratios=ratios2)
     for i, (name, y, cmap) in enumerate(have):
         ax = fig.add_subplot(gs2[i])
-        ax.plot(y, bins, color="#1f2937", lw=1.7)
-        ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
-        ax.set_ylim(100, 0); ax.set_xlim(y.min() - (y.max()-y.min())*0.15 - 1e-9,
-                                         y.max() + (y.max()-y.min())*0.15 + 1e-9)
+        if name.startswith("Ksat"):
+            y = np.clip(y, 0.01, None)
+            ax.set_xscale("log")
+            ax.plot(y, bins, color="#1f2937", lw=1.7)
+            ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
+            ax.set_ylim(100, 0)
+            ax.set_xlim(y.min() * 0.7, y.max() * 1.4)
+        else:
+            ax.plot(y, bins, color="#1f2937", lw=1.7)
+            ax.fill_betweenx(bins, y, y.min(), alpha=0.25, color=cmap(0.6))
+            ax.set_ylim(100, 0); ax.set_xlim(y.min() - (y.max()-y.min())*0.15 - 1e-9,
+                                             y.max() + (y.max()-y.min())*0.15 + 1e-9)
         ax.set_yticks([0, 20, 40, 60, 80])  # 100 label collides with xticks
         ax.text(0.5, 0.985, name, transform=ax.transAxes, ha="center", va="top",
                 fontsize=7.6, weight="bold", color="#111827")
@@ -647,42 +622,41 @@ def render_horizon_table(csv_path: Path, label: str, out: Path, source_note: str
         axx.text(0.5, 0.985, "texture", transform=axx.transAxes, ha="center", va="top",
                  fontsize=7.6, weight="bold", color="#111827")
         axx.tick_params(labelsize=6.6)
-    if has_restr or known_restr:
-        axr = fig.add_subplot(gs2[n_cols2 - 1])
-        axr.set_ylim(100, 0); axr.set_xlim(0, 1)
-        axr.set_yticks([20, 60]); axr.tick_params(labelsize=6.8)
-        axr.set_yticklabels([])  # depth numbers live on the first profile panel only
-        axr.set_xticks([])
-        axr.text(0.5, 0.985, "restrictions", transform=axr.transAxes, ha="center",
-                 va="top", fontsize=7.6, weight="bold", color="#111827")
+        # --- restrictive layers overlaid ON the texture stack ---------------
+        # a rock/pan at 70 cm is the point of reading a profile this far;
+        # it shades through the sand-silt-clay stack, its full depth window
+        # written in the band, continuing-below marked with a down arrow.
         if has_restr:
-            for _i, (kind, top, bot) in enumerate(restricts):
+            _bands = sorted([tb for tb in restricts if tb[1] <= 100], key=lambda tb: tb[1])
+            _restr_handles = []
+            for _i, (kind, top, bot) in enumerate(_bands):
                 bot_disp = min(bot, 100.0)
-                if top > 100:
-                    continue
-                axr.add_patch(plt.Rectangle((0.08, top), 0.84, max(bot_disp - top, 4),
-                                            facecolor=_restr_color(kind), alpha=0.28,
-                                            edgecolor=_restr_color(kind), hatch="///", lw=0.8))
-                # label at the band's own extent with its FULL depth window, and
-                # stagger two overlapping bands left/right so names never merge
-                _xl = {0: 0.30, 1: 0.70}.get(_i % 2, 0.5)
-                _lab = f"{kind} {top:.0f}–{bot:.0f} cm"
-                axr.text(_xl, max(top, (top + bot_disp) / 2 - 3), _lab, rotation=90,
-                         fontsize=6.0, color=_restr_color(kind), ha="center",
-                         va="center", weight="bold",
-                         path_effects=[pe.withStroke(linewidth=1.4, foreground="white")])
-                if bot > 100:  # band continues below the chart
-                    axr.annotate("", xy=(0.5, 99.2), xytext=(0.5, 94.5),
-                                 arrowprops=dict(arrowstyle="-|>", lw=1.0,
-                                                 color=_restr_color(kind)))
-            axr.text(0.5, 0.015, "hatched = restrictive layer",
-                     transform=axr.transAxes, ha="center", va="bottom", fontsize=5.9)
-        else:
-            axr.text(0.5, 50, "no restrictive features \u2264 100 cm", rotation=90,
-                     fontsize=6.6, color="#6b7280", ha="center", va="center")
+                _cc = _restr_color(kind)
+                axx.add_patch(plt.Rectangle((0, top), 100, max(bot_disp - top, 3),
+                                            facecolor=_cc, alpha=0.30, edgecolor=_cc,
+                                            hatch="////", lw=1.1, zorder=5))
+                _k0 = kind.replace("_", " ").split(" ")[0].rstrip(",")
+                _lab = (f"{_k0} {top:.0f}" if abs(bot - top) < 1 else
+                        f"{_k0} {top:.0f}\u2013{min(bot, 999):.0f}") + (" \u2193" if bot > 100 else "")
+                _restr_handles.append(_P(facecolor=_cc, alpha=0.30, edgecolor=_cc,
+                                         hatch="////", label=_lab))
+            if _restr_handles:
+                axx.legend(handles=_restr_handles, fontsize=5.6, loc="upper left",
+                           bbox_to_anchor=(1.02, 1.0), handlelength=1.1,
+                           labelspacing=0.4, borderpad=0.4, labelcolor="linecolor",
+                           framealpha=0.95)
+            axx.text(0.5, -0.175, "hatch on texture = restrictive layer",
+                     transform=axx.transAxes, ha="center", va="top", fontsize=5.8,
+                     color="#374151")
+    if known_restr and not has_restr:
+        _restr_note = " | no restrictive features \u2264 100 cm"
+    elif has_restr:
+        _restr_note = " | hatched bands on texture: restrictive layers"
+    else:
+        _restr_note = ""
     fig.text(0.40, 0.004, "profiles: piecewise-linear across horizon midpoints, comppct-weighted, "
              "constant beyond table | AWC cm water/cm soil; texture: same interpolation "
-             "normalized to 100 %, 5 cm bins from 0 cm",
+             "normalized to 100 %, 5 cm bins from 0 cm" + _restr_note,
              fontsize=6.8, color="#6b7280", ha="left")
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=190, bbox_inches="tight", facecolor="white")
@@ -764,7 +738,7 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
         vals = (sub["w"] * sub[col]).groupby(sub["mukey"]).sum() * scale
         p = poly.merge(vals.rename("v"), on="mukey", how="left")
         cmap, _, _ = _isric_cmap(code)
-        panels.append((title, cmap, p, cb_label, tick_fmt, scale))
+        panels.append((title, cmap, vals, cb_label, tick_fmt, scale))
     if not panels:
         return
 
@@ -774,8 +748,21 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     gs = fig.add_gridspec(nrow, ncol, height_ratios=[3.5] * nrow,
                           hspace=0.52, wspace=0.30)
     axes = np.array([fig.add_subplot(gs[r, c]) for r in range(nrow) for c in range(ncol)])
+    # one shared field-local frame for every panel of this figure — same
+    # library call as the horizon table: real UTM zone, long edge fitted to
+    # the panel aspect, (0,0) at the rotated-SW corner
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    import field_frame as _fflib
+    fig.canvas.draw()
+    _rb = axes[0].get_position()
+    _sz = fig.get_size_inches()
+    ff = _fflib.frame_for(poly, panel_h_in=_rb.height * _sz[1],
+                         panel_w_in=_rb.width * _sz[0])
+    polyf = ff.geometry.assign(mukey=poly["mukey"].values)
     from matplotlib import ticker as _ticker
-    for ax, (title, cmap, p, cb_label, tick_fmt, scale) in zip(axes, panels):
+    for ax, (title, cmap, vals, cb_label, tick_fmt, scale) in zip(axes, panels):
+        p = polyf.assign(v=vals.reindex(polyf["mukey"]).values)
         p.plot(column="v", ax=ax, cmap=cmap, legend=False,
                missing_kwds={"color": "#e5e7eb"},
                linewidth=0.3, edgecolor="#9ca3af")
@@ -794,8 +781,12 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
                 else float(p["v"].mean())) if p["v"].notna().any() else float("nan")
         ax.set_title(f"{title}\nfield mean {mean:.2f}" if not np.isnan(mean) else title,
                      fontsize=8.6, weight="bold", pad=13)
-        ax.set_xticks([]); ax.set_yticks([])
-        ax.set_xlabel(""); ax.set_ylabel("")  # graticule labels only crowd the grid
+        ax.set_xlabel(_fflib.crs_note(ff), fontsize=5.6)
+        ax.set_ylabel("field-local m", fontsize=6.2)
+        ax.tick_params(labelsize=6.0)
+        ax.grid(alpha=0.15, lw=0.4)
+        ax.set_aspect("equal", adjustable="datalim")
+        _fflib.decorate(ax, ff, arrow_r=0.11, arrow_fs=11, callout=False)
     fig.suptitle(f"{label} — whole-field weighted soil properties (topsoil, {source_note})",
                  fontsize=11, weight="bold", x=0.02, ha="left", y=1.075)
     for axx in axes[len(panels):]:

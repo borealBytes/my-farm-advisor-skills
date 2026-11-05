@@ -92,3 +92,32 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
   100 label — it collides with xtick labels); texture strip carries a real
   3-swatch sand/silt/clay legend below the panel; the method footnote is
   LEFT-aligned at x=0.40 so it never runs under that legend.
+
+## Raster-buffer and legend conventions (2026-11, global-data-parity)
+
+- **Every raster clip** must extend beyond the true field boundary by at least
+  one source cell, so boundary pixels are complete and edge-effect statistics
+  (coverage %, filter neighborhoods) are computable. The single source of
+  truth is `src/scripts/lib/raster_rules.py`:
+  `buffer_meters(source_crs, cell_m, cells=EDGE_BUFFER_CELLS)` with
+  `EDGE_BUFFER_CELLS = 1` (absolute floor) and
+  `EDGE_BUFFER_CELLS_FILTER = 3` for clips feeding terrain filters
+  (slope/TWI kernels read up to 3 cells in). Ingest sites record
+  `coverage_pct` (field area inside valid pixels) in their provenance
+  manifests at download time — a boundary with >0 % no-data in the clip is
+  a visible, actionable flag, not a silent hole.
+- **Grid-map panels share one identical frame rect** across every band:
+  rasters are square-padded bottom-anchored (extra space east+north of the
+  NW-pinned data), and a post-layout pass repositions all used axes onto one
+  common square before `savefig` — otherwise colorbar widths silently differ
+  the datalim padding and the panels cannot be compared side by side.
+- **Soil-property colorbars are discrete ISRIC legends, never continuous
+  gradients**: `BoundaryNorm` on the vendored ISRIC `soil.legends` TSV
+  boundaries (crop to data range ±3 bands, ≤9 ticks). SoilGrids pH legends
+  are ×10-encoded — divide PHIHOX MIN/MAX by 10 before use.
+- On dense multi-panel grids (7-up+) the north arrow moves to the **SE
+  corner** (`arrow_xy=(0.04, 0.86)`) at r=0.11 / boxed-N fontsize 11, and
+  scale-bar text always carries a white halo bbox so it survives any tile.
+- Restriction callouts on horizon tables live in a matplotlib **legend box**
+  (hatched Patch handles, one entry per band) right of the texture stack —
+  hand-placed gutter text provably collides when depth windows nest.

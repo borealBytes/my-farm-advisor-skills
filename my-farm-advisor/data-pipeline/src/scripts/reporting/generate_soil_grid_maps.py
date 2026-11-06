@@ -116,6 +116,21 @@ def _geo_ticks(ax):
     ax.yaxis.set_major_locator(mticker.MaxNLocator(4))
 
 
+def _infield_values(arr, ext, frame_geom):
+    """Array values inside the field polygon (window mean/relief honesty)."""
+    from rasterio.features import rasterize
+    from rasterio.transform import Affine as _Af
+    nr, nc = arr.shape
+    _tr = _Af((ext[1] - ext[0]) / nc, 0, ext[0],
+              0, -(ext[3] - ext[2]) / nr, ext[3])
+    _in = rasterize(
+        [(frame_geom.dissolve().union_all().__geo_interface__, 1)],
+        out_shape=(nr, nc), transform=_tr, fill=0, all_touched=False,
+    ).astype(bool)
+    v = np.ma.getdata(arr).astype("float64")[_in]
+    return v[np.isfinite(v)]
+
+
 def _panel_frame_labels(ax, ff, _fflib) -> None:
     """Axis furniture every static field panel carries (see field-map-frame.md)."""
     ax.set_xlabel(_fflib.crs_note(ff), fontsize=5.6)
@@ -257,8 +272,16 @@ def render_field(
     def _frame_show(src_path, default_m=250.0, scale_key=None):
         with rasterio.open(src_path) as ds:
             res = _dst_res_of(src_path, default_m)
+            _w = float(ff.geometry.total_bounds[2])
+            _h = float(ff.geometry.total_bounds[3])
+            # Margin is sized in COARSEST-band cells (250 m SoilGrids floor),
+            # NOT this band's own cell: every panel shares one axis box, and a
+            # 30 m DEM with a 2-of-its-own-cells margin lands ~440 m short of
+            # the soil panels' extent -> white side bands in the terrain panel
+            # even when the source fully covers it (br-r1, QC 2026-11-05).
             arr, ext = _fflib.reproject_into_frame(
-                ds, ff, res, poly_metric=poly_zone)
+                ds, ff, res, poly_metric=poly_zone,
+                margin_m=_fflib.VIEW_PAD_FRAC * max(_w, _h) + 2 * max(res, 250.0))
             arr, ext = _square_pad(arr, ext)
             if scale_key is not None:
                 _m = np.ma.getmaskarray(arr)
@@ -272,7 +295,7 @@ def render_field(
     ax0 = axes[0]
     if dem_path and dem_path.exists():
         arr, ext = _frame_show(dem_path, default_m=30.0)
-        flat = arr.compressed()
+        flat = _infield_values(arr, ext, ff.geometry)
         _dcm, _dnorm, _relief, _klass = palettes.dem_scale(flat)
         hs = np.ma.masked_invalid(ls.hillshade(
             np.ma.filled(arr, float("nan")),
@@ -311,7 +334,8 @@ def render_field(
         cb.ax.tick_params(labelsize=5.6)
         _d = np.array(np.ma.getdata(arr), copy=True, dtype="float64")
         _d[np.ma.getmaskarray(arr)] = np.nan
-        mean_v = float(np.nanmean(_d))
+        _dv = _infield_values(arr, ext, ff.geometry)
+        mean_v = float(np.mean(_dv)) if _dv.size else float("nan")
         ax.set_title(f"{label} — mean {mean_v:.1f}", fontsize=8.5)
         ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.4)
         _panel_frame_labels(ax, ff, _fflib)

@@ -74,7 +74,7 @@ Every figure that appears in a README, gallery (`examples/**/output/`), or
 demo writeup — new *or regenerated* — passes the five-point vision review in
 `CONTRIBUTING.md` **before** it is committed: no empty/under-covered panels,
 field-map frame contract (local-metre axes, auto-rotation, north arrow +
-scale bar on every footprint incl. unrotated circles), raster mask + >1-cell
+on every footprint incl. unrotated circles; distance from metre axes, no scale bar), raster mask + >1-cell
 buffer respected, colorbar semantics matching continuous vs categorical,
 legible labels at README size. Concretely:
 

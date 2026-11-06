@@ -759,8 +759,13 @@ def _prepare_valid_dem_trial(
             import raster_rules as _rr
             with rasterio.open(source_paths[0]) as _ds0:
                 _cell_m = _rr.cell_m_of(_ds0.crs, _ds0.res[0], lon=geometry.centroid.x)
+            # rotation-aware: the static renderers draw the field in its
+            # rotated local frame; a plain bbox buffer leaves nodata
+            # corners on rotated (esp. circular pivot) fields. view margin
+            # matches generate_soil_grid_maps' renderer margin floor.
             _buf = max(float(args.context_meters),
-                       _rr.margin_m(_cell_m, _rr.EDGE_BUFFER_CELLS_FILTER))
+                       _rr.margin_m(_cell_m, _rr.EDGE_BUFFER_CELLS_FILTER),
+                       _rr.rotation_buffer_m(geometry, _cell_m))
             clipped_record = clip_dem_tiles_to_buffer(
                 source_paths,
                 geometry,

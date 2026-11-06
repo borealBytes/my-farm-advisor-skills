@@ -52,9 +52,9 @@ understand at a glance:
   2. **field maps**: axes in the field-local metre frame with the published
      affine note, auto-rotation applied (footprints with no meaningful
      orientation — center-pivot circles — stay unrotated but STILL get the
-     boxed true-north arrow + scale bar), a small viewport margin
+     boxed true-north arrow), a small viewport margin
      (`field_frame.view_extent()`, ~4%) so the boundary never touches a panel
-     edge, and north arrow/scale bar/callout free of collisions with titles,
+     edge, and north arrow/callout free of collisions with titles,
      boundaries, and each other;
   3. rasters masked to the field: off-field fragments rendered as neutral
      gray, never as apparent field data; buffer rule respected

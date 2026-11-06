@@ -151,7 +151,8 @@ def clip_asset_to_field(
         # raster_rules: clip extends >= 1 source cell beyond the boundary so
         # every boundary cell is complete and edge coverage % is measurable
         _cell = _rr.cell_m_of(src.crs, src.res[0], lon=gpd.GeoSeries([field_geometry], crs="EPSG:4326").centroid.iloc[0].x)
-        _m = _rr.margin_m(_cell, _rr.EDGE_BUFFER_CELLS_MASK)
+        _m = max(_rr.margin_m(_cell, _rr.EDGE_BUFFER_CELLS_MASK),
+                 _rr.rotation_buffer_m(field_geometry, _cell))
         _geom = field.iloc[0]
         if src.crs.is_geographic:
             import math as _math

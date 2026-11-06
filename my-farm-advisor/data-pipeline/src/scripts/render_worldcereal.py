@@ -312,7 +312,8 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
             if s.crs.is_geographic:
                 _res *= 111320 * math.cos(math.radians(s.bounds.top))
             w, ext = ff.reproject_into_frame(s, frame, _res,
-                                             dst_dtype="int32", nodata=-1)
+                                             dst_dtype="int32", nodata=-1,
+                                             polygon_mask=True)
             inside = ~np.ma.getmaskarray(w)
             arr = np.ma.getdata(w).astype("int32")
             ext = [ext[0], ext[0] + (ext[1] - ext[0]), ext[2], ext[3]]
@@ -418,7 +419,7 @@ def render(farm, field, season, scene_month, title, fname, extra_note=""):
                     ds0.write(np.ascontiguousarray(a3[..., bi]), bi + 1)
             with mf.open() as ds1:
                 for bi in range(1, a3.shape[2] + 1):
-                    w, _e = ff.reproject_into_frame(ds1, frame, _res, band=bi)
+                    w, _e = ff.reproject_into_frame(ds1, frame, _res, band=bi, polygon_mask=True)
                     outs.append(w)
         stack = np.dstack([np.ma.filled(o, np.nan) for o in outs])
         return stack, (0, _FW, 0, _FH)
@@ -521,11 +522,8 @@ def render_rdm_overlay(farm, field, year, season, ref_geojson, fname, title,
         _L, _R, _B, _T = ff.view_extent(0, _FW, 0, _FH); _a.set_xlim(_L, _R); _a.set_ylim(_B, _T); _a.set_aspect("equal")
         _a.set_xlabel(ff.crs_note(frame), fontsize=6.5)
         _a.set_ylabel("field-local m", fontsize=7)
-        ff.decorate(_a, frame, callout=False, arrow_xy=(0.09, 0.80), scale_y=0.075)
-    for _a in (ax_l, ax_r):
-        _a.set_xticks([]); _a.set_yticks([]); _a.set_xlabel(""); _a.set_ylabel("")
-        _a.spines["top"].set_visible(False); _a.spines["right"].set_visible(False)
-        _a.spines["left"].set_visible(False); _a.spines["bottom"].set_visible(False)
+        ff.decorate(_a, frame, callout=False, arrow_xy=(0.09, 0.80))
+        _a.tick_params(labelsize=6.5)
     ax_r.set_title("WorldCereal RDM reference (harmonized, keyless API)",
                    fontsize=10)
     handles = [Patch(facecolor=cmap[c], edgecolor="#374151",

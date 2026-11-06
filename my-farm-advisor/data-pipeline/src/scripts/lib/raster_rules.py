@@ -48,6 +48,67 @@ def margin_m(cell_m: float, cells: int = EDGE_BUFFER_CELLS_MASK, floor_m: float 
     return max(floor_m, cells * cell_m)
 
 
+def rotation_buffer_m(geom_wgs84, cell_m: float, view_margin_m: float | None = None) -> float:
+    """Fetch buffer (m) so a *rotated* renderer window is fully covered.
+
+    Static figures draw fields in a rotated field-local frame (field_frame
+    min-rect bearing). The destination window is a square spanning the
+    metric bbox plus the renderer margin; rotated by theta it needs
+    (|cos|+|sin|) x half-side of axis-aligned source extent. A plain
+    bbox+buffer fetch leaves nodata corner triangles on rotated fields
+    (circular pivots are worst case: bearing ~45 deg -> r*(sqrt2-1)).
+    Returns the EXTRA buffer beyond the plain bbox so the rotated square
+    window lands fully inside the clipped source; includes one resample
+    cell of slack for bilinear kernels.
+    """
+    import math
+    from pyproj import CRS, Transformer
+    import shapely.ops  # noqa: F401
+    lon, lat = geom_wgs84.centroid.x, geom_wgs84.centroid.y
+    zone = int((lon + 180.0) // 6) + 1
+    epsg = 32600 + zone if lat >= 0 else 32700 + zone
+    tf = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(epsg),
+                              always_xy=True)
+    gm = shapely.ops.transform(tf.transform, geom_wgs84)
+    mrr = gm.minimum_rotated_rectangle
+    xs, ys = mrr.exterior.coords.xy
+    edges = [((xs[i + 1] - xs[i]) ** 2 + (ys[i + 1] - ys[i]) ** 2) ** 0.5
+             for i in range(4)]
+    # bearing of the long edge (sign irrelevant under |cos|+|sin|)
+    i_long = max(range(4), key=lambda k: edges[k])
+    theta = math.atan2(ys[i_long + 1] - ys[i_long], xs[i_long + 1] - xs[i_long])
+    coef = abs(math.cos(theta)) + abs(math.sin(theta))
+    # Near-square min-rects (circular pivots!) carry NO usable orientation —
+    # the fitted mrr snaps to the axes and coef collapses to 1.0 while the
+    # renderer still rotates by the bbox-derived bearing (~45 deg worst case).
+    # Trust the bearing only for clearly elongated footprints; otherwise take
+    # the worst-case sqrt(2). (br-r1 white side bands, QC 2026-11-05.)
+    if max(edges) / max(min(edges), 1e-9) < 1.05:
+        coef = max(coef, math.sqrt(2.0))
+    minx, miny, maxx, maxy = gm.bounds
+    half_long = max(maxx - minx, maxy - miny) / 2.0
+    if view_margin_m is None:
+        # mirror the renderers' destination margin (grid maps): 4 % of the
+        # long side, plus SIX cells — two for the destination window and
+        # four of slack, because reproject resampling cannot use the
+        # outermost source rows/cols and mosaic seams leave 1-3 nodata
+        # pixels at tile edges. Two cells left ~100 m short on br-r1.
+        view_margin_m = 0.04 * 2.0 * half_long + 6.0 * cell_m
+    # window is a square on the long side: its furthest corner sits at
+    # coef * (half_long + margin) from the centre (any axis direction).
+    need = coef * (half_long + view_margin_m)
+    # support the field already provides, in the worst direction, is its
+    # CIRCUMRADIUS (circle pivot: r; rectangle: half diagonal). The buffer
+    # must lift that support to `need` — measured from the bbox half-side
+    # overstates support at the diagonals for round fields.
+    cx, cy = gm.centroid.x, gm.centroid.y
+    circum = max(((x - cx) ** 2 + (y - cy) ** 2) ** 0.5
+                 for geom in getattr(gm, "geoms", [gm])
+                 for x, y in zip(*geom.exterior.coords.xy))
+    extra = max(need - circum, 0.0)
+    return float(extra + cell_m)
+
+
 def coverage(tif_path: str | Path, geom_wgs84, *, nodata_extra: float | None = None) -> dict[str, Any]:
     """Polygon/pixel overlap stats for a finished clip.
 

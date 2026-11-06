@@ -11,8 +11,9 @@ examples) uses one frame, provided here deterministically:
   3. translate so (0, 0) is the SW corner of the ROTATED bounding box: every
      coordinate is positive and the reader's ruler starts at the corner;
   4. decorate: boxed north arrow counter-rotated to the tilt, rotation
-     callout whenever rotated, and a scale bar (metres) — the arrow counter-
-     rotates, the metre grid does NOT;
+     callout whenever rotated; distance is read from the metre tick axes
+     themselves (scale bar opt-in only) — the arrow counter-rotates, the
+     metre grid does NOT;
   5. state the reproduction recipe: the official UTM zone the field sits in
      plus the CUSTOM FIELD CRS — a Transverse Mercator whose axis crosses the
      rotated-SW origin at the fitted azimuth — so anyone can regenerate the
@@ -29,7 +30,7 @@ tmerc silently ignores +alpha (verified against pyproj, 2026-11-05) — so we
 publish the exact affine rather than a fake "+proj=tmerc +alpha=..." string.
 The north arrow additionally uses TRUE north computed numerically at the
 origin: at zone edges grid convergence reaches ~2 degrees and (sin r, cos r)
-would be visibly wrong on a 500 m scale bar.
+would be visibly wrong on a 500 m offset.
 
 Usage:
     import sys, os
@@ -172,13 +173,21 @@ def crs_note(f: Frame, full: bool = False) -> str:
 
 
 def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
-                         resampling=None, dst_dtype=None, nodata=None, band=1):
+                         resampling=None, dst_dtype=None, nodata=None, band=1,
+                         polygon_mask: bool = False, margin_m: float = 0.0):
     """RasterIO source dataset -> (masked array, extent) in this frame.
 
     One resample straight into the rotated grid via a rotated GDAL
-    geotransform — the metre axes stay honest and the field mask is applied
-    after warping, so partial boundary cells are complete (raster_rules
-    margin was already applied at fetch time).
+    geotransform — the metre axes stay honest.
+
+    RASTER POLICY (2026-11-05): the raster is shown as fetched — the full
+    buffered window, extending past the field edge everywhere (fetch-time
+    buffer >= 1 source cell; see raster_rules). The boundary is an OVERLAY,
+    not a cut line: no polygon masking by default, so a curved boundary can
+    never leave blank space inside the field. Pass ``polygon_mask=True`` to
+    clip to the polygon (e.g. class panels that paint off-field gray), and
+    ``margin_m`` to grow the destination window on all sides so raster also
+    fills the padded viewport around the field.
     """
     import math
     import numpy as np
@@ -189,16 +198,22 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
 
     r_ = math.radians(f.rot)
     H = _frame_height(f)
-    nr, nc = int(H / dst_res) + 1, int(_frame_width(f) / dst_res) + 1
+    W = _frame_width(f)
+    m = max(0.0, float(margin_m))
+    nr = int((H + 2 * m) / dst_res) + 1
+    nc = int((W + 2 * m) / dst_res) + 1
     a, b = math.cos(r_) * dst_res, math.sin(r_) * dst_res
     # Frame->UTM inverse: E = e0 + x*cos r - y*sin r, N = n0 + x*sin r + y*cos r,
     # with x = col*res, y = H - row*res (row 0 = north edge). Expanding:
     #   E = (e0 - H*sin r) + col*(res cos r) + row*(res sin r)
     #   N = (n0 + H*cos r) + col*(res sin r) + row*(-res cos r)
     # -> top-left corner in UTM is (e0 - H*sin r, n0 + H*cos r).
+    # destination spans frame coords x in [-m, -m + nc*res], y in
+    # [-m, -m + nr*res]; array row 0 is the NORTH edge (y = -m + nr*res).
     h_pad = nr * dst_res
-    dst_tr = Affine(a, b, f.e0 - h_pad * math.sin(r_),
-                    b, -a, f.n0 + h_pad * math.cos(r_))
+    x_tl, y_tl = -m, -m + h_pad
+    dst_tr = Affine(a, b, f.e0 + x_tl * math.cos(r_) - y_tl * math.sin(r_),
+                    b, -a, f.n0 + x_tl * math.sin(r_) + y_tl * math.cos(r_))
     if dst_dtype is not None and np.dtype(dst_dtype).kind in "iu":
         # integer class grids: nearest (or mode) — bilinear would invent classes
         fill = int(nodata) if nodata is not None else -1
@@ -225,15 +240,20 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
     # anchoring/convention bug into a step that has none). poly_metric is kept
     # in the signature for callers; it is currently unused for masking.
     _ = poly_metric
-    gm = geometry_mask([f.geometry.dissolve().union_all().__geo_interface__]
-                       if hasattr(f.geometry, "dissolve") else
-                       [f.geometry.__geo_interface__],
-                       out_shape=(nr, nc),
-                       transform=Affine(dst_res, 0, 0, 0, -dst_res, nr * dst_res),
-                       invert=True)
+    ext = (-m, -m + nc * dst_res, -m, -m + nr * dst_res)
+    if not polygon_mask:
+        gm = np.ones((nr, nc), dtype=bool)
+    else:
+        gm = geometry_mask([f.geometry.dissolve().union_all().__geo_interface__]
+                           if hasattr(f.geometry, "dissolve") else
+                           [f.geometry.__geo_interface__],
+                           out_shape=(nr, nc),
+                           transform=Affine(dst_res, 0, -m, 0, -dst_res,
+                                            -m + nr * dst_res),
+                           invert=True)
     if np.dtype(dst.dtype).kind in 'iu':
-        return np.ma.masked_where(out_mask | ~gm, dst), (0, nc * dst_res, 0, nr * dst_res)
-    return np.ma.masked_where(~gm, np.ma.masked_invalid(dst)), (0, nc * dst_res, 0, nr * dst_res)
+        return np.ma.masked_where(out_mask | ~gm, dst), ext
+    return np.ma.masked_where(~gm, np.ma.masked_invalid(dst)), ext
 
 
 def _frame_width(f: Frame) -> float:
@@ -245,13 +265,15 @@ def _frame_height(f: Frame) -> float:
 
 
 def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
-             callout: bool = True, scalebar: bool = True,
+             callout: bool = True, scalebar: bool = False,
              arrow_xy: tuple = (0.87, 0.845), scale_y: float = 0.035,
              scale_x: float = 60.0) -> None:
-    """Boxed true-north arrow (+ boxed N), rotation callout, scale bar.
+    """Boxed true-north arrow (+ boxed N), rotation callout, optional scale bar.
 
-    callout=False for dense grids where the xlabel already carries the tilt;
-    scale_len <= 0 skips the bar (field too small to show 500 m)."""
+    The scale bar is OFF by default (2026-11-05): every panel keeps honest
+    metre axes, and a bar duplicating the tick spacing is noise. Pass
+    scalebar=True only where axes are stripped (rare); scale_len <= 0 skips
+    the bar anyway."""
     import matplotlib.patches as _mp
     import matplotlib.transforms as _mt
 

@@ -10,10 +10,11 @@ Produces a one-row-per-field figure from whatever runtime layers exist under
            (SSURGO-style polygons, or a soil-property raster)
 * imagery: ``worldcereal/wc_croptype_classification_*_<year>_*.tif`` (optional, --year)
 
-FIELD-MAP FRAME CONTRACT (lib/field_frame.py — same axes, arrow, scale bar on
+FIELD-MAP FRAME CONTRACT (lib/field_frame.py — same axes and arrow on
 every panel): metres; x=0 at the west edge of the field's bounding box AFTER
 best-fit rotation to the long-edge-horizontal pose; y=0 at its south edge;
-boxed true-north arrow + rotation callout + scale bar. Center-pivot circles
+boxed true-north arrow + rotation callout; distance from metre tick axes, no
+scale bar. Center-pivot circles
 and other orientation-free footprints keep rot=0 but still get arrow + bar.
 Great Lakes (Natural Earth 10 m, shared/geoadmin/lakes/lakes.geojson) are
 drawn when they fall inside the framed view so US/CA maps keep context.

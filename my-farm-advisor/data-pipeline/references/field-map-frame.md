@@ -83,8 +83,11 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
   straight arrow, and NO callout.
 - When rotated: italic callout inside the panel, top-left,
   `field rotated ±NN° to fit — N shown by arrow`; axis states the same angle.
-- **500 m scale bar** always (blended data-x/axes-y transform so the length is
-  honest after aspect equal + datalim).
+- **No scale bar by default** (2026-11-05, user): metre tick axes carry
+  distance on every panel and the bar duplicates them; `decorate(scalebar=True)`
+  exists only for panels that strip ticks. **Tick axes stay visible** — every
+  map panel shows both x and y metre labels, including side-by-side
+  comparator/ladder figures.
 - Arrow: r=0.135 axes-fraction, lw 3.0, boxed N at fontsize 16, tip at
   (cx + r·sin rot, cy + r·cos rot).
 - Table: `auto_set_column_width(all)` then **×1.35 width on every numeric
@@ -117,6 +120,29 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
   provenance manifests at download time — a boundary with >0 % no-data in the
   clip is a visible, actionable flag, not a silent hole. Reraster any field
   whose existing clip predates this rule (`AG_FORCE=1`).
+- **The boundary is an overlay, never a cut line (2026-11-05):** static raster
+  panels display the full buffered window — `field_frame.reproject_into_frame`
+  applies **no polygon mask by default** (`polygon_mask=True` is opt-in, for
+  class panels that intentionally gray off-field pixels). Masking the display
+  to the polygon re-introduces blank space *inside* curved boundaries
+  (circular pivots at coarse grids) and throws away the fetch buffer the clip
+  rule exists to guarantee. Title means/relief stats are computed in-field via
+  `generate_soil_grid_maps._infield_values` so labels describe the field, not
+  the margin.
+- **Rotated frames rotate the buffer requirement too:** renderers draw in the
+  field-local min-rect frame, so the destination square is *rotated* against
+  the axis-aligned source clip; `(|cos θ|+|sin θ|)` × half-side of axis extent
+  is required, and a plain bbox+buffer clip leaves nodata corner triangles on
+  rotated fields (worst case circular pivot at θ≈45° → `r·(√2−1)` ≈ 0.41 r).
+  `raster_rules.rotation_buffer_m(geom, cell_m)` computes the extra fetch
+  buffer (its margin term mirrors the renderers': 4 % of the long side +
+  2 destination cells); DEM, SoilGrids and satellite clips all take it via
+  `max(floor, rotation_buffer_m)`. The renderer destination `margin_m` must
+  use the SAME 4 %-plus-2-cells rule so every panel's extent covers the
+  shared viewport — unequal per-band margins show as white strips at panel
+  edges even when the fetch is perfectly buffered. Exemption: clips whose
+  panels intentionally polygon-mask the display (WorldCereal/ACI class
+  panels) keep the plain floor buffer.
 - **Grid-map panels share one identical frame rect** across every band:
   rasters are square-padded bottom-anchored (extra space east+north of the
   NW-pinned data), and a post-layout pass repositions all used axes onto one
@@ -128,7 +154,7 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
   are ×10-encoded — divide PHIHOX MIN/MAX by 10 before use.
 - On dense multi-panel grids (7-up+) the north arrow moves to the **SE
   corner** (`arrow_xy=(0.04, 0.86)`) at r=0.11 / boxed-N fontsize 11, and
-  scale-bar text always carries a white halo bbox so it survives any tile.
+  the boxed-N badge carries a white halo bbox so it survives any tile.
 - Restriction callouts on horizon tables live in a matplotlib **legend box**
   (hatched Patch handles, one entry per band) right of the texture stack —
   hand-placed gutter text provably collides when depth windows nest.

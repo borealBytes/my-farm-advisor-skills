@@ -48,7 +48,12 @@ from reporting_bootstrap import (  # pyright: ignore[reportMissingImports]
 
 ensure_skill_path("soilgrids-global")
 
-SG_CELL_M = 250.0  # SoilGrids global grid cell (raster_rules floor for the bbox buffer)
+SG_CELL_M = 250.0
+
+
+def _rr_rot(geom_wgs84):
+    import raster_rules as _r
+    return _r.rotation_buffer_m(geom_wgs84, SG_CELL_M)  # SoilGrids global grid cell (raster_rules floor for the bbox buffer)
 
 import soilgrids_global as sg  # pyright: ignore[reportMissingImports]
 
@@ -210,7 +215,8 @@ def main():
         geometry = field.geometry
         # raster_rules: bbox margin >= one full source cell (250 m grid) — a
         # sub-cell bbox drops boundary cells and makes edge coverage unmeasurable
-        _eff_buf = max(args.buffer_meters, SG_CELL_M * 2.0)  # > 1 full cell, raster_rules
+        _eff_buf = max(args.buffer_meters, SG_CELL_M * 2.0,
+                       _rr_rot(geometry))  # rotation-aware, raster_rules
         bbox = sg.field_bbox(geometry, buffer_meters=_eff_buf)
         for band in bands:
             for depth in depths:

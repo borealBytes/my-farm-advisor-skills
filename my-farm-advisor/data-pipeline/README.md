@@ -14,6 +14,8 @@ The best-available-data ladder and the keyless RDM regional-reference API
 - Field-scale maps (any figure drawing one field polygon) use the field-local
   UTM frame, origin-at-SW-corner axes and boxed north arrow, with optional
   viewport rotation — [references/field-map-frame.md](references/field-map-frame.md).
+- Every map renders over keyless **Esri World Imagery** warped into the same rotated frame —
+  [references/basemap.md](references/basemap.md).
 ## Example renders
 
 Vision-QC'd sample figures ship under [`examples/`](examples/) — one

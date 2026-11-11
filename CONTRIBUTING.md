@@ -57,13 +57,14 @@ understand at a glance:
      edge, and north arrow/callout free of collisions with titles,
      boundaries, and each other;
   3. rasters masked to the field: off-field fragments rendered as neutral
-     gray, never as apparent field data; buffer rule respected
+     gray, never as apparent field data; halo clip rule respected (10 % polygon buffer ≥1 cell; 15 % viewport; basemap under)
      (`lib/raster_rules.py` — clip extends > 1 full source cell);
   4. colorbar semantics match the feature: categorical → official discrete
      palettes/legend bands (ISRIC `soil.legends`, WorldCereal classes),
      continuous → sequential/diverging with units, log scales labeled as
      log, cyclic (aspect) on a hue wheel — see the standard table in
-     `my-farm-advisor/data-pipeline/references/field-map-frame.md`;
+     `my-farm-advisor/data-pipeline/references/field-map-frame.md` and
+     `my-farm-advisor/data-pipeline/references/basemap.md`;
   5. legends/labels legible at README size; numbers consistent with source.
   A figure that fails review gets fixed or dropped — never committed
   "as-is for now". A change to ANY renderer re-triggers review for every

@@ -52,7 +52,7 @@ def _root() -> Path:
     if not d:
         raise SystemExit("set DATA_PIPELINE_DATA_ROOT")
     return Path(d) / "data-pipeline" / "growers" / \
-        os.environ.get("AG_GROWER_SLUG", "elvtr-demo") / "farms"
+        os.environ.get("AG_GROWER_SLUG", "demo-grower") / "farms"
 
 
 def public_collections(timeout=120):

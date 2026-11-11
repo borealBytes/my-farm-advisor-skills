@@ -227,9 +227,16 @@ section is the operative rule.
   Integer sources need an integer nodata sentinel — `_resolve_nodata` now
   coerces (float→int when integral, nan→dtype min). Don't reintroduce float
   nodata on integer DEMs.
-- **DEM clip is a buffered BBOX, never a polygon mask** (both pre- and
-  post-reproject masks were removed): masking reintroduces blank space
-  inside curved boundaries and discards the fetch buffer at render time.
+- **Stored clips are polygon-buffered (2026-11-09 user policy):**
+  `B = max(10 % of field max length, 1 source cell)` —
+  `raster_rules.field_buffer_m` (`geom.buffer(B)`, never the bbox). DEM
+  (mask in `clip_dem_tiles_to_buffer`), SoilGrids
+  (`clip_bbox(clip_geometry=)`) and satellite (`geometry_mask` after
+  `outer_crop`) all clip pixels to it. **Plots viewport = polygon + 15 %**
+  (`VIEWPORT_FRAC`), satellite basemap underneath (see basemap.md), stats
+  on the exact polygon only. Historic bugs for the record: masking to the
+  RAW polygon (zero buffer) cut arcs inside curved boundaries, and a bare
+  bbox window reads as "bounding box, not buffer" on rotated fields.
 
 ## Local-delta-only reminder
 

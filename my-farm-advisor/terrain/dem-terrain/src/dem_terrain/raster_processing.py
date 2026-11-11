@@ -239,12 +239,16 @@ def clip_dem_tiles_to_buffer(
             analysis.analysis_crs,
             source_crs,
         )
-        # Raster policy (2026-11-05): the clip is the buffered BBOX, not a
-        # polygon mask -- merge() above already cropped to the buffered
-        # bounds, and masking to a buffered *polygon* re-introduces blank
-        # space inside curved boundaries (circular pivot fields). The field
-        # boundary is an overlay drawn on top of the full buffered raster.
-        clipped_array = mosaic_array
+        # Raster policy (2026-11-05, revised same day): stored clips are
+        # clipped to the field POLYGON + uniform halo (5 % of the field's
+        # max length, >=1 cell -- raster_rules.field_buffer_m). merge()
+        # cropped to the buffered bounds; this mask trims the corners to
+        # the halo, so every source stores the same field-shaped footprint
+        # independently of renderer rotation. The boundary stays an overlay
+        # in figures; the halo is what guarantees the clip never cuts data
+        # inside the field (the old bug was masking at ZERO buffer).
+        clipped_array = _mask_array_to_geometry(
+            mosaic_array, mosaic_transform, _buffered_source, resolved_nodata)
 
         destination_array, destination_transform = _reproject_array(
             clipped_array,

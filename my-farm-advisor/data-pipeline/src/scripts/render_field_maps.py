@@ -24,8 +24,8 @@ Runtime data is read via DATA_PIPELINE_DATA_ROOT (see lib/runtime_paths.py);
 nothing here writes outside that root.
 
 Usage:
-    python render_field_maps.py --grower elvtr-demo --farm demo-us --field ia-r1
-    python render_field_maps.py --grower elvtr-demo --farm demo-au   # all fields
+    python render_field_maps.py --grower demo-grower --farm demo-us --field ia-r1
+    python render_field_maps.py --grower demo-grower --farm demo-au   # all fields
 """
 from __future__ import annotations
 
@@ -50,6 +50,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import field_frame as ff  # noqa: E402
+import basemap as _bm
 
 
 # ---------------------------------------------------------------- geometry
@@ -88,9 +89,12 @@ def _to_frame_coords(gdf: gpd.GeoDataFrame, f: ff.Frame) -> gpd.GeoDataFrame:
 
 
 def _read_tif_in_frame(path: Path, f: ff.Frame, dst_res: float, nearest=False):
+    import raster_rules as _rr
+    _tb = f.geometry.total_bounds
     with rasterio.open(path) as ds:
         data, extent = ff.reproject_into_frame(
             ds, f, dst_res,
+            margin_m=_rr.VIEWPORT_FRAC * max(_tb[2], _tb[3]) + 2 * dst_res,
             resampling=rasterio.warp.Resampling.nearest if nearest
             else rasterio.warp.Resampling.bilinear)
     return data, extent
@@ -161,7 +165,7 @@ def panel_terrain(ax, field_dir: Path, f: ff.Frame, dst_res: float):
         return False
     out, extent = _read_tif_in_frame(dems[0], f, dst_res)
     arr = np.ma.filled(out, np.nan).astype(float)
-    ax.set_facecolor("#e5e7eb")
+    _bm.draw(ax, f, (0, extent[1], 0, extent[3]), arr.shape[0], arr.shape[1])
     import palettes
     _ecm, _enorm, _relief, _klass = (palettes.dem_scale(arr[np.isfinite(arr)])
                                      if np.isfinite(arr).any()
@@ -184,7 +188,7 @@ def panel_terrain(ax, field_dir: Path, f: ff.Frame, dst_res: float):
             ax.clabel(cs, fmt="%.0f m", fontsize=5)
     _draw_frame_boundary(ax, f)
     ff.decorate(ax, f, arrow_xy=(0.86, 0.70), callout=False)
-    ax.set_title(f"Terrain — hillshade + {_klass}-relief tint, {_relief:.0f} m relief "
+    ax.set_title(f"Terrain — hillshade + {_klass} tint, {_relief:.0f} m relief "
                  f"({_dem_source_label(field_dir)})", fontsize=8)
     _frame_axes(ax, f, extent)
     return True
@@ -218,7 +222,11 @@ def panel_soil(ax, field_dir: Path, f: ff.Frame, lakes_gdf):
         cmap = matplotlib.colors.ListedColormap(_cols)
         idx = {n: i for i, n in enumerate(uniq)}
         fgdf = _to_frame_coords(gdf, f)
-        f.geometry.plot(ax=ax, facecolor="#e5e7eb", edgecolor="none", zorder=0)
+        _tb = f.geometry.total_bounds
+        _r = _dst_res_for(f)
+        _bm.draw(ax, f, (0, _tb[2], 0, _tb[3]),
+                 max(256, int(_tb[3] / _r)), max(256, int(_tb[2] / _r)))
+        f.geometry.plot(ax=ax, facecolor="none", edgecolor="none", zorder=0)
         fgdf.plot(ax=ax, color=[cmap(idx[n] % cmap.N) for n in names],
                   edgecolor="0.15", linewidth=0.5, zorder=4)
         _draw_frame_boundary(ax, f)
@@ -242,10 +250,11 @@ def panel_soil(ax, field_dir: Path, f: ff.Frame, lakes_gdf):
         data, extent = _read_tif_in_frame(rasters[0], f, _dst_res_for(f))
         import palettes as _pal
         _d = np.ma.masked_invalid(data)
+        _bm.draw(ax, f, (0, extent[1], 0, extent[3]), _d.shape[0], _d.shape[1])
         if np.nanmax(_d) > 120:  # ISRIC integer storage = % x10
             _d = _d / 10.0
         _cm, _norm, _ticks = _pal.soil_scale("clay", _d)
-        im = ax.imshow(_d, cmap=_cm, norm=_norm,
+        im = ax.imshow(_d, cmap=_cm, norm=_norm, alpha=0.82,
                        extent=(0, extent[1], 0, extent[3]), origin="upper", zorder=1)
         _draw_frame_boundary(ax, f)
         fig = ax.get_figure()
@@ -279,6 +288,7 @@ def panel_crop(ax, field_dir: Path, f: ff.Frame, year: str | None, dst_res: floa
         if best is None or cov_i > best[0]:
             best = (cov_i, data_i, ext)
     cov, data, extent = best
+    _bm.draw(ax, f, (0, extent[1], 0, extent[3]), data.shape[0], data.shape[1])
     if cov < 0.25:
         return False
     vals, cnts = np.unique(np.ma.filled(data, np.nan)[
@@ -370,8 +380,10 @@ def main() -> int:
                 draw(axes[0])
         fig.text(0.01, 0.012, ff.crs_note(f), ha="left", va="bottom",
                  fontsize=6, color="#4b5563", transform=fig.transFigure)
+        _tg = os.environ.get("AG_TITLE_GROWER") or (
+            "█████" if args.grower.lower().startswith("elvtr") else args.grower)
         fig.suptitle(
-            f"{args.grower} / {args.farm} / {fid} — field-boundary-aware data stack ({today})",
+            f"{_tg} / {args.farm} / {fid} — field-boundary-aware data stack ({today})",
             fontsize=10,
         )
         fig.tight_layout(rect=(0, 0.045, 1, 1))

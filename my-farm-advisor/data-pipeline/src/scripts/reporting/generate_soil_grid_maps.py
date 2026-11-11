@@ -21,6 +21,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+
+import basemap as _bm
+from raster_rules import HALO_FRAC as _HALO_FRAC, VIEWPORT_FRAC as _VP_FRAC
 from matplotlib.colors import LightSource
 import geopandas as gpd
 import palettes
@@ -281,7 +284,7 @@ def render_field(
             # even when the source fully covers it (br-r1, QC 2026-11-05).
             arr, ext = _fflib.reproject_into_frame(
                 ds, ff, res, poly_metric=poly_zone,
-                margin_m=_fflib.VIEW_PAD_FRAC * max(_w, _h) + 2 * max(res, 250.0))
+                margin_m=_VP_FRAC * max(_w, _h) + 2 * res)
             arr, ext = _square_pad(arr, ext)
             if scale_key is not None:
                 _m = np.ma.getmaskarray(arr)
@@ -295,14 +298,15 @@ def render_field(
     ax0 = axes[0]
     if dem_path and dem_path.exists():
         arr, ext = _frame_show(dem_path, default_m=30.0)
+        _bm.draw(ax0, ff, ext, arr.shape[0], arr.shape[1])
         flat = _infield_values(arr, ext, ff.geometry)
         _dcm, _dnorm, _relief, _klass = palettes.dem_scale(flat)
         hs = np.ma.masked_invalid(ls.hillshade(
             np.ma.filled(arr, float("nan")),
             vert_exag=2.5 if _relief < 10 else (1.5 if _relief < 50 else 1.0)))
-        ax0.imshow(hs, cmap="gray", vmin=0, vmax=1,
+        ax0.imshow(hs, cmap="gray", vmin=0, vmax=1, alpha=0.45, zorder=1,
                    extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper")
-        ax0.imshow(arr, cmap=_dcm, alpha=0.55,
+        ax0.imshow(arr, cmap=_dcm, alpha=0.55, zorder=2,
                    extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper", norm=_dnorm)
         cb0 = fig.colorbar(plt.cm.ScalarMappable(norm=_dnorm, cmap=_dcm), ax=ax0,
                            fraction=0.046, pad=0.03)
@@ -320,13 +324,14 @@ def render_field(
         scale_key = (key if (raster_paths[key].name.startswith("soilgrids_")
                              and _sg is not None and key in _sg.BAND_SPECS) else None)
         arr, ext = _frame_show(raster_paths[key], scale_key=scale_key)
+        _bm.draw(ax, ff, ext, arr.shape[0], arr.shape[1])
         if key == "cec" and not raster_paths[key].name.startswith("soilgrids_"):
             # ASF CEC arrives in its own native scale; do not assert SoilGrids units.
             label, unit = "CEC 0–5 cm (ASF native units)", ""
         with rasterio.open(raster_paths[key]) as _ds:
             _cell = _ds.res[0] * (111320 if _ds.crs.is_geographic else 1.0)
         _cm, _norm, _ticks = palettes.soil_scale(key, arr, domain=_cell >= 150)
-        im = ax.imshow(arr, cmap=_cm, norm=_norm,
+        im = ax.imshow(arr, cmap=_cm, norm=_norm, alpha=0.82, zorder=1,
                        extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper")
         cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03,
                           **({"ticks": _ticks} if _ticks else {}))

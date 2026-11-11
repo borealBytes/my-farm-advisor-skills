@@ -25,6 +25,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+
+import basemap as _bm
 import rasterio.warp
 
 LAYER_ORDER = [
@@ -77,7 +79,11 @@ def main() -> int:
                          panel_w_in=_rb.width * _sz[0])
     poly_zone = fields.to_crs(ff.epsg).union_all()
     src_note = ""
-    _into_frame = lambda ds, dst_res: _fflib.reproject_into_frame(ds, ff, dst_res, poly_metric=poly_zone)
+    import raster_rules as _rr_rules
+    _LW = max(float(ff.geometry.total_bounds[2]), float(ff.geometry.total_bounds[3]))
+    _into_frame = lambda ds, dst_res: _fflib.reproject_into_frame(
+        ds, ff, dst_res, poly_metric=poly_zone,
+        margin_m=_rr_rules.VIEWPORT_FRAC * _LW + 2 * dst_res)
 
     for ax, (fn, title, unit, cmap, log) in zip(axes.ravel(), LAYER_ORDER):
         p = tdir / fn
@@ -88,11 +94,13 @@ def main() -> int:
         with rasterio.open(p) as ds:
             res_m = ds.res[0] * (111320 if ds.crs.is_geographic else 1)
             show, ext = _into_frame(ds, res_m)
+        _bm.draw(ax, ff, ext, show.shape[0], show.shape[1])
         src_note = src_note or f"\u2248{res_m:.0f} m native grid"
         def _vminmax(m):
             d = np.array(np.ma.filled(m, np.nan), dtype="float64", copy=True).ravel()
             d = d[np.isfinite(d)]
             return (np.percentile(d, 2), np.percentile(d, 98)) if d.size else (0, 1)
+        vmin, vmax = _vminmax(show)  # generic default; specific branches override
         import math as _math
         import palettes
         _cb_ticks = None

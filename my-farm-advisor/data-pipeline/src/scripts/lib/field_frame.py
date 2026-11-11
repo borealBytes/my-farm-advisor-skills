@@ -174,7 +174,8 @@ def crs_note(f: Frame, full: bool = False) -> str:
 
 def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
                          resampling=None, dst_dtype=None, nodata=None, band=1,
-                         polygon_mask: bool = False, margin_m: float = 0.0):
+                         polygon_mask: bool = False, margin_m: float = 0.0,
+                         mask_buffer_m: float | None = None):
     """RasterIO source dataset -> (masked array, extent) in this frame.
 
     One resample straight into the rotated grid via a rotated GDAL
@@ -223,6 +224,7 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
             _src.filled(fill).astype(dst_dtype), dst,
             src_transform=ds.transform, src_crs=ds.crs,
             dst_transform=dst_tr, dst_crs=f.epsg,
+            src_nodata=fill, dst_nodata=fill,
             resampling=resampling or rasterio.warp.Resampling.nearest)
         out_mask = (dst == fill)
     else:
@@ -233,6 +235,7 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
             _src.filled(np.nan), dst,
             src_transform=ds.transform, src_crs=ds.crs,
             dst_transform=dst_tr, dst_crs=f.epsg,
+            src_nodata=np.nan, dst_nodata=np.nan,
             resampling=resampling or rasterio.warp.Resampling.bilinear)
         out_mask = np.isnan(dst)
     # Mask from the FRAME-coord polygon: exact by construction and independent
@@ -244,9 +247,17 @@ def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
     if not polygon_mask:
         gm = np.ones((nr, nc), dtype=bool)
     else:
-        gm = geometry_mask([f.geometry.dissolve().union_all().__geo_interface__]
-                           if hasattr(f.geometry, "dissolve") else
-                           [f.geometry.__geo_interface__],
+        _poly = (f.geometry.dissolve().union_all()
+                 if hasattr(f.geometry, "dissolve") else f.geometry)
+        if mask_buffer_m is None:
+            # default halo matches the fetch clip (raster_rules.HALO_FRAC)
+            _tb = f.geometry.total_bounds
+            import raster_rules as _rr
+            mask_buffer_m = _rr.HALO_FRAC * max(float(_tb[2]),
+                                                  float(_tb[3]))
+        if mask_buffer_m > 0:
+            _poly = _poly.buffer(mask_buffer_m)
+        gm = geometry_mask([_poly.__geo_interface__],
                            out_shape=(nr, nc),
                            transform=Affine(dst_res, 0, -m, 0, -dst_res,
                                             -m + nr * dst_res),

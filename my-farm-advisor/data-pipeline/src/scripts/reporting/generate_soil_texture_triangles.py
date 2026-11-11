@@ -770,6 +770,7 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     import sys as _sys
     _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
     import field_frame as _fflib
+    import basemap as _bm
     fig.canvas.draw()
     _rb = axes[0].get_position()
     _sz = fig.get_size_inches()
@@ -779,7 +780,12 @@ def render_property_map(csv_path: Path, label: str, out: Path, source_note: str 
     from matplotlib import ticker as _ticker
     for ax, (title, cmap, vals, cb_label, tick_fmt, scale) in zip(axes, panels):
         p = polyf.assign(v=vals.reindex(polyf["mukey"]).values)
-        p.plot(column="v", ax=ax, cmap=cmap, legend=False,
+        _tb = ff.geometry.total_bounds
+        _res_b = max(_tb[2], _tb[3]) / 1200.0
+        _bm.draw(ax, ff, (_tb[0], _tb[2], _tb[1], _tb[3]),
+                 int((_tb[3] - _tb[1]) / _res_b) + 1,
+                 int((_tb[2] - _tb[0]) / _res_b) + 1)
+        p.plot(column="v", ax=ax, cmap=cmap, legend=False, alpha=0.82,
                missing_kwds={"color": "#e5e7eb"},
                linewidth=0.3, edgecolor="#9ca3af")
         cb = fig.colorbar(ax.collections[-1], ax=ax, fraction=0.046, pad=0.03)

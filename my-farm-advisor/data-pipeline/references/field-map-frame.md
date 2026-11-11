@@ -129,20 +129,31 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
   rule exists to guarantee. Title means/relief stats are computed in-field via
   `generate_soil_grid_maps._infield_values` so labels describe the field, not
   the margin.
-- **Rotated frames rotate the buffer requirement too:** renderers draw in the
-  field-local min-rect frame, so the destination square is *rotated* against
-  the axis-aligned source clip; `(|cos θ|+|sin θ|)` × half-side of axis extent
-  is required, and a plain bbox+buffer clip leaves nodata corner triangles on
-  rotated fields (worst case circular pivot at θ≈45° → `r·(√2−1)` ≈ 0.41 r).
-  `raster_rules.rotation_buffer_m(geom, cell_m)` computes the extra fetch
-  buffer (its margin term mirrors the renderers': 4 % of the long side +
-  2 destination cells); DEM, SoilGrids and satellite clips all take it via
-  `max(floor, rotation_buffer_m)`. The renderer destination `margin_m` must
-  use the SAME 4 %-plus-2-cells rule so every panel's extent covers the
-  shared viewport — unequal per-band margins show as white strips at panel
-  edges even when the fetch is perfectly buffered. Exemption: clips whose
-  panels intentionally polygon-mask the display (WorldCereal/ACI class
-  panels) keep the plain floor buffer.
+- **Halo + viewport policy (2026-11-09, user; supersedes the 5 %/10 % first
+  pass):** every stored raster is clipped to the **field polygon buffered**
+  (`geom.buffer`, never the bbox) by `B = max(0.10 × field max length, one
+  source cell)` — `raster_rules.field_buffer_m`, `HALO_FRAC = 0.10`, max
+  length = the min-rect long side, rotation-invariant. **Plotted viewports**
+  show the polygon buffered by `0.15 ×` that length (`VIEWPORT_FRAC = 0.15`:
+  renderer destination margins are `VIEWPORT_FRAC × long side + 2 cells`),
+  so a figure always reveals the immediate surroundings; the satellite
+  basemap covers the whole viewport, so the 10 %→15 % ring outside the
+  raster shows imagery, not void. **All statistics use the EXACT polygon**
+  (`_infield_values`, zonal stats) — the halo exists to feed edge kernels
+  (terrain filters need ≥3 cells, `EDGE_BUFFER_CELLS_FILTER`) and to show
+  context, never to bias means. The bbox is only ever the fetch query
+  rectangle. Implementation points: the DEM clipper masks to
+  `buffered_geometry_analysis` in `raster_processing.clip_dem_tiles_to_buffer`
+  (masking at ZERO buffer was the original bug — not masking itself);
+  SoilGrids `clip_bbox(clip_geometry=…)` pixel-clips to the halo while zonal
+  stats stay on the exact polygon; satellite scene clips run
+  `geometry_mask` over the buffered polygon after `outer_crop`. Renderer
+  destination margins use the same rule (`HALO_FRAC × long side + 2 cells`)
+  so no band's array is smaller than the halo it must display. Terrain
+  filters may lift the effective halo to 3 cells (`EDGE_BUFFER_CELLS_FILTER`)
+  so edge slope/flow kernels have inputs. Class panels
+  (`reproject_into_frame(polygon_mask=True)`) mask at the SAME halo by
+  default (`mask_buffer_m=None ⇒ HALO_FRAC × long side`).
 - **Grid-map panels share one identical frame rect** across every band:
   rasters are square-padded bottom-anchored (extra space east+north of the
   NW-pinned data), and a post-layout pass repositions all used axes onto one
@@ -158,6 +169,20 @@ def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
 - Restriction callouts on horizon tables live in a matplotlib **legend box**
   (hatched Patch handles, one entry per band) right of the texture stack —
   hand-placed gutter text provably collides when depth windows nest.
+
+## Nodata honesty in `reproject_into_frame` (2026-11)
+
+`rasterio.warp.reproject` **zero-fills the whole destination array before resampling**,
+whatever the caller initialized. Any destination pixel outside the source footprint
+(rotated viewport spilling past the clip's bbox — routine on rotated fields at the
+15 % margin) silently becomes elevation **0**, not nodata: percentile stretches
+collapse, sequential colormaps pin to their dark end (all-black panels), terrain ramps
+pin to their light end (all-white). The shared frame lib therefore always passes
+`src_nodata=` and `dst_nodata=` (NaN for float panels, the chosen integer fill for
+class panels) on every reproject call — added because the `au-r3`/`on-r1` terrain
+sheets rendered half their panels blank/flat once the halo policy grew the viewport
+(and the figure batch was re-rendered mid-run while the buffer code changed under it).
+Any *new* reproject call sites outside `field_frame.py` must carry the nodata pair too.
 
 ## Continuous vs categorical — the scale standard for every map we publish
 

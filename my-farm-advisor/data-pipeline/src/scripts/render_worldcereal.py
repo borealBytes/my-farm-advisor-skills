@@ -7,6 +7,9 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(_HERE, "lib"))
 sys.path.insert(0, os.path.join(_HERE, "ingest"))
 import rasterio
+
+import basemap as _bm
+import raster_rules as _rrw
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
@@ -27,7 +30,7 @@ _ROOT = os.environ.get("DATA_PIPELINE_DATA_ROOT")
 if not _ROOT:
     raise SystemExit("set DATA_PIPELINE_DATA_ROOT (see data-pipeline/README)")
 ROOT = os.path.join(_ROOT, "data-pipeline", "growers",
-                    os.environ.get("AG_GROWER_SLUG", "elvtr-demo"), "farms")
+                    os.environ.get("AG_GROWER_SLUG", "demo-grower"), "farms")
 SCRATCH = os.environ.get("WC_FIG_DIR") or os.getcwd()
 LABELS = aw.CROPTYPE24_LABELS
 from matplotlib import colormaps as _cm
@@ -51,14 +54,17 @@ def _field_frame_for(geom, panel_h_in, panel_w_in):
 
 def _into_frame_coords(geoms, f):
     """Zone (EPSG:f.epsg) geometries -> frame (x, y) per the published affine."""
-    import shapely.ops
+    import shapely
     r3 = math.radians(f.rot)
     cs, sn = math.cos(r3), math.sin(r3)
 
-    def _f(x, y, *a):
-        dE, dN = x - f.e0, y - f.n0
-        return dE * cs + dN * sn, -dE * sn + dN * cs
-    return geoms.map(lambda g: shapely.ops.transform(_f, g))
+    def _f(coords):
+        out = coords.copy()
+        dE, dN = coords[..., 0] - f.e0, coords[..., 1] - f.n0
+        out[..., 0] = dE * cs + dN * sn
+        out[..., 1] = -dE * sn + dN * cs
+        return out
+    return geoms.map(lambda g: shapely.transform(g, _f))
 
 
 def find_run(farm, field, season, year=None):
@@ -311,9 +317,13 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
             _res = s.res[0]
             if s.crs.is_geographic:
                 _res *= 111320 * math.cos(math.radians(s.bounds.top))
+            import raster_rules as _rr
             w, ext = ff.reproject_into_frame(s, frame, _res,
                                              dst_dtype="int32", nodata=-1,
-                                             polygon_mask=True)
+                                             polygon_mask=True,
+                                             margin_m=_rr.VIEWPORT_FRAC
+                                             * max(frame.geometry.total_bounds[2],
+                                                   frame.geometry.total_bounds[3]))
             inside = ~np.ma.getmaskarray(w)
             arr = np.ma.getdata(w).astype("int32")
             ext = [ext[0], ext[0] + (ext[1] - ext[0]), ext[2], ext[3]]
@@ -333,11 +343,15 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
         pal = mcolors.to_rgba_array(PALETTE[:24] + ["#c8b487"])
         idx = np.clip(arr, 0, 24).astype(int)
         rgba = np.dstack([pal[idx]])
-        rgba[..., 3] = 1.0
+        rgba[..., 3] = 0.88
         rgba[(~np.isin(arr, np.arange(25))) & inside] = (1, 1, 1, 1)   # 254/other = white
-        rgba[~inside] = (0.88, 0.88, 0.88, 1)                          # off-field = gray
+        if frame is not None:
+            rgba[~inside] = (0.88, 0.88, 0.88, 0.0)   # off-field: basemap or white
+        else:
+            rgba[~inside] = (0.88, 0.88, 0.88, 1)     # geo context: keep gray
         e0, e1, e2, e3 = (ext if isinstance(ext, tuple) else (ext[0], ext[2], ext[1], ext[3]))
-        ax.imshow(rgba, extent=(e0, e1, e2, e3), interpolation="nearest")
+        _bm.draw(ax, frame, (e0, e1, e2, e3), arr.shape[0], arr.shape[1])
+        ax.imshow(rgba, extent=(e0, e1, e2, e3), interpolation="nearest", zorder=1)
         hist = np.bincount(arr[inside], minlength=255)
         if legend:
             top = sorted(range(24), key=lambda t: -hist[t])[:3]
@@ -349,8 +363,9 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
         shown = np.ma.masked_where((arr == 254) | (~inside), arr)
         cmap = ListedColormap(["#b0a08a", "#2e7d32"])
         e0, e1, e2, e3 = (ext if isinstance(ext, tuple) else (ext[0], ext[2], ext[1], ext[3]))
+        _bm.draw(ax, frame, (e0, e1, e2, e3), arr.shape[0], arr.shape[1])
         ax.imshow(shown, cmap=cmap, vmin=-0.5, vmax=1.5, extent=(e0, e1, e2, e3),
-                  interpolation="nearest")
+                  interpolation="nearest", zorder=1)
         valid = arr[inside & (arr != 254)]
         if legend:
             ax.legend(handles=[
@@ -361,6 +376,7 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
                 loc="lower left", fontsize=8, framealpha=.9)
         hist = np.bincount(valid, minlength=255)
     return hist
+
 
 
 def render(farm, field, season, scene_month, title, fname, extra_note=""):
@@ -419,7 +435,11 @@ def render(farm, field, season, scene_month, title, fname, extra_note=""):
                     ds0.write(np.ascontiguousarray(a3[..., bi]), bi + 1)
             with mf.open() as ds1:
                 for bi in range(1, a3.shape[2] + 1):
-                    w, _e = ff.reproject_into_frame(ds1, frame, _res, band=bi, polygon_mask=True)
+                    w, _e = ff.reproject_into_frame(ds1, frame, _res, band=bi,
+                                                    polygon_mask=True,
+                                                    margin_m=_rrw.VIEWPORT_FRAC
+                                                    * max(frame.geometry.total_bounds[2],
+                                                          frame.geometry.total_bounds[3]))
                     outs.append(w)
         stack = np.dstack([np.ma.filled(o, np.nan) for o in outs])
         return stack, (0, _FW, 0, _FH)

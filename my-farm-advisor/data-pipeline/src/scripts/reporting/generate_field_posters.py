@@ -56,6 +56,7 @@ from paths import (
     field_soil_polygon_path,
     shared_cdl_preferred_full_composition_path,
 )
+from state_codes import US_STATE_FIPS  # noqa: E402
 from pipeline import (
     STEP_FIELD_POSTER_RENDER,
     FieldReportingConfig,
@@ -407,6 +408,21 @@ def _soil_map_panel(ax, image_path: Path | None, title: str, fallback_render) ->
     fallback_render(ax)
 
 
+_STATE_NAMES = {code: name for code, name in US_STATE_FIPS.values()}
+
+
+def _region_label(fields: gpd.GeoDataFrame) -> str:
+    """Name the farm's state(s) instead of assuming a region."""
+    if "state" not in fields.columns:
+        return ""
+    codes = {
+        str(value).strip().upper()
+        for value in fields["state"].dropna()
+        if str(value).strip()
+    }
+    return ", ".join(_STATE_NAMES.get(code, code) for code in sorted(codes))
+
+
 def _render_field_poster(
     field_id,
     field_index,
@@ -418,6 +434,7 @@ def _render_field_poster(
     field_reporting_df,
     field_slug,
     output_path,
+    region_label="",
 ):
     field_row = field_gdf.iloc[0]
     field_wgs84 = field_gdf.to_crs("EPSG:4326")
@@ -444,8 +461,14 @@ def _render_field_poster(
 
     fig = plt.figure(figsize=(28, 36))
     fig.patch.set_facecolor("#fafaf9")
+    title_parts = [
+        f"Field Intelligence Report — {field_id}",
+        f"{float(field_row.get('area_acres', 0)):.1f} ac",
+    ]
+    if region_label:
+        title_parts.append(region_label)
     fig.suptitle(
-        f"Field Intelligence Report — {field_id[-8:]}  ·  {float(field_row.get('area_acres', 0)):.1f} ac  ·  Iowa Corn Belt",
+        "  ·  ".join(title_parts),
         fontsize=_POSTER_TITLE_SIZE,
         fontweight="bold",
         y=0.993,
@@ -558,6 +581,7 @@ def main() -> None:
     )
 
     fields = gpd.read_file(_REPO / config.field_boundary_path)
+    region_label = _region_label(fields)
     soil_full = pd.read_csv(farm_ssurgo_full_path(_DEFAULT_GROWER, _DEFAULT_FARM))
     soil_summary = pd.read_csv(farm_ssurgo_summary_path(_DEFAULT_GROWER, _DEFAULT_FARM))
     weather = pd.read_csv(
@@ -686,6 +710,7 @@ def main() -> None:
             field_reporting_df=field_reporting_df,
             field_slug=field_slug_lookup.get(str(field_id)),
             output_path=output_path,
+            region_label=region_label,
         )
         manifest.status = "complete"
         manifest.write(manifest_dir / f"{STEP_FIELD_POSTER_RENDER}_{field_id}.json")

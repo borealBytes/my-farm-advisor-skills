@@ -146,7 +146,7 @@ def plot_soil_properties_card(
     erosion = row.get("erosion_risk", "Unknown")
 
     summary_text = f"""
-    Field: {field_id[-8:]}
+    Field: {field_id}
     
     Dominant Soil:
     {dominant_soil}
@@ -174,7 +174,7 @@ def plot_soil_properties_card(
     ax.set_title("Soil Summary", fontsize=11, fontweight="bold")
 
     fig.suptitle(
-        f"Soil Profile: {field_id[-8:]}", fontsize=14, fontweight="bold", y=0.98
+        f"Soil Profile: {field_id}", fontsize=14, fontweight="bold", y=0.98
     )
     plt.tight_layout()
     plt.savefig(
@@ -246,7 +246,7 @@ def plot_texture_triangle_card(
             zorder=5,
         )
         ax.annotate(
-            f"{field_id[-8:]}\nC:{clay:.0f}% S:{sand:.0f}% Si:{silt:.0f}%",
+            f"{field_id}\nC:{clay:.0f}% S:{sand:.0f}% Si:{silt:.0f}%",
             (x, y),
             xytext=(10, 10),
             textcoords="offset points",
@@ -264,7 +264,7 @@ def plot_texture_triangle_card(
     ax.set_ylim(-0.1, 1.0)
     ax.set_aspect("equal")
     ax.axis("off")
-    ax.set_title(f"Soil Texture: {field_id[-8:]}", fontsize=14, fontweight="bold")
+    ax.set_title(f"Soil Texture: {field_id}", fontsize=14, fontweight="bold")
 
     plt.tight_layout()
     plt.savefig(
@@ -306,7 +306,7 @@ def plot_farm_comparison_card(
         if field_data.empty:
             continue
         row = field_data.iloc[0]
-        field_ids.append(field_id[-8:])
+        field_ids.append(field_id)
         om_values.append(row.get("avg_om_pct", 0) or 0)
         ph_values.append(row.get("avg_ph", 0) or 0)
         aws_values.append(row.get("total_aws_inches", 0) or 0)
@@ -431,7 +431,7 @@ def main() -> None:
     # Generate per-field cards
     for idx, field_row in fields.iterrows():
         field_id = str(field_row.get("field_id", f"field_{idx}"))
-        field_short = field_id[-8:] if len(field_id) > 8 else field_id
+        field_short = field_id
 
         print(f"\nProcessing field: {field_id}")
 

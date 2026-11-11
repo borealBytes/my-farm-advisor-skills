@@ -300,7 +300,7 @@ def main() -> None:
         row_match = field_df[field_df["field_id"] == fid]
         row_dict = row_match.iloc[0].to_dict() if not row_match.empty else {}
 
-        md_lines.append(f"### Field {fid[-8:]} ({acres:.1f} acres)")
+        md_lines.append(f"### Field {fid} ({acres:.1f} acres)")
         md_lines.append("")
         md_lines.append(
             f"**Poster:** [field_report.png](../../fields/{field_slug}/derived/reports/field_report.png)"

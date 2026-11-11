@@ -21,8 +21,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import rasterio
+
+import basemap as _bm
+from raster_rules import HALO_FRAC as _HALO_FRAC, VIEWPORT_FRAC as _VP_FRAC
 from matplotlib.colors import LightSource
 import geopandas as gpd
+import palettes
 
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_SCRIPTS_DIR))
@@ -115,6 +119,99 @@ def _geo_ticks(ax):
     ax.yaxis.set_major_locator(mticker.MaxNLocator(4))
 
 
+def _infield_values(arr, ext, frame_geom):
+    """Array values inside the field polygon (window mean/relief honesty)."""
+    from rasterio.features import rasterize
+    from rasterio.transform import Affine as _Af
+    nr, nc = arr.shape
+    _tr = _Af((ext[1] - ext[0]) / nc, 0, ext[0],
+              0, -(ext[3] - ext[2]) / nr, ext[3])
+    _in = rasterize(
+        [(frame_geom.dissolve().union_all().__geo_interface__, 1)],
+        out_shape=(nr, nc), transform=_tr, fill=0, all_touched=False,
+    ).astype(bool)
+    v = np.ma.getdata(arr).astype("float64")[_in]
+    return v[np.isfinite(v)]
+
+
+def _panel_frame_labels(ax, ff, _fflib) -> None:
+    """Axis furniture every static field panel carries (see field-map-frame.md)."""
+    ax.set_xlabel(_fflib.crs_note(ff), fontsize=5.6)
+    ax.set_ylabel("field-local m", fontsize=6)
+    ax.tick_params(labelsize=5.8)
+    ax.grid(alpha=0.15, lw=0.4)
+    ax.set_aspect("equal", adjustable="datalim")
+    _L, _R, _B, _T = _fflib.view_extent(0, float(ff.geometry.total_bounds[2]), 0, float(ff.geometry.total_bounds[3]))
+    ax.set_xlim(_L, _R)
+    ax.set_ylim(_B, _T)
+    _fflib.decorate(ax, ff, arrow_r=0.085, arrow_fs=8.5, callout=False,
+                    arrow_xy=(0.955, 0.05), scale_x=15)
+
+
+_BAND_LEGEND = {  # ISRIC/SoilGrids standard legend files (vendored, data/isric_legends/)
+    "clay": "CLYPPT", "silt": "SLTPPT", "sand": "SNDPPT",
+    "phh2o": "PHIHOX", "phhcl": "PHIHOX", "cec": "CECSOL",
+    "soc": "ORCDRC", "nitrogen": "ORCDRC", "bdod": "BLDFINE",
+}
+
+
+def _band_norm(key: str):
+    """ListedColormap + BoundaryNorm straight from the vendored ISRIC TSVs."""
+    stem = _BAND_LEGEND.get(key.lower())
+    if stem is None:
+        return None
+    import csv as _csv
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    p = (Path(__file__).resolve().parent.parent / "data" / "isric_legends"
+         / f"{stem}.txt")
+    if not p.exists():
+        return None
+    rows = []
+    _div = 10.0 if stem == "PHIHOX" else 1.0   # SoilGrids pH legend is x10
+    with open(p, newline="") as fh:
+        for row in _csv.DictReader(fh, delimiter="\t"):
+            c = int(row["COLOR"])
+            lo, hi = float(row["MINIMUM"]) / _div, float(row["MAXIMUM"]) / _div
+            rows.append((lo, hi, ((c >> 16 & 255) / 255, (c >> 8 & 255) / 255,
+                                  (c & 255) / 255)))
+    if len(rows) < 3:
+        return None
+    rows.sort()
+    bounds, cols = [], []
+    for lo, hi, col in rows:
+        if not bounds or abs(bounds[-1] - lo) > 1e-9:
+            bounds.append(lo)
+        bounds.append(hi)
+        cols.append(col)
+    import numpy as _np
+    bounds = _np.unique(_np.array(bounds))
+    keep = []
+    for i in range(len(cols)):
+        lo, hi = rows[i][0], rows[i][1]
+        j0 = int(_np.searchsorted(bounds, lo))
+        j1 = int(_np.searchsorted(bounds, hi))
+        if j1 > j0:
+            keep.append((j0, j1, cols[i]))
+    # rebuild per-bin colors over the full boundary grid
+    full = [cols[0]] * (len(bounds) - 1)
+    for j0, j1, c in keep:
+        for j in range(j0, min(j1, len(full))):
+            full[j] = c
+    return ListedColormap(full), BoundaryNorm(bounds, len(full)), bounds
+
+
+def _band_cmap(key: str):
+    stem = _BAND_LEGEND.get(key.lower())
+    if stem is not None:
+        try:
+            from generate_soil_texture_triangles import _isric_cmap
+            cmap, _, _ = _isric_cmap(stem)
+            return cmap
+        except Exception:
+            pass
+    return "viridis"
+
+
 def render_field(
     *,
     field_slug: str,
@@ -125,10 +222,15 @@ def render_field(
     title_extra: str = "",
 ) -> Path:
     fields = gpd.read_file(boundary_path)
-    b = fields.to_crs("EPSG:4326").total_bounds
-    pad = 0.004
-    bounds = (b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad)
 
+    # field-local frame (lib/field_frame.py): every panel of every static
+    # figure shares one metre grid, auto-rotated to fit, arrows on.
+    import sys as _sys
+    _sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    import field_frame as _fflib
+    import rasterio
+    from rasterio.enums import Resampling as _Rsm
+    fig = None
     band_keys = list(raster_paths)
     n = len(band_keys)
     total = n + 1
@@ -136,67 +238,131 @@ def render_field(
     rows = -(-total // cols)
     fig, axes = plt.subplots(rows, cols, figsize=(3.1 * cols + 1.2, 3.5 * rows), constrained_layout=True)
     axes = np.atleast_1d(axes).ravel()
-    dem = None
-    if dem_path and dem_path.exists():
-        dem = _clip_raster(dem_path, bounds, out_png.parent / f"{field_slug}_dem_clip.tif", res_deg=0.0003)
+    fig.canvas.draw()
+    _rb = axes[0].get_position()
+    _sz = fig.get_size_inches()
+    ff = _fflib.frame_for(fields, panel_h_in=_rb.height * _sz[1],
+                         panel_w_in=_rb.width * _sz[0])
+    poly_zone = fields.to_crs(ff.epsg).union_all()
+
+    def _square_pad(a, e):
+        """Pad a panel up to a square extent, anchored at the NW corner
+        (imshow origin='upper'): extra space falls east and south, so the
+        identical frame rect is shared by every panel."""
+        import numpy as _np
+        w, h = e[1] - e[0], e[3] - e[2]
+        if abs(w - h) < 1e-9:
+            return a, e
+        s = max(w, h)
+        resx, resy = w / a.shape[1], h / a.shape[0]
+        nc, nr = int(round(s / resx)), int(round(s / resy))
+        import numpy as _npma
+        is_masked = __import__("numpy").ma.isMaskedArray(a)
+        if is_masked:
+            out = __import__("numpy").ma.masked_array(
+                _npma.full((nr, nc), _npma.nan), mask=True)
+            out[nr - a.shape[0]:, :a.shape[1]] = a   # data bottom-anchored
+        else:
+            out = _npma.full((nr, nc), _npma.nan)
+            out[nr - a.shape[0]:, :a.shape[1]] = a
+        return out, (e[0], e[0] + s, e[2], e[2] + s)  # origin (0,0) preserved
+
+    def _dst_res_of(path, default_m):
+        with rasterio.open(path) as ds:
+            import raster_rules as _rrl
+            return _rrl.cell_m_of(ds.crs, ds.res[0], lon=ff.lon0) or default_m
+
+    def _frame_show(src_path, default_m=250.0, scale_key=None):
+        with rasterio.open(src_path) as ds:
+            res = _dst_res_of(src_path, default_m)
+            _w = float(ff.geometry.total_bounds[2])
+            _h = float(ff.geometry.total_bounds[3])
+            # Margin is sized in COARSEST-band cells (250 m SoilGrids floor),
+            # NOT this band's own cell: every panel shares one axis box, and a
+            # 30 m DEM with a 2-of-its-own-cells margin lands ~440 m short of
+            # the soil panels' extent -> white side bands in the terrain panel
+            # even when the source fully covers it (br-r1, QC 2026-11-05).
+            arr, ext = _fflib.reproject_into_frame(
+                ds, ff, res, poly_metric=poly_zone,
+                margin_m=_VP_FRAC * max(_w, _h) + 2 * res)
+            arr, ext = _square_pad(arr, ext)
+            if scale_key is not None:
+                _m = np.ma.getmaskarray(arr)
+                _d = np.ma.getdata(arr)
+                arr = np.ma.masked_invalid(_sg.apply_scale(_d, scale_key))
+                arr = np.ma.masked_array(np.ma.getdata(arr),
+                                         mask=_m | np.ma.getmaskarray(arr))
+            return arr, ext
+
     ls = LightSource(azdeg=315, altdeg=45)
     ax0 = axes[0]
-    if dem is not None:
-        with rasterio.open(dem) as ds:
-            arr = ds.read(1, masked=True).astype("float64").copy()
-            arr = np.ma.masked_invalid(arr)
-            ext = ds.bounds
-            hs = ls.hillshade(np.ma.filled(arr, float("nan")), vert_exag=1.2)
-            hs = np.ma.masked_invalid(hs)
-            im0 = ax0.imshow(
-                hs, cmap="gray", vmin=0, vmax=1,
-                extent=[ext.left, ext.right, ext.bottom, ext.top], origin="upper",
-            )
-            flat = arr.compressed()
-            if flat.size:
-                norm = plt.Normalize(np.percentile(flat, 2), np.percentile(flat, 98))
-            else:
-                norm = plt.Normalize(0, 1)
-            ax0.imshow(
-                arr, cmap="terrain", alpha=0.12, extent=[ext.left, ext.right, ext.bottom, ext.top],
-                origin="upper", norm=norm,
-            )
-            cb0 = fig.colorbar(plt.cm.ScalarMappable(norm=norm, cmap="terrain"), ax=ax0, fraction=0.046, pad=0.03)
-            cb0.set_label("elevation (m)", fontsize=6)
-            cb0.ax.tick_params(labelsize=6)
-        ax0.set_title("Terrain (DEM hillshade, 30 m)", fontsize=9)
+    if dem_path and dem_path.exists():
+        arr, ext = _frame_show(dem_path, default_m=30.0)
+        _bm.draw(ax0, ff, ext, arr.shape[0], arr.shape[1])
+        flat = _infield_values(arr, ext, ff.geometry)
+        _dcm, _dnorm, _relief, _klass = palettes.dem_scale(flat)
+        hs = np.ma.masked_invalid(ls.hillshade(
+            np.ma.filled(arr, float("nan")),
+            vert_exag=2.5 if _relief < 10 else (1.5 if _relief < 50 else 1.0)))
+        ax0.imshow(hs, cmap="gray", vmin=0, vmax=1, alpha=0.45, zorder=1,
+                   extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper")
+        ax0.imshow(arr, cmap=_dcm, alpha=0.55, zorder=2,
+                   extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper", norm=_dnorm)
+        cb0 = fig.colorbar(plt.cm.ScalarMappable(norm=_dnorm, cmap=_dcm), ax=ax0,
+                           fraction=0.046, pad=0.03)
+        cb0.set_label("elevation (m)", fontsize=6)
+        cb0.ax.tick_params(labelsize=6)
+        ax0.set_title(f"Terrain + hillshade ({_relief:.0f} m relief)",
+                      fontsize=8)
     else:
         ax0.text(0.5, 0.5, "no DEM", ha="center")
-    fields.to_crs("EPSG:4326").plot(ax=ax0, facecolor="none", edgecolor="red", linewidth=1.4)
-    _geo_ticks(ax0)
+    ff.geometry.dissolve().boundary.plot(ax=ax0, color="red", lw=1.4)
+    _panel_frame_labels(ax0, ff, _fflib)
 
-    poly = fields.to_crs("EPSG:4326").union_all()
     for ax, key in zip(axes[1:], band_keys):
-        raster = _clip_raster(raster_paths[key], bounds, out_png.parent / f"{field_slug}_{key}_clip.tif")
-        with rasterio.open(raster) as ds:
-            arr = ds.read(1, masked=True).astype("float64")
-            if _sg is not None and raster_paths[key].name.startswith("soilgrids_") and key in _sg.BAND_SPECS:
-                # SoilGrids clips are raw Int16; ASF clips are already in true
-                # units (verified scale=1.0 at ingest) and must NOT be rescaled.
-                arr = _sg.apply_scale(arr, key)
-            arr = _mask_to_polygon(arr, ds.transform, poly)
-            ext = ds.bounds
-            label, unit, _cmap = BAND_LABELS.get(key, (key, "", "viridis"))
-            if key == "cec" and not raster_paths[key].name.startswith("soilgrids_"):
-                # ASF CEC arrives in its own native scale; do not assert SoilGrids units.
-                label, unit = "CEC 0–5 cm (ASF native units)", ""
-            im = ax.imshow(arr, cmap="viridis", extent=[ext.left, ext.right, ext.bottom, ext.top], origin="upper")
-            cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03)
-            cb.set_label(unit, fontsize=6)
-            cb.ax.tick_params(labelsize=6)
-            mean_v = float(np.nanmean(arr))
+        label, unit, _cmap = BAND_LABELS.get(key, (key, "", "viridis"))
+        scale_key = (key if (raster_paths[key].name.startswith("soilgrids_")
+                             and _sg is not None and key in _sg.BAND_SPECS) else None)
+        arr, ext = _frame_show(raster_paths[key], scale_key=scale_key)
+        _bm.draw(ax, ff, ext, arr.shape[0], arr.shape[1])
+        if key == "cec" and not raster_paths[key].name.startswith("soilgrids_"):
+            # ASF CEC arrives in its own native scale; do not assert SoilGrids units.
+            label, unit = "CEC 0–5 cm (ASF native units)", ""
+        with rasterio.open(raster_paths[key]) as _ds:
+            _cell = _ds.res[0] * (111320 if _ds.crs.is_geographic else 1.0)
+        _cm, _norm, _ticks = palettes.soil_scale(key, arr, domain=_cell >= 150)
+        im = ax.imshow(arr, cmap=_cm, norm=_norm, alpha=0.82, zorder=1,
+                       extent=[ext[0], ext[1], ext[2], ext[3]], origin="upper")
+        cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.03,
+                          **({"ticks": _ticks} if _ticks else {}))
+        cb.set_label(unit, fontsize=6)
+        cb.ax.tick_params(labelsize=5.6)
+        _d = np.array(np.ma.getdata(arr), copy=True, dtype="float64")
+        _d[np.ma.getmaskarray(arr)] = np.nan
+        _dv = _infield_values(arr, ext, ff.geometry)
+        mean_v = float(np.mean(_dv)) if _dv.size else float("nan")
         ax.set_title(f"{label} — mean {mean_v:.1f}", fontsize=8.5)
-        fields.to_crs("EPSG:4326").plot(ax=ax, facecolor="none", edgecolor="red", linewidth=1.4)
-        _geo_ticks(ax)
+        ff.geometry.dissolve().boundary.plot(ax=ax, color="red", lw=1.4)
+        _panel_frame_labels(ax, ff, _fflib)
 
     for _ax in axes[total:]:
         _ax.axis("off")
     fig.suptitle(f"{field_slug} — gridded soil properties + relief {title_extra}", fontsize=11)
+    # force every used panel onto an identical square box so all axes share
+    # one frame rect (colorbars make the auto boxes differ otherwise)
+    fig.canvas.draw()
+    _used = axes[:total]
+    _ws = [a.get_position().width for a in _used]
+    _hs = [a.get_position().height for a in _used]
+    _side = min(min(_ws), min(_hs))
+    for _a, _p in zip(_used, [a.get_position() for a in _used]):
+        _a.set_position([_p.x0 + (_p.width - _side) / 2,
+                         _p.y0 + (_p.height - _side) / 2, _side, _side])
+    _ = ff.geometry.total_bounds
+    for _a in _used:
+        _L, _R, _B, _T = _fflib.view_extent(0, float(_[2]), 0, float(_[3]))
+        _a.set_xlim(_L, _R)
+        _a.set_ylim(_B, _T)
     out_png.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_png, dpi=170)
     plt.close(fig)

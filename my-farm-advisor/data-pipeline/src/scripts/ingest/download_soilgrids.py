@@ -48,6 +48,13 @@ from reporting_bootstrap import (  # pyright: ignore[reportMissingImports]
 
 ensure_skill_path("soilgrids-global")
 
+SG_CELL_M = 250.0
+
+
+def _rr_rot(geom_wgs84):
+    import raster_rules as _r
+    return _r.field_buffer_m(geom_wgs84, SG_CELL_M)  # 5 % halo, >= the 250 m SoilGrids cell (raster_rules)
+
 import soilgrids_global as sg  # pyright: ignore[reportMissingImports]
 
 STATS_COLUMNS = [
@@ -206,7 +213,22 @@ def main():
         field_slug = field_slug_map.get(field_id) or field_slug_from_id(field_id)
         validate_path_slug(field_slug, "field_slug")
         geometry = field.geometry
-        bbox = sg.field_bbox(geometry, buffer_meters=args.buffer_meters)
+        # raster_rules: bbox margin >= one full source cell (250 m grid) — a
+        # sub-cell bbox drops boundary cells and makes edge coverage unmeasurable
+        _halo_m = _rr_rot(geometry)  # uniform polygon halo, >=1 source cell
+        _eff_buf = max(args.buffer_meters, SG_CELL_M * 2.0, _halo_m)
+        # clip geometry: field polygon buffered by the halo in TRUE metres
+        # (buffer in the local UTM zone, then back to WGS84 for the writer)
+        import numpy as _np
+        import shapely as _shp
+        from pyproj import CRS as _CRS, Transformer as _Tf
+        _lon0, _lat0 = geometry.centroid.x, geometry.centroid.y
+        _epsg = (32600 if _lat0 >= 0 else 32700) + int((_lon0 + 180.0) // 6) + 1
+        _t = _Tf.from_crs(_CRS.from_epsg(4326), _CRS.from_epsg(_epsg), always_xy=True)
+        _ti = _Tf.from_crs(_CRS.from_epsg(_epsg), _CRS.from_epsg(4326), always_xy=True)
+        _g_utm = _shp.transform(geometry, lambda a: _np.column_stack(_t.transform(a[..., 0], a[..., 1])))
+        _clip_geom = _shp.transform(_g_utm.buffer(_halo_m), lambda a: _np.column_stack(_ti.transform(a[..., 0], a[..., 1])))
+        bbox = sg.field_bbox(geometry, buffer_meters=_eff_buf)
         for band in bands:
             for depth in depths:
                 raster_path = shared_soilgrids_field_dir(field_slug) / f"soilgrids_{band}_{depth}.tif"
@@ -228,7 +250,8 @@ def main():
                     bbox,
                     raster_path,
                     polygon=geometry,
-                    buffer_note=f"bbox buffered {args.buffer_meters:g} m; zonal mask = field polygon",
+                    clip_geometry=_clip_geom,
+                    buffer_note=f"bbox buffered {_eff_buf:g} m; pixels clipped to polygon + {_halo_m:g} m halo (5 % of max length, >=1 cell, raster_rules); zonal stats = field polygon",
                 )
                 _journal_record(journal, raster_path, record)
                 rows.append(_row_from_record(field_id, field_slug, record))

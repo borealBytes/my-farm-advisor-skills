@@ -1,0 +1,167 @@
+"""Raster-extraction policy: always clip with margin, always report coverage.
+
+A raster that only includes pixels whose centers fall inside the field
+boundary cannot honestly describe its own edges: slope/hillshade/flow
+neighborhoods, TPI windows, and any "what fraction of this field is actually
+covered" question all need complete cell support up to (and one cell beyond)
+the boundary. Two rules, applied at every site that intersects a raster with
+a field polygon:
+
+  1. BUFFER the field by at least EDGE_BUFFER_CELLS x the source cell size
+     before clipping. 1 cell is the absolute floor (covers the mask edge);
+     consumers that run neighborhood filters on the clip (any terrain
+     derivative: 3x3 slope/aspect, 5x5 TPI, D8 flow) must use
+     EDGE_BUFFER_CELLS_FILTER so edge pixels are computed, not smeared.
+  2. REPORT coverage: the fraction of the field area whose raster cells carry
+     valid data, computed as a polygon/pixel overlap, journalled beside the
+     raster. A clip that "succeeded" while covering 40% of the field is a
+     failure with a number on it.
+
+Cell-size conversion: source rasters may be geographic; convert the cell to
+metres (x 111 320 at equator, /cos(lat) for the degree side) before
+buffering, and buffer in a metric CRS, never in bare degrees.
+"""
+from __future__ import annotations
+
+import math
+from pathlib import Path
+from typing import Any
+
+EDGE_BUFFER_CELLS_MASK = 2     # clip consumed only as masked values (NDVI, class
+                               # grids). FLOOR IS 2 CELLS: the buffer must EXCEED
+                               # one full source cell in x and y so the field
+                               # polygon is interior to the raster everywhere,
+                               # including corners (1 cell leaves the corner
+                               # diagonal exactly at the edge).
+EDGE_BUFFER_CELLS_FILTER = 3   # clip fed into neighborhood filters (terrain derivatives)
+
+
+def cell_m_of(src_crs, res_x: float, lon: float = 0.0) -> float:
+    """Pixel edge length in metres for any CRS."""
+    if getattr(src_crs, "is_geographic", False):
+        return float(res_x) * 111320.0 * max(0.2, math.cos(math.radians(lon)))
+    return float(res_x)
+
+
+def margin_m(cell_m: float, cells: int = EDGE_BUFFER_CELLS_MASK, floor_m: float = 0.0) -> float:
+    """Outward buffer that guarantees complete cell coverage of the boundary."""
+    return max(floor_m, cells * cell_m)
+
+
+HALO_FRAC = 0.10     # user policy 2026-11-09: stored raster clips = polygon +
+                     # 10 % of the field max length (min-rect long side), and
+VIEWPORT_FRAC = 0.15 # plots show a viewport = polygon + 15 % of that length.
+                     # Both rings are shapely polygon buffers, never bbox —
+                     # a buffer follows arcs and rotation exactly; the bbox is
+                     # only the fetch query rectangle. Stats: exact polygon.
+_old = 0.05   # (first-pass 2026-11-05 value, superseded same day)
+                   # the field's max length; plots stay within 10 %.
+
+def field_buffer_m(geom_wgs84, cell_m: float, frac: float = HALO_FRAC) -> float:
+    """Uniform fetch/clip halo (m): max(frac x max field length, one cell).
+
+    A POLYGON buffer is rotation-invariant, so the rotation-aware bbox
+    gymnastics the bbox-clip era needed collapse to one scalar here. The
+    one-cell floor is the user's own caveat: the buffer "depends on the
+    resolution of the raster" — a 250 m grid cannot honour a 40 m halo.
+    """
+    from pyproj import CRS, Transformer
+    import shapely.ops
+    lon, lat = geom_wgs84.centroid.x, geom_wgs84.centroid.y
+    zone = int((lon + 180.0) // 6) + 1
+    epsg = 32600 + zone if lat >= 0 else 32700 + zone
+    tf = Transformer.from_crs(CRS.from_epsg(4326), CRS.from_epsg(epsg),
+                              always_xy=True)
+    gm = shapely.ops.transform(tf.transform, geom_wgs84)
+    c = list(gm.minimum_rotated_rectangle.exterior.coords)
+    longest = max(((c[i + 1][0] - c[i][0]) ** 2 + (c[i + 1][1] - c[i][1]) ** 2) ** 0.5
+                  for i in range(4))
+    return float(max(frac * longest, cell_m))
+
+
+def coverage(tif_path: str | Path, geom_wgs84, *, nodata_extra: float | None = None) -> dict[str, Any]:
+    """Polygon/pixel overlap stats for a finished clip.
+
+    Returns the fraction of field area backed by valid cells, the nodata
+    ratio *inside the field* (the honest gate — a bbox-margin hole around
+    the field is not a data failure), and the outer margin in metres the
+    clip actually has (proves the buffer was applied).
+    """
+    import geopandas as gpd
+    import numpy as np
+    import rasterio
+    from rasterio.features import geometry_mask
+
+    with rasterio.open(tif_path) as ds:
+        geom = gpd.GeoSeries([geom_wgs84], crs="EPSG:4326").to_crs(ds.crs).iloc[0]
+        in_field = geometry_mask([geom.__geo_interface__], out_shape=ds.shape,
+                                 transform=ds.transform, invert=True)
+        arr = ds.read(1, masked=True)
+        filled = np.asarray(np.ma.filled(arr, np.nan), dtype="float64")
+        valid = np.isfinite(filled)
+        if nodata_extra is not None:
+            valid &= filled != nodata_extra
+        cell_area = abs(ds.transform.a * ds.transform.e)
+        if ds.crs.is_geographic:
+            cell_area *= (111320.0 ** 2) * max(0.2, math.cos(math.radians(geom.centroid.y)))
+        field_cells = int(in_field.sum())
+        field_valid = int((in_field & valid).sum())
+        # margin actually present: field bounds vs raster bounds, in metres
+        gb = gpd.GeoSeries([geom]).bounds.iloc[0]
+        m_lat = (ds.bounds.top - gb[3]) if ds.bounds.top > gb[3] else 0.0
+        m_lon = (gb[2] - ds.bounds.left) if ds.bounds.left < gb[2] else 0.0
+        if ds.crs.is_geographic:
+            m = max(m_lat, m_lon) * 111320.0
+        else:
+            m = max(m_lat, m_lon)
+        return {
+            "field_area_m2": float(geom.area if not ds.crs.is_geographic else field_cells * cell_area),
+            "field_cell_count": field_cells,
+            "valid_cell_count": field_valid,
+            "coverage_pct": 100.0 * field_valid / max(field_cells, 1),
+            "nodata_ratio_in_field": 1.0 - field_valid / max(field_cells, 1),
+            "outer_margin_m": float(m),
+        }
+
+
+def outer_crop(src, geoms, *, nodata=None):
+    """rasterio.mask.mask(crop=True) rounds the crop window INWARD, which can
+    shave 1-3 source cells off the clip where a buffered boundary crosses a
+    pixel row/column. This helper rounds OUTWARD (windows.from_bounds with
+    op='union', clamped to the source), guaranteeing every buffered edge.
+
+    Returns (image, transform, mask) like rasterio.mask.mask(..., masked=True).
+    """
+    from rasterio.windows import Window
+    import numpy as np
+    import math
+
+    shp = [g if hasattr(g, "bounds") else g for g in geoms]
+    x0 = min(g.bounds[0] for g in shp)
+    y0 = min(g.bounds[1] for g in shp)
+    x1 = max(g.bounds[2] for g in shp)
+    y1 = max(g.bounds[3] for g in shp)
+    tr = src.transform
+    c0, c1 = (x0 - tr.c) / tr.a, (x1 - tr.c) / tr.a
+    r0, r1 = (y0 - tr.f) / tr.e, (y1 - tr.f) / tr.e
+    col_off = max(0, int(math.floor(min(c0, c1))))
+    col_end = min(src.width, int(math.ceil(max(c0, c1))))
+    row_off = max(0, int(math.floor(min(r0, r1))))
+    row_end = min(src.height, int(math.ceil(max(r0, r1))))
+    width = col_end - col_off
+    height = row_end - row_off
+    if width <= 0 or height <= 0:
+        raise ValueError("outer_crop: geometry does not intersect source raster")
+    win_i = Window(col_off, row_off, width, height)
+    out = src.read(window=win_i)
+    from rasterio.transform import Affine
+    tr = Affine(tr.a, tr.b, tr.c + col_off * tr.a, tr.d, tr.e, tr.f + row_off * tr.e)
+    from rasterio.features import geometry_mask
+    m = geometry_mask(shp, out_shape=(height, width), transform=tr, invert=True, all_touched=True)
+    if nodata is None:
+        nodata = src.nodata
+        if nodata is None:
+            nodata = (np.nan if np.issubdtype(out.dtype, np.floating)
+                      else int(np.iinfo(out.dtype).max))
+    filled = np.where(m, out, nodata)
+    return filled, tr, ~m

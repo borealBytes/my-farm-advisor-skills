@@ -748,12 +748,31 @@ def _prepare_valid_dem_trial(
                 field=field,
                 args=args,
             )
+            # Buffer rule (lib/raster_rules.py): the clip must extend beyond
+            # the boundary by enough cells that (a) every boundary cell is
+            # complete and (b) the 3x3/5x5/D8 neighborhood filters that
+            # derive slope, hillshade, TPI and flow at the field EDGE have
+            # real inputs — the caller's context-meters is a FLOOR, never a
+            # substitute for cells worth of margin.
+            import sys as _s2
+            _s2.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+            import raster_rules as _rr
+            with rasterio.open(source_paths[0]) as _ds0:
+                _cell_m = _rr.cell_m_of(_ds0.crs, _ds0.res[0], lon=geometry.centroid.x)
+            # uniform 5 % polygon halo (raster_rules.field_buffer_m; >=1 cell
+            # floor). The clipper masks to geometry.buffer(_buf), so the
+            # stored DEM is the field-shaped halo regardless of rotation —
+            # the filter margin may lift the halo to 3 cells so edge slope/
+            # flow stay computable (br-r1: 43 -> 90 m).
+            _buf = max(float(args.context_meters),
+                       _rr.margin_m(_cell_m, _rr.EDGE_BUFFER_CELLS_FILTER),
+                       _rr.field_buffer_m(geometry, _cell_m))
             clipped_record = clip_dem_tiles_to_buffer(
                 source_paths,
                 geometry,
                 outputs["dem_clipped"],
                 field_crs="EPSG:4326",
-                buffer_meters=args.context_meters,
+                buffer_meters=_buf,
                 nodata=DEFAULT_NODATA,
                 source_vertical_datum="unknown",
                 target_vertical_datum="unknown",
@@ -761,6 +780,7 @@ def _prepare_valid_dem_trial(
             coverage = _validate_clipped_dem_coverage(
                 outputs["dem_clipped"],
                 max_nodata_ratio=None if args.offline_fixtures else MAX_REAL_CLIPPED_NODATA_RATIO,
+                field_geometry_wgs84=geometry,
             )
         except ControlledFieldError as exc:
             attempts.append({**attempt_base, "status": "failed", "reason": exc.reason, "message": str(exc), "details": exc.details})
@@ -852,8 +872,24 @@ def _candidate_has_non_evidence_urls(candidate: SourceCandidate) -> bool:
     return any(str(url).startswith(blocked_prefixes) for url in candidate.source_urls)
 
 
-def _validate_clipped_dem_coverage(path: Path, *, max_nodata_ratio: float | None) -> dict[str, Any]:
+def _validate_clipped_dem_coverage(path: Path, *, max_nodata_ratio: float | None,
+                                   field_geometry_wgs84=None) -> dict[str, Any]:
     coverage = _inspect_clipped_dem(path)
+    if field_geometry_wgs84 is not None:
+        import sys as _s3
+        _s3.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+        import raster_rules as _rr
+        cov = _rr.coverage(path, field_geometry_wgs84)
+        # The honest gate is nodata INSIDE the field: bbox margin around an
+        # irregular boundary is not a data failure, holes under the field are.
+        coverage.update(
+            field_coverage_pct=cov["coverage_pct"],
+            field_cell_count=cov["field_cell_count"],
+            field_valid_cell_count=cov["valid_cell_count"],
+            in_field_nodata_ratio=cov["nodata_ratio_in_field"],
+            outer_margin_m=cov["outer_margin_m"],
+        )
+        coverage["nodata_ratio"] = cov["nodata_ratio_in_field"]
     if coverage["valid_pixel_count"] <= 0:
         raise ControlledFieldError(
             "invalid_clipped_dem_coverage",

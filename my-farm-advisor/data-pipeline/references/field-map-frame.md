@@ -1,0 +1,214 @@
+# Field-local map frame (UTM origin-at-SW, north arrow, viewport rotation)
+
+Any figure that draws a field polygon for a human — horizon tables, property
+maps, trial-placement plans, NDVI/terrain field maps — uses this frame. Never
+plot a single field on geodetic degree axes; at field scale degrees are
+uninterpretable ticks with no meaning.
+
+## The standard (implemented in `src/scripts/lib/field_frame.py` — all renderers call it)
+
+1. **Project to the local UTM zone**: `zone = floor((lon + 180) / 6) + 1`,
+   EPSG `32600 + zone` (north) / `32700 + zone` (south). Metres are the only
+   honest unit for a field.
+2. **Pin the origin**: translate the whole layer by the SW corner of the
+   field bounding box so the field starts at `(0, 0)`. Axis labels:
+   `"m E from SW corner (UTM {zone})"` and `"m N"`. Every coordinate the
+   reader sees is "how far into my field".
+3. **Pad the viewport**: `field_frame.view_extent()` grows every panel's axis
+   bounds by 4% of the long side so the boundary never touches an edge — a
+   flush boundary reads as "cut off", not "fills the frame".
+4. **North arrow, boxed, top-right**: bold `N` in a white rounded box with a
+   heavy upward shaft, placed in axes-fraction coords so it never moves with
+   data zoom. Non-negotiable — a metre-axis field map without a north arrow
+   forces the reader to guess orientation.
+
+## Rotating the field to fit the viewport
+
+Long fields drawn into square (or wrong-aspect) panels waste half the figure.
+Rotate the field geometry so its long axis spans the panel's long axis:
+
+```python
+import math
+import shapely.affinity as aff
+
+def orient_field(gdf, long_axis: str = "horizontal") -> tuple:
+    """Rotate field geometry about the origin so the longest boundary edge
+    runs along the panel's long axis. Returns (rotated_gdf, rot_deg)."""
+    g = gdf.dissolve().geometry.iloc[0]
+    mrr = g.minimum_rotated_rectangle
+    pts = list(mrr.exterior.coords)
+    edges = list(zip(pts, pts[1:]))[:4]
+    (x1, y1), (x2, y2) = max(edges,
+                             key=lambda e: (e[1][0]-e[0][0])**2 + (e[1][1]-e[0][1])**2)
+    theta = math.degrees(math.atan2(y2 - y1, x2 - x1))   # bearing of long edge
+    rot = theta if long_axis == "horizontal" else theta - 90.0
+    return gdf.assign(geometry=gdf.geometry.map(
+        lambda geom: aff.rotate(geom, -rot, origin=(0, 0)))), rot % 360.0
+```
+
+**Pitfalls, in order of how they will bite:**
+
+- **Translate → rotate → re-translate.** Pin SW at (0,0), rotate the geometry
+  about that origin, then re-pin (0,0) at the SW corner of the **rotated**
+  bounding box — that is the corner the reader's ruler starts from. Rotating
+  about the geographic origin flings the field off-canvas.
+- **Pick the orientation from the panel's actual aspect at draw time**
+  (`fig.canvas.draw()` → `ax.get_position()` × figsize): field long edge along
+  the panel's long edge, always. Never hardcode "horizontal".
+- **The north arrow rotates opposite to the data.** The data frame no longer
+  points up after rotation. If the geometry was rotated clockwise by `rot`,
+  the arrow tip must point `(cx + r·sin rot, cy + r·cos rot)` in
+  axes-fraction coords (straight up is `(0, 1)`), with the boxed `N` label
+  beyond the tip. Rotating the geometry and keeping a straight-up arrow is a
+  lie, not a simplification.
+- **Keep the metre grid axis-aligned to the frame, not the field**: gridlines
+  read as distances; the field rotates inside them.
+- When `rot != 0`, label the axes `"field-local m (rotated {rot:.0f}° from E)"`
+  — "from SW corner" alone implies unrotated easting. Normalize |rot| < 0.25°
+  to exactly 0 so near-vertical fields keep the plain "m E from SW corner"
+  label and a straight arrow instead of a noisy "360°".
+- Rotation is presentational: never store rotated geometries as the field
+  boundary of record; re-apply at render time from the EPSG:4326 boundary.
+
+## References in this repo
+
+- Live implementation: `src/scripts/reporting/generate_soil_texture_triangles.py`
+  (`render_horizon_table` map panel: UTM pin + boxed N arrow; rotation helper
+  above is the extension contract).
+
+## Ship checklist (vision-QC enforced, 2026-11-05)
+
+- Rotation canonicalized to (-90, +90] with a **0.5° dead-zone** — a −0° field
+  is an unrotated field; it gets the plain `m E from SW corner` label, a
+  straight arrow, and NO callout.
+- When rotated: italic callout inside the panel, top-left,
+  `field rotated ±NN° to fit — N shown by arrow`; axis states the same angle.
+- **No scale bar by default** (2026-11-05, user): metre tick axes carry
+  distance on every panel and the bar duplicates them; `decorate(scalebar=True)`
+  exists only for panels that strip ticks. **Tick axes stay visible** — every
+  map panel shows both x and y metre labels, including side-by-side
+  comparator/ladder figures.
+- Arrow: r=0.135 axes-fraction, lw 3.0, boxed N at fontsize 16, tip at
+  (cx + r·sin rot, cy + r·cos rot).
+- Table: `auto_set_column_width(all)` then **×1.35 width on every numeric
+  column via `cell.set_width`** (mpl ≥ 3.11 moved widths onto cells;
+  `Table.alter`/`_argW` are gone). Without the slack, adjacent values read as
+  merged columns ("6.50.18").
+- Depth axis lives on the FIRST profile panel only (ticks 20/60, no bottom
+  100 label — it collides with xtick labels); texture strip carries a real
+  3-swatch sand/silt/clay legend below the panel; the method footnote is
+  LEFT-aligned at x=0.40 so it never runs under that legend.
+
+## Raster-buffer and legend conventions (2026-11, global-data-parity)
+
+- **Every raster clip** must be buffered by MORE THAN one full source cell in
+  x and y, so the field polygon is strictly interior to the raster everywhere
+  — including corner cells, where a 1-cell buffer leaves the corner diagonal
+  exactly flush with the clip edge. The single source of truth is
+  `src/scripts/lib/raster_rules.py`:
+  `buffer_meters(source_crs, cell_m, cells=…)`. Effective floors by clip use:
+
+  | Consumer clip | Floor | Why |
+  | --- | --- | --- |
+  | value clips (NDVI, class grids) | `EDGE_BUFFER_CELLS_MASK = 2` cells | >1 cell incl. corners |
+  | terrain-filter clips (slope/TWI/D8) | `EDGE_BUFFER_CELLS_FILTER = 3` cells | 3×3–5×5 kernels read 3 cells in |
+  | SoilGrids 250 m | 2 cells = 500 m | value clip |
+  | WorldCereal 10 m native | `WC_PAD_DEG = 0.0003°` ≈ 33 m ≈ 3 cells | value clip |
+  | CDL 30 m context | 2 000 m | regional context window |
+
+  Ingest sites record `coverage_pct` (field area inside valid pixels) in their
+  provenance manifests at download time — a boundary with >0 % no-data in the
+  clip is a visible, actionable flag, not a silent hole. Reraster any field
+  whose existing clip predates this rule (`AG_FORCE=1`).
+- **The boundary is an overlay, never a cut line (2026-11-05):** static raster
+  panels display the full buffered window — `field_frame.reproject_into_frame`
+  applies **no polygon mask by default** (`polygon_mask=True` is opt-in, for
+  class panels that intentionally gray off-field pixels). Masking the display
+  to the polygon re-introduces blank space *inside* curved boundaries
+  (circular pivots at coarse grids) and throws away the fetch buffer the clip
+  rule exists to guarantee. Title means/relief stats are computed in-field via
+  `generate_soil_grid_maps._infield_values` so labels describe the field, not
+  the margin.
+- **Halo + viewport policy (2026-11-09, user; supersedes the 5 %/10 % first
+  pass):** every stored raster is clipped to the **field polygon buffered**
+  (`geom.buffer`, never the bbox) by `B = max(0.10 × field max length, one
+  source cell)` — `raster_rules.field_buffer_m`, `HALO_FRAC = 0.10`, max
+  length = the min-rect long side, rotation-invariant. **Plotted viewports**
+  show the polygon buffered by `0.15 ×` that length (`VIEWPORT_FRAC = 0.15`:
+  renderer destination margins are `VIEWPORT_FRAC × long side + 2 cells`),
+  so a figure always reveals the immediate surroundings; the satellite
+  basemap covers the whole viewport, so the 10 %→15 % ring outside the
+  raster shows imagery, not void. **All statistics use the EXACT polygon**
+  (`_infield_values`, zonal stats) — the halo exists to feed edge kernels
+  (terrain filters need ≥3 cells, `EDGE_BUFFER_CELLS_FILTER`) and to show
+  context, never to bias means. The bbox is only ever the fetch query
+  rectangle. Implementation points: the DEM clipper masks to
+  `buffered_geometry_analysis` in `raster_processing.clip_dem_tiles_to_buffer`
+  (masking at ZERO buffer was the original bug — not masking itself);
+  SoilGrids `clip_bbox(clip_geometry=…)` pixel-clips to the halo while zonal
+  stats stay on the exact polygon; satellite scene clips run
+  `geometry_mask` over the buffered polygon after `outer_crop`. Renderer
+  destination margins use the same rule (`HALO_FRAC × long side + 2 cells`)
+  so no band's array is smaller than the halo it must display. Terrain
+  filters may lift the effective halo to 3 cells (`EDGE_BUFFER_CELLS_FILTER`)
+  so edge slope/flow kernels have inputs. Class panels
+  (`reproject_into_frame(polygon_mask=True)`) mask at the SAME halo by
+  default (`mask_buffer_m=None ⇒ HALO_FRAC × long side`).
+- **Grid-map panels share one identical frame rect** across every band:
+  rasters are square-padded bottom-anchored (extra space east+north of the
+  NW-pinned data), and a post-layout pass repositions all used axes onto one
+  common square before `savefig` — otherwise colorbar widths silently differ
+  the datalim padding and the panels cannot be compared side by side.
+- **Soil-property colorbars are discrete ISRIC legends, never continuous
+  gradients**: `BoundaryNorm` on the vendored ISRIC `soil.legends` TSV
+  boundaries (crop to data range ±3 bands, ≤9 ticks). SoilGrids pH legends
+  are ×10-encoded — divide PHIHOX MIN/MAX by 10 before use.
+- On dense multi-panel grids (7-up+) the north arrow moves to the **SE
+  corner** (`arrow_xy=(0.04, 0.86)`) at r=0.11 / boxed-N fontsize 11, and
+  the boxed-N badge carries a white halo bbox so it survives any tile.
+- Restriction callouts on horizon tables live in a matplotlib **legend box**
+  (hatched Patch handles, one entry per band) right of the texture stack —
+  hand-placed gutter text provably collides when depth windows nest.
+
+## Nodata honesty in `reproject_into_frame` (2026-11)
+
+`rasterio.warp.reproject` **zero-fills the whole destination array before resampling**,
+whatever the caller initialized. Any destination pixel outside the source footprint
+(rotated viewport spilling past the clip's bbox — routine on rotated fields at the
+15 % margin) silently becomes elevation **0**, not nodata: percentile stretches
+collapse, sequential colormaps pin to their dark end (all-black panels), terrain ramps
+pin to their light end (all-white). The shared frame lib therefore always passes
+`src_nodata=` and `dst_nodata=` (NaN for float panels, the chosen integer fill for
+class panels) on every reproject call — added because the `au-r3`/`on-r1` terrain
+sheets rendered half their panels blank/flat once the halo policy grew the viewport
+(and the figure batch was re-rendered mid-run while the buffer code changed under it).
+Any *new* reproject call sites outside `field_frame.py` must carry the nodata pair too.
+
+## Continuous vs categorical — the scale standard for every map we publish
+
+Each figure declares its feature type and gets the scale class the literature
+uses for it (no rainbow on continuous fields, no continuous gradient on
+banded soil classes):
+
+| Feature | Type | Scale (standard adopted) |
+| --- | --- | --- |
+| Soil clay/silt/sand %, pH, CEC, OC (gridded) | continuous (banded ticks) | **continuous ISRIC-style single-hue monotonic-L* ramp** (colors + break values from vendored `soil.legends`/`soil.legends`-equivalent boundaries), colorbar **ticks at the ISRIC and agronomic breakpoints** (pH diverging on 7; SOC 5/20/50 gC/kg; clay 20/27/40 %; see `colormap-recommendations.md`). Stepped `BoundaryNorm` is retired — the ISRIC SLDs are discretized samples of a smooth ramp |
+| Soil texture class (triangle panel) | categorical (12 classes) | USDA texture-triangle fills, categorical |
+| Crop type / land class | categorical | WorldCereal official palette codes; unknown = white swatch with grey edge |
+| Elevation (DEM) | continuous | **relief-adaptive** (see `colormap-recommendations.md`): low relief (<10 m, tile land) → `cividis`/single-hue stretched P2–P98, hillshade ×2–3 z under ~50 %-opacity tint, or relative-elevation diverging on 0; high relief (>50 m, uplands) → `terrain`/hypsometric multi-hue with breaks at meaningful terrain stats. `terrain` on 1–2 m of relief maps the whole scene into one ramp segment — that's why it "hid the signal" |
+| Hillshade | continuous | grayscale, azimuth 315° / altitude 45° (Esri defaults); elevation tint overlaid semi-transparent |
+| Slope, TWI | continuous, positive-skew | sequential (`YlOrBr`, `YlGnBu`); slope ticks at 2/5/10/18 %, TWI on field-relative quantiles; cap vmax at P98 on flat fields |
+| Flow accumulation, LS | continuous, power-law | sequential on **log10** — axis says so (`log₁₀ upstream cells`) |
+| TPI, relative elevation | continuous, signed about 0 | diverging `RdBu_r`, midpoint at 0 |
+| Aspect | **cyclic** | HSV hue wheel, vmin/vmax fixed 0–360 (a sequential map on a cyclic quantity fakes a seam at N) |
+| NDVI | continuous −1…1 | diverging green↔tan (RdYlGn family), zero at the neutral break |
+
+Rule of thumb encoded in the renderers: if the value can be averaged
+meaningfully and orders spatially → sequential/diverging continuous; if it
+names something → categorical palette from the governing standard; if it is
+already published with official breaks (SoilGrids) → reuse the breaks,
+verbatim. Colorbars then carry units and (for log scales) the transform.
+
+The full decision table with sources — incl. per-attribute fixed breakpoints,
+low- vs high-relief DEM ramps, and the stepped-vs-continuous ISRIC ruling —
+lives in [colormap-recommendations.md](colormap-recommendations.md).

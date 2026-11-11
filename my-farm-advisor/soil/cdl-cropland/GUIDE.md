@@ -341,6 +341,13 @@ to the AAFC **Annual Crop Inventory**, 30 m per-year crop class maps,
 - Per-field ~30 m exports are cached under `shared/cdl/aci/<year>/`
   (field bbox + 60 m buffer, native resolution) with a
   `fetch_manifest.json` recording url/sha256/bytes/fetch-time.
+- Pitfall (fixed 2026-11-05): an early smoke run left 16x16-pixel county
+  stubs in `shared/cdl/aci/<year>/` (wrong place, wrong year in the name),
+  which made per-year maps read as ~100% unobserved. ACI is a cloud-free
+  mosaic — when an Ontario map shows gaps, check the export request size
+  before blaming clouds. Field-level exports (`aci/<year>/<field>.tif`,
+  correct bbox+size) recover 98-99% labeled coverage with 0% cloud class
+  for Ontario cropland years 2019-2023 (demo: on-r2 soybean/corn/wheat).
 - Output rows are schema-identical to CDL extraction plus `crop_source`
   ('cdl' | 'aci'); rotation summarization is shared. US and CA fields can
   coexist in one farm — routing is per-field.

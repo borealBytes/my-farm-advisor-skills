@@ -178,6 +178,14 @@ def farm_ssurgo_full_path(grower_slug: str, farm_slug: str) -> Path:
     return farm_table_path(grower_slug, farm_slug, farm_ssurgo_full_basename(farm_slug))
 
 
+def farm_ssurgo_restrictions_path(grower_slug: str, farm_slug: str) -> Path:
+    return farm_table_path(grower_slug, farm_slug, f"{farm_slug}_ssurgo_restrictions.csv")
+
+
+def field_soil_restrictions_path(grower_slug: str, farm_slug: str, field_slug: str) -> Path:
+    return field_soil_dir(grower_slug, farm_slug, field_slug) / "ssurgo_restrictions.csv"
+
+
 def farm_ssurgo_summary_path(grower_slug: str, farm_slug: str) -> Path:
     return farm_table_path(grower_slug, farm_slug, farm_ssurgo_summary_basename(farm_slug))
 

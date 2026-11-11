@@ -1,0 +1,327 @@
+"""Field-local map frame for STATIC figures — the skill-locked convention.
+
+Every static field map this pipeline renders (papers, presentations, README
+examples) uses one frame, provided here deterministically:
+
+  1. project to the field's real UTM zone (EPSG:326xx / 327xx) — never plot a
+     single field on geodetic degrees;
+  2. AUTO-ROTATE the geometry so the field's long edge lies along the panel's
+     long edge (viewport fit). Canonical angle in (-90, +90] with a 0.5°
+     dead-zone — an already-vertical field gets zero, not "-0°";
+  3. translate so (0, 0) is the SW corner of the ROTATED bounding box: every
+     coordinate is positive and the reader's ruler starts at the corner;
+  4. decorate: boxed north arrow counter-rotated to the tilt, rotation
+     callout whenever rotated; distance is read from the metre tick axes
+     themselves (scale bar opt-in only) — the arrow counter-rotates, the
+     metre grid does NOT;
+  5. state the reproduction recipe: the official UTM zone the field sits in
+     plus the CUSTOM FIELD CRS — a Transverse Mercator whose axis crosses the
+     rotated-SW origin at the fitted azimuth — so anyone can regenerate the
+     exact coordinates with pyproj/GDAL.
+
+Web/interactive basemaps (Leaflet, MapLibre) keep real WGS84/EPSG:3857 —
+this frame is for static plotting where the layout is optimized for the page.
+
+Reproduction recipe (published verbatim by crs_note(full=True)):
+    origin  = (E, N) in the field's UTM zone at frame (0, 0);
+    x = (ΔE)cos r + (ΔN)sin r,   y = -(ΔE)sin r + (ΔN)cos r,  r = tilt, deg CW.
+An affine rotation of a TM grid is NOT a stock PROJ projection — PROJ's
+tmerc silently ignores +alpha (verified against pyproj, 2026-11-05) — so we
+publish the exact affine rather than a fake "+proj=tmerc +alpha=..." string.
+The north arrow additionally uses TRUE north computed numerically at the
+origin: at zone edges grid convergence reaches ~2 degrees and (sin r, cos r)
+would be visibly wrong on a 500 m offset.
+
+Usage:
+    import sys, os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__)))   # scripts/lib
+    from field_frame import frame_for, decorate, crs_note
+
+    ff = frame_for(gdf_wgs84, panel_h_in=4.0, panel_w_in=2.6)     # -> Frame
+    ff.geometry.plot(ax=ax, ...)                                  # framed geoms
+    decorate(ax, ff)                                              # arrow+bars
+    ax.set_xlabel(crs_note(ff))                                   # zone + tilt
+    ax.set_title(crs_note(ff, full=True))                         # affine recipe
+"""
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass, field
+
+import geopandas as gpd
+from shapely import affinity
+
+DEADZONE_DEG = 0.5
+SCALE_BAR_M = 500.0
+
+
+def utm_epsg(lon: float, lat: float) -> int:
+    zone = int(math.floor((lon + 180.0) / 6.0)) + 1
+    return (32600 if lat >= 0 else 32700) + zone
+
+
+def _long_edge_bearing_deg(geom) -> float:
+    """Bearing (deg, clockwise from north) of the minimum-rotated-rectangle
+    long edge. Unwrapped to (-90, 90] because a long edge is 180-symmetric."""
+    pts = list(geom.minimum_rotated_rectangle.exterior.coords)[:5]
+    edges = list(zip(pts, pts[1:]))
+    (x1, y1), (x2, y2) = max(edges, key=lambda e: (e[1][0] - e[0][0]) ** 2
+                              + (e[1][1] - e[0][1]) ** 2)
+    th = math.degrees(math.atan2(x2 - x1, y2 - y1))  # from north, east-positive
+    while th <= -90.0:
+        th += 180.0
+    while th > 90.0:
+        th -= 180.0
+    return th
+
+
+@dataclass
+class Frame:
+    geometry: gpd.GeoDataFrame          # framed polygons: metres, (0,0)=SW, rotated
+    epsg: int                           # the real UTM zone the field lives in
+    rot: float                          # applied tilt, deg (CW), canonical (-90, +90]
+    e0: float                           # zone coords of the framed origin corner
+    n0: float
+    lon0: float                         # geographic location of that corner
+    lat0: float
+    adx: float = 0.0                    # TRUE north in frame coords (unit vec);
+    ady: float = 1.0                    #  != (sin rot, cos rot) where grid
+                                        #  convergence bites (up to ~2 deg at zone edges)
+    scale_len: float = SCALE_BAR_M
+
+    @property
+    def rotated(self) -> bool:
+        return self.rot != 0.0
+
+
+def frame_for(gdf: gpd.GeoDataFrame, panel_h_in: float, panel_w_in: float,
+              scale_len: float = SCALE_BAR_M,
+              force_rot: float | None = None) -> Frame:
+    """Project (if needed), auto-fit, re-pin. gdf: WGS84 or any CRS.
+
+    force_rot pins the tilt (deg CW) instead of the min-rotated-rect fit —
+    use 0.0 for footprints where rotation is meaningless (circles, square
+    pivot parcels); the north arrow and re-pinned origin still apply.
+    """
+    lonlat = gdf.to_crs(4326)
+    epsg = utm_epsg(lonlat.geometry.union_all().centroid.x,
+                    lonlat.geometry.union_all().centroid.y)
+    gu = gdf.to_crs(epsg)
+    union = gu.dissolve().geometry.iloc[0] if len(gu) > 1 else gu.geometry.iloc[0]
+    if force_rot is None:
+        theta = _long_edge_bearing_deg(union)
+        # bearing from north -> tilt from east: edge angle from E is (90 - theta)
+        rot = (90.0 - theta) - (0.0 if panel_h_in < panel_w_in else 90.0)
+        rot = ((rot + 90.0) % 180.0) - 90.0
+        if abs(rot) < DEADZONE_DEG:
+            rot = 0.0
+    else:
+        rot = ((force_rot + 90.0) % 180.0) - 90.0
+    # translate, rotate about (0,0), re-translate to the ROTATED SW corner
+    x0, y0, _, _ = gu.total_bounds
+    gu = gu.assign(geometry=gu.geometry.translate(xoff=-x0, yoff=-y0))
+    if rot:
+        gu = gu.assign(geometry=gu.geometry.map(lambda g: affinity.rotate(g, -rot, origin=(0, 0))))
+    x0r, y0r, _, _ = gu.total_bounds
+    gu = gu.assign(geometry=gu.geometry.translate(xoff=-x0r, yoff=-y0r))
+    # The framed (0,0) corner sits at (x0r, y0r) IN ROTATED SPACE. Inverting
+    # the framing v = shift + R_ccw(f + rmin) gives the zone-coord anchor
+    #   e0,n0 = (x0,y0) + R_ccw(x0r, y0r)
+    # — rotating the re-pin offset back is mandatory (omitting it shears the
+    # anchor off by ~rot_rad * |rmin|, i.e. km at rot 50+).
+    rpin = math.radians(rot)
+    e0 = x0 + x0r * math.cos(rpin) - y0r * math.sin(rpin)
+    n0 = y0 + x0r * math.sin(rpin) + y0r * math.cos(rpin)
+    corner = gpd.GeoDataFrame(geometry=[gpd.points_from_xy([e0], [n0])[0]],
+                              crs=epsg).to_crs(4326).geometry.iloc[0]
+    # TRUE north in frame coords, numerically (captures grid convergence)
+    north_pt = gpd.GeoDataFrame(
+        geometry=[gpd.points_from_xy([corner.x], [corner.y + 1e-4])[0]], crs=4326)
+    np_utm = north_pt.to_crs(epsg).geometry.iloc[0]
+    dxg, dyg = np_utm.x - e0, np_utm.y - n0  # ~11.1 m due true north, in zone coords
+    r2 = math.radians(rot)
+    adx = dxg * math.cos(r2) + dyg * math.sin(r2)
+    ady = -dxg * math.sin(r2) + dyg * math.cos(r2)
+    mag = math.hypot(adx, ady) or 1.0
+    adx, ady = adx / mag, ady / mag
+    if ady < 0:  # keep north pointing up (rot canonical range guarantees this anyway)
+        adx, ady = -adx, -ady
+    return Frame(geometry=gu, epsg=epsg, rot=rot, e0=e0, n0=n0,
+                 lon0=corner.x, lat0=corner.y, adx=adx, ady=ady,
+                 scale_len=scale_len)
+
+
+def crs_note(f: Frame, full: bool = False) -> str:
+    """Reproducible definition of the field-local frame.
+
+    Short form (axis label): zone + tilt. Full form (caption): the exact
+    affine recipe — (ΔE, ΔN) from the named corner's UTM coords, rotated CW
+    by r. An affine rotation of a TM grid is NOT a stock PROJ projection
+    (PROJ's tmerc silently ignores +alpha), so we publish the two-line
+    formula rather than a fake CRS string.
+    """
+    zone = f.epsg - (32700 if f.epsg >= 32700 else 32600)
+    hemi = "N" if f.epsg < 32700 else "S"
+    short = (f"field-local m (rot {f.rot:+.0f}°) — UTM zone {zone}{hemi} (EPSG:{f.epsg})"
+             if f.rotated else f"m from SW corner — UTM zone {zone}{hemi} (EPSG:{f.epsg})")
+    if not full or not f.rotated:
+        return short
+    return (f"{short}; origin: {f.epsg} E={f.e0:.1f} N={f.n0:.1f} "
+            f"(lat {f.lat0:.6f}, lon {f.lon0:.6f}) at frame (0,0); "
+            f"x=(ΔE)cos{f.rot:.1f}°+(ΔN)sin{f.rot:.1f}°, "
+            f"y=−(ΔE)sin{f.rot:.1f}°+(ΔN)cos{f.rot:.1f}°")
+
+
+def reproject_into_frame(ds, f: Frame, dst_res: float, poly_metric=None,
+                         resampling=None, dst_dtype=None, nodata=None, band=1,
+                         polygon_mask: bool = False, margin_m: float = 0.0,
+                         mask_buffer_m: float | None = None):
+    """RasterIO source dataset -> (masked array, extent) in this frame.
+
+    One resample straight into the rotated grid via a rotated GDAL
+    geotransform — the metre axes stay honest.
+
+    RASTER POLICY (2026-11-05): the raster is shown as fetched — the full
+    buffered window, extending past the field edge everywhere (fetch-time
+    buffer >= 1 source cell; see raster_rules). The boundary is an OVERLAY,
+    not a cut line: no polygon masking by default, so a curved boundary can
+    never leave blank space inside the field. Pass ``polygon_mask=True`` to
+    clip to the polygon (e.g. class panels that paint off-field gray), and
+    ``margin_m`` to grow the destination window on all sides so raster also
+    fills the padded viewport around the field.
+    """
+    import math
+    import numpy as np
+    import rasterio
+    import rasterio.warp
+    from rasterio.features import geometry_mask
+    from rasterio.transform import Affine
+
+    r_ = math.radians(f.rot)
+    H = _frame_height(f)
+    W = _frame_width(f)
+    m = max(0.0, float(margin_m))
+    nr = int((H + 2 * m) / dst_res) + 1
+    nc = int((W + 2 * m) / dst_res) + 1
+    a, b = math.cos(r_) * dst_res, math.sin(r_) * dst_res
+    # Frame->UTM inverse: E = e0 + x*cos r - y*sin r, N = n0 + x*sin r + y*cos r,
+    # with x = col*res, y = H - row*res (row 0 = north edge). Expanding:
+    #   E = (e0 - H*sin r) + col*(res cos r) + row*(res sin r)
+    #   N = (n0 + H*cos r) + col*(res sin r) + row*(-res cos r)
+    # -> top-left corner in UTM is (e0 - H*sin r, n0 + H*cos r).
+    # destination spans frame coords x in [-m, -m + nc*res], y in
+    # [-m, -m + nr*res]; array row 0 is the NORTH edge (y = -m + nr*res).
+    h_pad = nr * dst_res
+    x_tl, y_tl = -m, -m + h_pad
+    dst_tr = Affine(a, b, f.e0 + x_tl * math.cos(r_) - y_tl * math.sin(r_),
+                    b, -a, f.n0 + x_tl * math.sin(r_) + y_tl * math.cos(r_))
+    if dst_dtype is not None and np.dtype(dst_dtype).kind in "iu":
+        # integer class grids: nearest (or mode) — bilinear would invent classes
+        fill = int(nodata) if nodata is not None else -1
+        dst = np.full((nr, nc), fill, dtype=dst_dtype)
+        _src = ds.read(band, masked=True)
+        rasterio.warp.reproject(
+            _src.filled(fill).astype(dst_dtype), dst,
+            src_transform=ds.transform, src_crs=ds.crs,
+            dst_transform=dst_tr, dst_crs=f.epsg,
+            src_nodata=fill, dst_nodata=fill,
+            resampling=resampling or rasterio.warp.Resampling.nearest)
+        out_mask = (dst == fill)
+    else:
+        dst = np.full((nr, nc), np.nan, dtype="float64")
+        _src = ds.read(band, masked=True)
+        _src = np.ma.masked_invalid(_src.astype("float64"))
+        rasterio.warp.reproject(
+            _src.filled(np.nan), dst,
+            src_transform=ds.transform, src_crs=ds.crs,
+            dst_transform=dst_tr, dst_crs=f.epsg,
+            src_nodata=np.nan, dst_nodata=np.nan,
+            resampling=resampling or rasterio.warp.Resampling.bilinear)
+        out_mask = np.isnan(dst)
+    # Mask from the FRAME-coord polygon: exact by construction and independent
+    # of the geographic anchor (passing a UTM polygon here reintroduces every
+    # anchoring/convention bug into a step that has none). poly_metric is kept
+    # in the signature for callers; it is currently unused for masking.
+    _ = poly_metric
+    ext = (-m, -m + nc * dst_res, -m, -m + nr * dst_res)
+    if not polygon_mask:
+        gm = np.ones((nr, nc), dtype=bool)
+    else:
+        _poly = (f.geometry.dissolve().union_all()
+                 if hasattr(f.geometry, "dissolve") else f.geometry)
+        if mask_buffer_m is None:
+            # default halo matches the fetch clip (raster_rules.HALO_FRAC)
+            _tb = f.geometry.total_bounds
+            import raster_rules as _rr
+            mask_buffer_m = _rr.HALO_FRAC * max(float(_tb[2]),
+                                                  float(_tb[3]))
+        if mask_buffer_m > 0:
+            _poly = _poly.buffer(mask_buffer_m)
+        gm = geometry_mask([_poly.__geo_interface__],
+                           out_shape=(nr, nc),
+                           transform=Affine(dst_res, 0, -m, 0, -dst_res,
+                                            -m + nr * dst_res),
+                           invert=True)
+    if np.dtype(dst.dtype).kind in 'iu':
+        return np.ma.masked_where(out_mask | ~gm, dst), ext
+    return np.ma.masked_where(~gm, np.ma.masked_invalid(dst)), ext
+
+
+def _frame_width(f: Frame) -> float:
+    return float(f.geometry.total_bounds[2])
+
+
+def _frame_height(f: Frame) -> float:
+    return float(f.geometry.total_bounds[3])
+
+
+def decorate(ax, f: Frame, arrow_r: float = 0.135, arrow_fs: float = 16.0,
+             callout: bool = True, scalebar: bool = False,
+             arrow_xy: tuple = (0.87, 0.845), scale_y: float = 0.035,
+             scale_x: float = 60.0) -> None:
+    """Boxed true-north arrow (+ boxed N), rotation callout, optional scale bar.
+
+    The scale bar is OFF by default (2026-11-05): every panel keeps honest
+    metre axes, and a bar duplicating the tick spacing is noise. Pass
+    scalebar=True only where axes are stripped (rare); scale_len <= 0 skips
+    the bar anyway."""
+    import matplotlib.patches as _mp
+    import matplotlib.transforms as _mt
+
+    dx, dy = f.adx, f.ady
+    cx, cy = arrow_xy
+    ax.annotate("", xy=(cx + arrow_r * dx, cy + arrow_r * dy),
+                xytext=(cx - arrow_r * 0.72 * dx, cy - arrow_r * 0.72 * dy),
+                xycoords="axes fraction",
+                arrowprops=dict(arrowstyle="-|>", lw=3.0, color="#111827",
+                                mutation_scale=20), zorder=10)
+    ax.text(cx + arrow_r * 1.30 * dx, cy + arrow_r * 1.30 * dy, "N",
+            transform=ax.transAxes, fontsize=arrow_fs, fontweight="bold", ha="center",
+            va="center", color="#111827",
+            bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="#111827", lw=1.0),
+            zorder=11)
+    if callout and f.rotated:
+        ax.text(0.02, 0.98,
+                f"field rotated {f.rot:+.0f}° to fit — N shown by arrow",
+                transform=ax.transAxes, fontsize=6.8, style="italic",
+                color="#374151", va="top")
+    if not scalebar or f.scale_len <= 0:
+        return
+    tr = _mt.blended_transform_factory(ax.transData, ax.transAxes)
+    x_lo = ax.get_xlim()[0]
+    ax.plot([x_lo + scale_x, x_lo + scale_x + f.scale_len], [scale_y, scale_y],
+            transform=tr, color="#111827", lw=2.0, clip_on=False)
+    ax.text(x_lo + scale_x + f.scale_len / 2, scale_y + 0.02, f"{f.scale_len:.0f} m",
+            transform=tr, fontsize=6.6, ha="center", color="#111827",
+            bbox=dict(boxstyle="square,pad=0.15", fc="white", ec="none", alpha=0.85))
+
+
+VIEW_PAD_FRAC = 0.04
+
+
+def view_extent(x_min, x_max, y_min, y_max, pad_frac: float = VIEW_PAD_FRAC):
+    """Viewport bounds with a small margin so the field boundary never
+    touches an axis edge — part of the frame contract for every panel that
+    shows the polygon (README figures, dashboards, web maps alike)."""
+    m = pad_frac * max(x_max - x_min, y_max - y_min)
+    return (x_min - m, x_max + m, y_min - m, y_max + m)

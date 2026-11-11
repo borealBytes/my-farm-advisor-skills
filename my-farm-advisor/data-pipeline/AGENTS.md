@@ -198,6 +198,46 @@ cd ../..
 
 For runtime setup changes, run a temp-root installer smoke command with `--non-interactive --force-refresh --no-install-deps` when dependencies are unavailable, then run `scripts/run_farm_pipeline.py --structure-test` from `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src`. Otherwise run `./scripts/validate.sh` from the repository root after structural changes.
 
+## Figure refresh duty
+
+Any change under `src/scripts/` that alters a renderer feeding the gallery
+(or `lib/field_frame.py` / `lib/raster_rules.py` shared by them) obliges you
+to re-run the affected demo renders and pass the vision review in
+`../../../CONTRIBUTING.md` before committing — including regenerated raster
+coverage after ingest changes. The root AGENTS.md "Figure quality gate"
+section is the operative rule.
+
+## Operational gotchas (learned 2026-11-05, re-ingest day)
+
+- **The pipeline imports skills from the AGENT MIRROR, not this worktree**
+  (`reporting_bootstrap.ensure_skill_path` resolves to the profile's
+  `skills/my-farm-advisor/`). After editing any `lib/` or `terrain/` module,
+  rsync/cp to the mirror (or run the full mirror sync) BEFORE re-running an
+  ingest — otherwise you execute yesterday's code and debug phantoms.
+- **`ingest/download_dem_terrain.py --force` deletes the shared tile cache**
+  under `shared/dem/<source>/<field>/` and then refuses to re-download
+  without `--allow-live-downloads`. Always pair the flags.
+- **Run one farm per worker, not one serial loop.** Ingest legs touch only
+  per-field caches (`shared/*/<field>/`, `farms/<farm>/fields/<field>/`), so
+  4 farms ingest concurrently with zero cross-talk; a serial pass is ~4×
+  slower on pure network wait. Template: per-farm leg (ingest trio → that
+  farm's figures → gallery staging) backgrounded, then the shared-cache
+  WorldCereal renders run single-threaded after `wait`.
+- **numpy >= 2.5 refuses `fill_value=nan` into int16** in `rasterio.merge`.
+  Integer sources need an integer nodata sentinel — `_resolve_nodata` now
+  coerces (float→int when integral, nan→dtype min). Don't reintroduce float
+  nodata on integer DEMs.
+- **Stored clips are polygon-buffered (2026-11-09 user policy):**
+  `B = max(10 % of field max length, 1 source cell)` —
+  `raster_rules.field_buffer_m` (`geom.buffer(B)`, never the bbox). DEM
+  (mask in `clip_dem_tiles_to_buffer`), SoilGrids
+  (`clip_bbox(clip_geometry=)`) and satellite (`geometry_mask` after
+  `outer_crop`) all clip pixels to it. **Plots viewport = polygon + 15 %**
+  (`VIEWPORT_FRAC`), satellite basemap underneath (see basemap.md), stats
+  on the exact polygon only. Historic bugs for the record: masking to the
+  RAW polygon (zero buffer) cut arcs inside curved boundaries, and a bare
+  bbox window reads as "bounding box, not buffer" on rotated fields.
+
 ## Local-delta-only reminder
 
 This nested AGENTS.md only records instructions that differ from the parent or root files. Do not duplicate root-wide asset, vendor, or validation policy here except this pointer to `../../AGENTS.md`.

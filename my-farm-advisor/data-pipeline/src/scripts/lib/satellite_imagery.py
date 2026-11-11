@@ -143,10 +143,36 @@ def clip_asset_to_field(
     output_crs: str = "EPSG:4326",
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    import sys as _s
+    _s.path.insert(0, str(Path(__file__).resolve().parent))
+    import raster_rules as _rr
     with rasterio.open(href) as src:
         field = gpd.GeoSeries([field_geometry], crs="EPSG:4326").to_crs(src.crs)
-        out_image, out_transform = mask(src, [field.iloc[0].__geo_interface__], crop=True)
+        # raster_rules: clip extends >= 1 source cell beyond the boundary so
+        # every boundary cell is complete and edge coverage % is measurable
+        _cell = _rr.cell_m_of(src.crs, src.res[0], lon=gpd.GeoSeries([field_geometry], crs="EPSG:4326").centroid.iloc[0].x)
+        _m = max(_rr.margin_m(_cell, _rr.EDGE_BUFFER_CELLS_MASK),
+                 _rr.field_buffer_m(field_geometry, _cell))
+        _geom = field.iloc[0]
+        if src.crs.is_geographic:
+            import math as _math
+            _m_deg = _m / (111320.0 * max(0.2, _math.cos(_math.radians(_geom.centroid.lat if hasattr(_geom.centroid, "lat") else _geom.centroid.y))))
+            _geom = _geom.buffer(_m_deg)
+        else:
+            _geom = _geom.buffer(_m)
+        # raster_rules.outer_crop: mask(crop=True) can round the window INWARD
+        # and shave source cells off the buffered edges; outer_crop rounds out.
+        out_image, out_transform, _ = _rr.outer_crop(src, [_geom])
         profile = src.profile.copy()
+        # clip pixels to the buffered polygon (uniform halo; corners blank
+        # by design — the stored raster is the same shape from every source)
+        from rasterio.features import geometry_mask as _gmask
+        from shapely.geometry import mapping as _map0
+        _inside = _gmask([_map0(_geom)], out_shape=out_image.shape[1:],
+                         transform=out_transform, invert=True)
+        if profile.get("nodata") is None:
+            profile["nodata"] = 0
+        out_image[:, ~_inside] = profile["nodata"]
 
     profile.update(
         {

@@ -224,6 +224,7 @@ def clip_bbox(
     out_path: Path,
     *,
     polygon: Any | None = None,
+    clip_geometry: Any | None = None,
     buffer_note: str = "",
 ) -> dict[str, Any]:
     """Clip one band/depth VRT to a WGS84 bbox, write GeoTIFF, return stats.
@@ -267,6 +268,15 @@ def clip_bbox(
     else:
         zmask = np.ones(arr.shape, dtype=bool)
     zmask &= arr != NODATA
+
+    # Pixel clip policy (raster_rules): nodata OUTSIDE the halo-polygon;
+    # statistics stay zonal on the exact field polygon (zmask above).
+    if clip_geometry is not None:
+        cmask = geometry_mask(
+            [clip_geometry], out_shape=arr.shape, transform=dst_transform,
+            all_touched=True, invert=True,
+        )
+        data[0][~cmask] = NODATA
 
     if out_path is not None:
         out_path = Path(out_path)

@@ -55,7 +55,7 @@ CDL_STATE_FIPS = "19"  # Iowa
 CDL_BUFFER_M = 2000.0
 CDL_URL = (f"https://nassgeodata.gmu.edu/nass_data_cache/byfips/"
            f"CDL_{CDL_YEAR}_{CDL_STATE_FIPS}.tif")
-CDL_DIR_FIELD = Path(ROOT) / "data-pipeline/growers/elvtr-demo/farms/" \
+CDL_DIR_FIELD = Path(ROOT) / "data-pipeline/growers/demo-grower/farms/" \
     "demo-us/fields/ia-r1/imagery/cdl"
 LEGEND = {int(k): (v[0], v[1] or "#8d8d8d") for k, v in
           json.load(open(CDL_DIR_FIELD / "cdl_legend_2023.json")).items()}

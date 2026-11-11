@@ -29,6 +29,7 @@ from paths import (
     shared_cdl_state_raster_path,
 )
 from reporting_bootstrap import ensure_skill_path
+from state_codes import state_fips as resolve_state_fips
 
 ensure_skill_path("cdl-cropland")
 
@@ -176,7 +177,7 @@ def parse_args() -> argparse.Namespace:
         "--cdl-latest-year",
         type=int,
         default=DEFAULT_CDL_LATEST_YEAR,
-        help="Latest CDL candidate year for --raster-only fallback search",
+        help="Latest CDL candidate year when --cdl-years is omitted",
     )
     parser.add_argument(
         "--cdl-window-years",
@@ -189,12 +190,22 @@ def parse_args() -> argparse.Namespace:
 
 
 def _state_fips_values(fields: gpd.GeoDataFrame) -> list[str]:
-    if "state_fips" not in fields.columns:
-        return ["19"]
-    values = (
-        pd.Series(fields["state_fips"], dtype="object").fillna("").astype(str).str.strip().tolist()
+    direct = (
+        pd.Series(fields["state_fips"], dtype="object").fillna("").astype(str).str.strip()
+        if "state_fips" in fields.columns
+        else pd.Series([""] * len(fields), dtype="object")
     )
-    unique_values = sorted({value.zfill(2) for value in values if value})
+    from_state = (
+        fields["state"].map(resolve_state_fips)
+        if "state" in fields.columns
+        else pd.Series([""] * len(fields), dtype="object")
+    )
+    resolved = [
+        value.zfill(2) if value else fallback
+        for value, fallback in zip(direct.tolist(), from_state.tolist())
+        if value or fallback
+    ]
+    unique_values = sorted(set(resolved))
     return unique_values or ["19"]
 
 
@@ -259,7 +270,10 @@ def main():
     if not us_fields.empty:
         print("State CDL coverage:", ", ".join(state_fips_values))
 
-    target_years = _target_cdl_years()
+    target_years = _parse_years(args.cdl_years) or _target_cdl_years(
+        window_years=args.cdl_window_years,
+        latest_year=args.cdl_latest_year,
+    )
     cached_years = [
         year
         for year in target_years
@@ -267,6 +281,7 @@ def main():
     ]
     if (
         not force
+        and args.cdl_years is None
         and len(cached_years) >= 5
         and farm_cdl_rotation_path(grower_slug, farm_slug).exists()
     ):
@@ -351,7 +366,7 @@ def main():
         print(f"  Saved: {year_output}")
         crop_mix_frames.append(cdl_year)
         completed_years.append(year)
-        if len(completed_years) >= 5:
+        if args.cdl_years is None and len(completed_years) >= args.cdl_window_years:
             break
 
     if not crop_mix_frames:

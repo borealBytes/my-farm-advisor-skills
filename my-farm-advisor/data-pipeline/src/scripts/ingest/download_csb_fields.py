@@ -35,6 +35,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "lib"))
 from paths import DATA_ROOT  # pyright: ignore[reportMissingImports]
+from state_codes import state_fips  # pyright: ignore[reportMissingImports]
 
 import fsspec  # pyright: ignore[reportMissingImports]
 import geopandas as gpd  # pyright: ignore[reportMissingImports]
@@ -135,6 +136,7 @@ def main(argv: list[str] | None = None) -> int:
                     "field_id": slug,
                     "country": args.country,
                     "state": args.state,
+                    "state_fips": state_fips(args.state),
                     "year": args.year,
                     "area_ha_est": round(ha, 1),
                     "crop": crop,

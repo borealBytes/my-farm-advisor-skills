@@ -82,7 +82,7 @@ def _ranking_bars(ax, field_df, metric_col, title):
         ax.set_visible(False)
         return
     df = field_df[["field_id", metric_col]].dropna().sort_values(metric_col)
-    labels = [str(f)[-6:] for f in df["field_id"]]
+    labels = [str(f) for f in df["field_id"]]
     values = df[metric_col].astype(float).tolist()
     y = np.arange(len(labels))
     ax.barh(y, values, color="#3b82f6", edgecolor="white", height=0.65)
@@ -90,6 +90,24 @@ def _ranking_bars(ax, field_df, metric_col, title):
     ax.set_yticklabels(labels, fontsize=7)
     ax.set_title(title, fontsize=10, fontweight="bold", loc="left")
     ax.grid(True, axis="x", alpha=0.3)
+
+
+def _short_labels(field_ids) -> dict[str, str]:
+    """Drop the prefix every field id shares so map labels stay readable.
+
+    Field ids are grower-prefixed (``fifer-102-b-c``), so a fixed-width slice
+    both mangles them and can collide. Strip only whole leading tokens that
+    every id in the farm agrees on.
+    """
+    ids = [str(value) for value in field_ids]
+    tokens = [value.split("-") for value in ids]
+    shared = 0
+    if tokens:
+        while all(len(t) > shared + 1 for t in tokens) and len(
+            {t[shared] for t in tokens}
+        ) == 1:
+            shared += 1
+    return {value: "-".join(t[shared:]) for value, t in zip(ids, tokens)}
 
 
 def _risk_matrix(ax, field_df):
@@ -103,18 +121,27 @@ def _risk_matrix(ax, field_df):
         return
     x = field_df[cap_col].fillna(field_df[cap_col].median()).astype(float)
     y = field_df[risk_col].fillna(field_df[risk_col].median()).astype(float)
-    sz = (
-        field_df["area_acres"].fillna(50).astype(float) * 8
-        if "area_acres" in field_df.columns
-        else 60
-    )
+    # Size relative to the farm's own range: absolute acres shrink to nothing
+    # for small-parcel farms.
+    if "area_acres" in field_df.columns:
+        areas = field_df["area_acres"].fillna(field_df["area_acres"].median()).astype(float)
+        top = float(areas.max()) or 1.0
+        sz = 140.0 + 420.0 * (areas / top)
+    else:
+        sz = 200.0
     ax.scatter(x, y, s=sz, alpha=0.7, c="#3b82f6", edgecolors="#1e40af")
+    labels = _short_labels(field_df["field_id"])
     for _, r in field_df.iterrows():
         ax.annotate(
-            str(r["field_id"])[-5:],
+            labels.get(str(r["field_id"]), str(r["field_id"])),
             (float(r.get(cap_col, 0) or 0), float(r.get(risk_col, 0) or 0)),
+            xytext=(0, 9),
+            textcoords="offset points",
             fontsize=7,
             ha="center",
+            va="bottom",
+            color="#1e3a8a",
+            fontweight="bold",
         )
     ax.set_xlabel("Water holding capacity (total AWS, in)", fontsize=8)
     ax.set_ylabel("Headlands burden (%)", fontsize=8)
@@ -310,7 +337,9 @@ def main() -> None:
             .iloc[0]
         )
         ax_map.annotate(
-            str(frow["field_id"])[-5:],
+            _short_labels(fields["field_id"]).get(
+                str(frow["field_id"]), str(frow["field_id"])
+            ),
             (c.x, c.y),
             fontsize=7,
             ha="center",
@@ -368,40 +397,42 @@ def main() -> None:
     _ranking_bars(fig.add_subplot(gs[1, 3]), field_df, "headlands_pct", "Headlands (%)")
 
     spotlight_title = (
-        f"Remote sensing spotlight — {field_id[-6:]}"
+        f"Remote sensing spotlight — {field_id}"
         if field_id and spotlight_slug
         else "Remote sensing spotlight"
     )
-    panel = fig.add_subplot(gs[2, :])
+    sub = gs[2, :].subgridspec(
+        3, 4, hspace=0.18, wspace=0.2, height_ratios=[0.14, 1.0, 1.0]
+    )
+    panel = fig.add_subplot(sub[0, :])
     panel.axis("off")
-    panel.set_title(spotlight_title, fontsize=11, fontweight="bold", loc="left", pad=8)
-    sub = gs[2, :].subgridspec(2, 4, hspace=0.18, wspace=0.2)
+    panel.set_title(spotlight_title, fontsize=11, fontweight="bold", loc="left", pad=2)
     _image_panel(
-        fig.add_subplot(sub[0, 0]),
+        fig.add_subplot(sub[1, 0]),
         spotlight_assets.get("corn"),
         "Corn average NDVI",
         note="Generate NDVI cards to populate this panel.",
     )
     _image_panel(
-        fig.add_subplot(sub[0, 1]),
+        fig.add_subplot(sub[1, 1]),
         spotlight_assets.get("corn_peak_95"),
         "Corn 95th %ile peak NDVI",
         note="Generate NDVI cards to populate this panel.",
     )
     _image_panel(
-        fig.add_subplot(sub[0, 2]),
+        fig.add_subplot(sub[1, 2]),
         spotlight_assets.get("soybean"),
         "Soybean average NDVI",
         note="Generate NDVI cards to populate this panel.",
     )
     _image_panel(
-        fig.add_subplot(sub[0, 3]),
+        fig.add_subplot(sub[1, 3]),
         spotlight_assets.get("soybean_peak_95"),
         "Soybean 95th %ile peak NDVI",
         note="Generate NDVI cards to populate this panel.",
     )
     _image_panel(
-        fig.add_subplot(sub[1, :]),
+        fig.add_subplot(sub[2, :]),
         spotlight_assets.get("cumulative"),
         "Cumulative NDVI by crop and year",
         note="Generate NDVI cards to populate this panel.",

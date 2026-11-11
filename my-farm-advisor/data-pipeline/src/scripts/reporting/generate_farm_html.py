@@ -135,6 +135,19 @@ def _cdl_b64(field_cdl: pd.DataFrame) -> str:
     return _fig_to_b64(fig)
 
 
+def _short_labels(field_ids) -> dict[str, str]:
+    """Drop the prefix every field id shares so map labels stay readable."""
+    ids = [str(value) for value in field_ids]
+    tokens = [value.split("-") for value in ids]
+    shared = 0
+    if tokens:
+        while all(len(t) > shared + 1 for t in tokens) and len(
+            {t[shared] for t in tokens}
+        ) == 1:
+            shared += 1
+    return {value: "-".join(t[shared:]) for value, t in zip(ids, tokens)}
+
+
 def _farm_map_b64(fields: gpd.GeoDataFrame) -> str:
     fig, ax = plt.subplots(figsize=(10, 7))
     fig.patch.set_facecolor("#fafaf9")
@@ -193,16 +206,20 @@ def _farm_map_b64(fields: gpd.GeoDataFrame) -> str:
         fields_web.plot(
             ax=ax, facecolor="#22c55e33", edgecolor="#166534", linewidth=1.6, zorder=4
         )
-        sz = (
-            fields["area_acres"].fillna(30).astype(float) * 5
-            if "area_acres" in fields.columns
-            else 60
-        )
+        if "area_acres" in fields.columns:
+            _sz_areas = fields["area_acres"].fillna(
+                fields["area_acres"].median()
+            ).astype(float)
+            sz = 140.0 + 420.0 * (_sz_areas / (float(_sz_areas.max()) or 1.0))
+        else:
+            sz = 200.0
         ax.scatter(centroids.x, centroids.y, s=sz, color="#2563eb", alpha=0.8, zorder=5)
         for idx, r in fields.iterrows():
             c = centroids.iloc[idx]
             ax.annotate(
-                str(r["field_id"])[-5:],
+                _short_labels(fields["field_id"]).get(
+                    str(r["field_id"]), str(r["field_id"])
+                ),
                 (c.x, c.y),
                 fontsize=7,
                 ha="center",
@@ -226,18 +243,22 @@ def _farm_map_b64(fields: gpd.GeoDataFrame) -> str:
             field_crs
         )
         fields.boundary.plot(ax=ax, color="#166534", linewidth=1.5)
-        sz = (
-            fields["area_acres"].fillna(30).astype(float) * 5
-            if "area_acres" in fields.columns
-            else 60
-        )
+        if "area_acres" in fields.columns:
+            _sz_areas = fields["area_acres"].fillna(
+                fields["area_acres"].median()
+            ).astype(float)
+            sz = 140.0 + 420.0 * (_sz_areas / (float(_sz_areas.max()) or 1.0))
+        else:
+            sz = 200.0
         ax.scatter(
             centroids.x, centroids.y, s=sz, color="#2563eb", alpha=0.75, zorder=5
         )
         for idx, r in fields.iterrows():
             c = centroids.iloc[idx]
             ax.annotate(
-                str(r["field_id"])[-5:],
+                _short_labels(fields["field_id"]).get(
+                    str(r["field_id"]), str(r["field_id"])
+                ),
                 (c.x, c.y),
                 fontsize=7,
                 ha="center",
@@ -519,7 +540,7 @@ def _field_card(
         k: _safe(v) for k, v in row_dict.items() if not k.endswith("_pct_rank")
     }
 
-    field_anchor = f"field-{fid[-6:]}"
+    field_anchor = f"field-{fid}"
 
     # Build soil profile thumbnails
     soil_thumbs = []
@@ -538,7 +559,7 @@ def _field_card(
 <div id="{modal_id}" class="modal">
   <div class="modal-content">
     <a href="#{field_anchor}" class="modal-close">&times; Close</a>
-    <h2>Field {fid[-8:]} — {card_label}</h2>
+    <h2>Field {fid} — {card_label}</h2>
     <img src="data:image/png;base64,{b64_data}" style="width:100%;max-width:1200px;" alt="{card_label}">
   </div>
 </div>
@@ -556,7 +577,7 @@ def _field_card(
 
     return f"""
 <section class="field-card" id="{field_anchor}">
-  <h2>Field {fid[-8:]} <span class="badge">{acres:.1f} ac</span></h2>
+  <h2>Field {fid} <span class="badge">{acres:.1f} ac</span></h2>
 
   <div class="poster-preview">
     <h3>Field Poster</h3>
@@ -615,7 +636,7 @@ def _field_card(
 <div id="poster-modal-{idx}" class="modal">
   <div class="modal-content">
     <a href="#{field_anchor}" class="modal-close">&times; Close</a>
-    <h2>Field {fid[-8:]} Poster</h2>
+    <h2>Field {fid} Poster</h2>
     <img src="data:image/png;base64,{poster_b64}" style="width:100%;max-width:1200px;" alt="Full field poster">
   </div>
 </div>
@@ -740,7 +761,7 @@ def main() -> None:
     for idx_num in range(len(fields)):
         frow = fields.iloc[idx_num]
         fid = frow["field_id"]
-        print(f"    Loading poster for field {fid[-6:]}...")
+        print(f"    Loading poster for field {fid}...")
         field_slug = field_slug_lookup.get(str(fid))
         poster_path = (
             field_report_path(
@@ -770,7 +791,7 @@ def main() -> None:
         )
 
     nav = " | ".join(
-        f'<a href="#field-{str(r["field_id"])[-6:]}">{str(r["field_id"])[-6:]}</a>'
+        f'<a href="#field-{str(r["field_id"])}">{str(r["field_id"])}</a>'
         for _, r in fields.iterrows()
     )
 

@@ -498,7 +498,7 @@ def render_ssurgo_component_map(
     if not plot_source.empty:
         plot_source["class_id"] = np.arange(len(plot_source))
 
-    field_short = field_id[-6:] if field_id else "Field"
+    field_short = field_id or "Field"
     mukey_count = int(plot_source["mukey"].nunique()) if not plot_source.empty else 0
 
     def _label(part: gpd.GeoDataFrame) -> str:
@@ -537,7 +537,7 @@ def render_ssurgo_property_map(
         return False
     class_ids, labels = _classify_quantiles(pd.Series(plot_source[property_col]), class_count=4)
     plot_source["class_id"] = class_ids
-    field_short = field_id[-6:] if field_id else "Field"
+    field_short = field_id or "Field"
     mukey_count = int(plot_source["mukey"].nunique()) if "mukey" in plot_source.columns else 0
 
     def _label(part: gpd.GeoDataFrame) -> str:
@@ -582,7 +582,7 @@ def main() -> None:
         if not field_slug:
             print(f"  skip {field_id} (no field slug)")
             continue
-        field_short = field_id[-8:] if len(field_id) > 8 else field_id
+        field_short = field_id
 
         print(f"\nProcessing field: {field_short}")
 

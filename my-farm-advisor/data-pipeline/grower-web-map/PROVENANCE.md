@@ -9,7 +9,20 @@ This file records data lineage, external services, licenses, and runtime policy 
 - US fields in this catalog normally come from USDA NASS Crop Sequence Boundaries (CSB), distributed through the FIBOA `us-usda-cropland` GeoParquet collection (`https://data.source.coop/fiboa/us-usda-cropland/us_usda_cropland.parquet`). The FIBOA collection is CC-BY-4.0; the underlying CSB data is USDA public data.
 - Non-US fields may come from OpenStreetMap (`landuse=farmland`) per `data-pipeline/references/field-boundary-sources.md`; OSM data is ODbL.
 - The map preserves each feature's `source` property and shows it in the popup. It does not reinterpret or re-license the boundaries.
-- The map does not embed imagery, rasters, soil polygons, or report bundles. Only boundary coordinates and selected attributes are written into the HTML.
+- The map does not embed imagery, GeoTIFFs, or report bundles. It embeds boundary coordinates, SSURGO polygon coordinates, and small clipped NDVI PNGs rendered at build time.
+
+## Soil lineage
+
+- Source: `farms/<farm>/fields/<field>/soil/ssurgo_soil_types.geojson` (map-unit polygons with `mukey`) and `ssurgo_full.csv` (component and surface-horizon attributes), written by the pipeline's soil download step.
+- Origin: USDA NRCS Soil Survey Geographic Database (SSURGO), USDA public domain data.
+- The map preserves `mukey` and shows it in both the legend and the popup; it does not re-derive or re-interpret soil properties.
+
+## NDVI lineage
+
+- Source: `farms/<farm>/fields/<field>/derived/features/ndvi_year_<year>_composite.tif`, written by the pipeline's NDVI step from Sentinel-2 imagery.
+- The map renders each composite to a small PNG and clips it to the field boundary; the source GeoTIFF is never embedded.
+- The colour scale (`-0.2`–`1.0`, matplotlib `RdYlGn`) is copied from the farm report's NDVI cards so values agree across artifacts.
+- Sentinel-2 imagery attribution belongs to the pipeline's NDVI step and the farm report.
 
 ## Basemap
 
@@ -35,8 +48,8 @@ This file records data lineage, external services, licenses, and runtime policy 
 - Generated maps live only under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/growers/<grower>/farms/<farm>/derived/dashboards/`.
 - Generated HTML must never be committed to Git, attached to provenance records, or treated as a source asset.
 - The subskill itself contains code and documentation only.
-- Python dependencies: standard library only. No new packages are required beyond the data-pipeline runtime.
+- Python dependencies: standard library for boundaries and soils. The NDVI overlay uses `numpy`, `rasterio`, and `Pillow`, which the pipeline runtime venv already provides; without them the map still builds, with the NDVI layer skipped and one warning printed.
 
 ## Network policy
 
-The map requires internet access at view time for Leaflet, Esri tiles, and optional OpenStreetMap tiles. No account, API key, or token is used. Offline viewing shows field outlines only.
+The map requires internet access at view time for Leaflet, Esri tiles, and optional OpenStreetMap tiles. No account, API key, or token is used. Offline viewing shows field outlines, soil fills, and NDVI overlays on a blank background.

@@ -150,6 +150,23 @@ def field_slug_map_from_inventory(inventory_path: Path | None = None) -> dict[st
     return mapping
 
 
+def _boundary_state(farm: Path) -> str:
+    """Read the state property from the farm boundary when it exists."""
+
+    boundary = farm / "boundary" / "field_boundaries.geojson"
+    if not boundary.exists():
+        return ""
+    try:
+        payload = json.loads(boundary.read_text(encoding="utf-8"))
+        features = payload.get("features") or []
+        if not features:
+            return ""
+        properties = features[0].get("properties") or {}
+        return str(properties.get("state") or "").strip()
+    except (OSError, ValueError):
+        return ""
+
+
 def _write_json(path: Path, payload: dict, *, overwrite: bool = True) -> None:
     if path.exists() and not overwrite:
         return
@@ -406,14 +423,21 @@ def ensure_canonical_data_tree(
     (farm / "derived" / "summaries").mkdir(parents=True, exist_ok=True)
     (farm / "derived" / "dashboards").mkdir(parents=True, exist_ok=True)
     (farm / "derived" / "tables").mkdir(parents=True, exist_ok=True)
+    farm_manifest = farm / "farm.json"
+    previous_manifest: dict = {}
+    if farm_manifest.exists():
+        try:
+            previous_manifest = json.loads(farm_manifest.read_text(encoding="utf-8"))
+        except ValueError:
+            previous_manifest = {}
     _write_json(
-        farm / "farm.json",
+        farm_manifest,
         {
             "grower_slug": grower_slug,
             "farm_slug": farm_slug,
             "display_name": farm_name,
-            "state": "IA",
-            "country": "US",
+            "state": _boundary_state(farm) or str(previous_manifest.get("state") or ""),
+            "country": str(previous_manifest.get("country") or "US"),
             "default_crs": "EPSG:4326",
             "notes": "Canonical farm metadata",
         },

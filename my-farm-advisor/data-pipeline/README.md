@@ -25,6 +25,15 @@ runtime artifacts stay outside the repo under `DATA_PIPELINE_DATA_ROOT`
 (see `ASSET_POLICY.md` at the repo root).
 
 
+## Grower web maps
+
+Per-farm interactive HTML field maps (Esri World Imagery, click-through
+metadata, field list) are generated from the runtime boundaries by the nested
+[`grower-web-map`](grower-web-map/README.md) subskill. Outputs stay in the
+runtime at `<farm>/derived/dashboards/<farm>_fields_map.html` and are never
+committed.
+
+
 ## Global parity in one paragraph
 
 Any field, any country, **zero accounts**: boundaries from CSB (US) or

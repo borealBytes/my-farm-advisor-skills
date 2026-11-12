@@ -19,6 +19,8 @@ HAS_DEPS = True
 
 
 OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Overpass returns HTTP 406 to requests' default UA; identify the client.
+USER_AGENT = "my-farm-advisor/1.0 (field-boundaries; field_boundaries)"
 REGION_BBOX = {
     "corn_belt": (40.45, -93.95, 40.85, -93.45),
     "great_plains": (40.55, -98.35, 40.95, -97.85),
@@ -36,7 +38,12 @@ def _overpass_query(bbox: tuple[float, float, float, float]) -> dict[str, Any]:
     );
     out geom;
     """
-    response = requests.post(OVERPASS_URL, data={"data": query}, timeout=180)
+    response = requests.post(
+        OVERPASS_URL,
+        data={"data": query},
+        headers={"User-Agent": USER_AGENT},
+        timeout=180,
+    )
     response.raise_for_status()
     return response.json()
 

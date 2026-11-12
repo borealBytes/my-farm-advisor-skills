@@ -38,6 +38,8 @@ OVERPASS_URLS = [
     "https://overpass.kumi.systems/api/interpreter",
     "https://lz4.overpass-api.de/api/interpreter",
 ]
+# Overpass returns HTTP 406 to requests' default UA; identify the client.
+USER_AGENT = "my-farm-advisor/1.0 (data-pipeline; bootstrap_farm_from_county)"
 COUNTIES_PATH = shared_geoadmin_counties_dir() / "counties_usa.geojson"
 
 
@@ -110,7 +112,12 @@ def _query_overpass_bbox(bbox: tuple[float, float, float, float]) -> dict:
     for endpoint in OVERPASS_URLS:
         for attempt in range(1, 4):
             try:
-                response = requests.post(endpoint, data={"data": query}, timeout=240)
+                response = requests.post(
+                    endpoint,
+                    data={"data": query},
+                    headers={"User-Agent": USER_AGENT},
+                    timeout=240,
+                )
                 response.raise_for_status()
                 return response.json()
             except Exception as exc:

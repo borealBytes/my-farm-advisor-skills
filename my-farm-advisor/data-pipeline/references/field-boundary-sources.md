@@ -49,6 +49,8 @@ better than US-Corn-Belt OSM (there, use CSB instead).
 Hard-won Overpass rules:
 
 1. **User-Agent header is mandatory** or every instance returns 406/HTML.
+   Implemented in `download_osm_fields.py`, `bootstrap_farm_from_county.py`,
+   and `field_boundaries.py`.
 2. Query body must be `--data-urlencode "data=<QL>"` (or urllib
    `data=`-prefixed). A bare urlencode of the QL without the `data=` name
    yields an XHTML error page that looks like a server failure — don't blame

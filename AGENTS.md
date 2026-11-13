@@ -45,6 +45,15 @@ Run from the repository root:
 
 Treat validation failure as a blocker unless the task is only drafting docs and explicitly says not to run commands. The validator checks required `SKILL.md` and `README.md` files, provenance records, forbidden paths, and asset policy compliance.
 
+## Release boundary — consumers inherit the artifact, never this repo's project law (2026-11-14)
+
+This repo's history is its own: project-specific rules (for example, the G2F challenge's
+external-data cutoff and its backfill history) are first-class law HERE and stay first-class.
+When cutting a tag or writing its release note, **a rationale citing another project's event
+must carry its scope clause at the source** — consuming repos grep their law faces and
+nothing else, and vendored bytes are exempt by design: a sentence whose rationale does not
+travel should not be written as if it did.
+
 ## Contribution default
 
 Branch work should create a new skill unless the user explicitly asks to add, extend, or modify an existing skill.

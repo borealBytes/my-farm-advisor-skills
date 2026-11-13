@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -125,6 +126,8 @@ class StepManifest:
     status: str
     inputs: list[str] = field(default_factory=list)
     outputs: list[str] = field(default_factory=list)
+    inputs_rel: list[str] = field(default_factory=list)
+    outputs_rel: list[str] = field(default_factory=list)
     input_fingerprints: dict[str, str] = field(default_factory=dict)
     code_fingerprints: dict[str, str] = field(default_factory=dict)
     config_fingerprint: str = ""
@@ -164,6 +167,23 @@ def build_config_fingerprint(config: FieldReportingConfig | dict[str, Any]) -> s
     return _sha256_text(json.dumps(value, sort_keys=True, default=str))
 
 
+def _relativize(path: Path) -> str:
+    """Serialize *path* root-relative to ``${DATA_PIPELINE_DATA_ROOT}/data-pipeline``.
+
+    Step manifests are persisted provenance read back by staleness checks and
+    future manifest-git: absolute paths break on clone/move/draft-prefix. The
+    absolute ``inputs``/``outputs`` remain authoritative for one minor for
+    back-compat; outside-the-root or unset-env paths return absolute.
+    """
+    root = os.environ.get("DATA_PIPELINE_DATA_ROOT")
+    if not root:
+        return str(path)
+    try:
+        return Path(path).resolve().relative_to((Path(root) / "data-pipeline").resolve()).as_posix()
+    except (ValueError, OSError):
+        return str(path)
+
+
 def build_step_manifest(
     step_name: str,
     input_paths: list[str | Path],
@@ -174,6 +194,8 @@ def build_step_manifest(
 ) -> StepManifest:
     inputs = [str(Path(p)) for p in input_paths]
     outputs = [str(Path(p)) for p in output_paths]
+    inputs_rel = [_relativize(Path(p)) for p in input_paths]
+    outputs_rel = [_relativize(Path(p)) for p in output_paths]
     input_fingerprints = {
         str(Path(p)): _sha256_file(Path(p)) for p in input_paths if Path(p).exists()
     }
@@ -184,6 +206,8 @@ def build_step_manifest(
         status=status,
         inputs=inputs,
         outputs=outputs,
+        inputs_rel=inputs_rel,
+        outputs_rel=outputs_rel,
         input_fingerprints=input_fingerprints,
         code_fingerprints=code_fingerprints,
         config_fingerprint=config_fingerprint,

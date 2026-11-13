@@ -168,7 +168,7 @@ def _aci_year_wc(farm, field, year):
         rep[220] = 23; rep[230] = 23
         for c, w in _ACI_TO_WC24.items():
             rep[c] = w
-        with rasterio.open(out, "w", **prof) as s:
+        with rasterio.open(out, "w", **_rrw.cog_profile(prof, resampling="nearest")) as s:
             s.write(rep[np.clip(arr, 0, 255)].astype("int32"), 1)
     return {"epsg": 4326,
             "files": {"croptype_classification": {"path": str(out)}}}

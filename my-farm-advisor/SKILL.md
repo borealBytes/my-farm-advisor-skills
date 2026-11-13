@@ -76,7 +76,7 @@ Open the subtree index that matches the request:
 
 ## Runtime Notes
 
-This umbrella skill contains large supporting assets and examples. The nested farm workflows are document-routed workflows, not separate runtime-discoverable skills. Use the subtree indexes and linked guides and AGENTS.md files for progressive discovery.
+This umbrella skill contains large supporting assets and examples. The nested farm workflows are document-routed workflows, not separate runtime-discoverable skills. Use the subtree indexes and linked guides and AGENTS.md files for progressive discovery. For unattended operation (cron lines, incremental vs forced refresh, cron-shell env, plugin seed/writer-reader split) see [references/headless-cron-and-plugin-seed.md](references/headless-cron-and-plugin-seed.md).
 
 ## Cross-border deliverable rules
 
@@ -99,7 +99,9 @@ This umbrella skill contains large supporting assets and examples. The nested fa
   artifact — re-clip renames hide the provenance and the raw-vs-true-units decision silently reverts.
 - After rsyncing a skill git branch into the deployed profile copy, diff **both directions**. The
   deployed copy can be ahead (sections authored in-place during sessions); backport those edits to
-  the branch and commit before declaring sync complete.
+  the branch and commit before declaring sync complete. The same check gates publication: before
+  creating a release tag or vendor pin of the repo (plugin subtree-splits), the deployed-mirror vs
+  repo diff must be zero — otherwise the vendored tree ships older than the runtime runs.
 - Inside commands sent to the terminal, a bare `&` (pandas boolean masks) trips the backgrounding
   guard — write masks as `df.query("col=='x' and other=='y'")` instead.
 - Colorbar norms over masked rasters must go through `arr.compressed()` + `np.percentile`: on
@@ -112,6 +114,26 @@ This umbrella skill contains large supporting assets and examples. The nested fa
   as the only symptom.
 - Dispatched sub-agents cannot write protected instruction files (AGENTS.md) — the user-consent hook
   denies them; plan doc-writing so AGENTS.md files are applied by the parent after children return.
+- Every `rasterio.warp.reproject` call must pass `src_nodata=` and `dst_nodata=`: reproject zero-fills
+  the whole destination before resampling, so out-of-source pixels (routine when a rotated viewport
+  spills past the clip bbox) silently become value 0 and percentile stretches collapse to flat
+  black/white panels.
+- In per-panel render loops, initialize the generic stretch (P2–P98 of that panel's own data) at the
+  top of each iteration before the special-case colormap branches — otherwise the previous panel's
+  `vmin/vmax` leak into any panel without a branch and it renders pinned flat.
+- Never edit Python modules a running figure/ingest batch imports — parallel importers read the file
+  mid-truncate and every worker dies with a phantom failure. Apply edits tmp-file + `mv` (atomic
+  rename), or finish the batch first.
+- Long batch scripts must be idempotent with separable phases (ingest legs vs figure legs vs copy
+  legs): an interrupted session kills background children mid-run, and scratch-dir logs are pruned
+  after idle, so re-derive batch state from artifact mtimes, never from logs. Keep durable batch
+  logs under the data tree, not the scratch dir.
+- Public example figures redact the grower slug in titles (render `█` block; env override for a
+  custom mask string) — user will not have demo grower names in the shipped gallery.
+- Validate ingest-writer and provenance-schema changes with the offline-fixture smoke (synthetic
+  data root, `--offline-fixtures --allow-synthetic-fixtures`) before mirror re-sync; serialized-field
+  ordering, DictWriter, and multi-site journaling pitfalls in
+  [references/offline-fixture-smoke.md](references/offline-fixture-smoke.md).
 
 ## Status communication
 

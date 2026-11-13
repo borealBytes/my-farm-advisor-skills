@@ -19,6 +19,7 @@ Read `README.md` first. Review `scripts/install.sh`, `src/scripts/bootstrap_runt
 - Runtime source is `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/src`; run pipeline scripts from that copy, not from the checkout `src/`.
 - Runtime venv is `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/.venv` unless `DATA_PIPELINE_VENV_DIR` points to another absolute venv path.
 - Generated outputs, downloaded payloads, reports, logs, and manifests belong under `${DATA_PIPELINE_DATA_ROOT}/data-pipeline`, not in the skill checkout, and must stay out of Git.
+- Persisted provenance serializes runtime paths **root-relative** in `*_rel` fields (terrain `dem_terrain_summary.json/.csv` incl. `products[].path_rel`, `dem_source_reference.json` `source_paths_rel`, soil `soilgrids_provenance.json` `stats_table_rel`/`journal_rel`, and reporting step manifests `inputs_rel`/`outputs_rel`), keyed against `${DATA_PIPELINE_DATA_ROOT}/data-pipeline`. The journal layer is the git/portable layer — absolute paths break on clone, move, or draft prefix — so new writers must record `*_rel` siblings; absolute fields remain for one minor for back-compat, and readers resolve root-relative keys against the live runtime root (`_local_path_from_source_url`).
 - User-level persistence defaults to `${XDG_CONFIG_HOME:-$HOME/.config}/environment.d/60-my-farm-advisor.conf` with simple `KEY=VALUE` lines. This does not update already-running shells, so also export variables in the current shell before running commands.
 - Non-interactive runs fail fast when required environment is missing. They must not fall back to `/data/workspace` or checkout-relative roots.
 - Runtime source drift prompts in interactive runs. Non-interactive CI or smoke runs must use `--force-refresh` when replacing a divergent runtime source is intended.
@@ -184,6 +185,39 @@ cd ../..
 ./scripts/validate.sh
 ```
 
+## Plugin onboarding — user-boundary ingest contract
+
+My Farm Advisor plugin onboarding (`POST /onboard/boundary`) maps to
+`scripts/ingest/ingest_user_boundaries.py` (contract-first: the script is the
+first pipeline-agent task). This is the committed normative
+reference the plugin SPEC points at; the wrapper is the only net-new onboarding
+surface — every downstream leg already exists.
+
+- Input: GeoJSON FeatureCollection, EPSG:4326, closed polygon rings.
+- Per-feature `country` and `field_id` are hard requirements — validation
+  rejects the upload in seconds. `state`, `year`, `crop`, `area_ha_est`,
+  `area_acres` are optional; areas are recomputed via an equal-area reprojection
+  and user-supplied areas are journaled, never routed on.
+- Write set is exactly the repository contract in
+  `references/field-boundary-sources.md` (farm + per-field boundary GeoJSONs,
+  `field-inventory.csv`, `user_upload_fields_provenance.json` +
+  `sha256_journal.json`, `farm.json` country/state), merging by `field_id`,
+  never wholesale replace; `source=user_upload` per feature.
+- Async job handle with three checkpoints (the plugin pane polls these; never a
+  blocking POST): `accepted` (validation) → `counties_matched` (FIPS
+  assignment via the `assign_field_fips.py` lookup; the checkpoint result
+  echoes human-readable `county, state, country` per field — wrong-country
+  uploads must fail visibly here, before any downstream leg consumes the
+  routing key) → `legs_running` (hand off to `run_farm_pipeline.py` minus the
+  field-sampling leg; the orchestrator itself already passes
+  `--allow-live-downloads` to the DEM step, so the wrapper must not re-add it).
+- Idempotent: re-posting the same sha256 is a no-op; fields disappear only
+  under an explicit `--prune-missing`, never as a side effect of re-upload.
+- If the contract files already exist on disk (placed by hand),
+  `farm_dashboard.py refresh` consumes them as-is — the wrapper is a
+  validation/provenance/echo gate over the existing refresh path, not a second
+  code path.
+
 ## Local workflow notes
 
 - Keep this skill tiny and operational: copy baseline files from `src/` into live storage, preserve live data across reboot or redeploy, and use auditable `rsync` commands.
@@ -227,6 +261,18 @@ section is the operative rule.
   Integer sources need an integer nodata sentinel — `_resolve_nodata` now
   coerces (float→int when integral, nan→dtype min). Don't reintroduce float
   nodata on integer DEMs.
+- **The COG driver drops tags set while the writer is open** (2026-11-13,
+  data-door flip): `update_tags` inside the `with` block is lost when COG
+  finalize rebuilds the body at close. Tag after close via `r+` with
+  `IGNORE_COG_LAYOUT_BREAK=YES` (GDAL's required opt-in for metadata-only
+  updates; layout is untouched). `write_raster_atomic` does exactly this — do
+  not move `update_tags` back inside the open block.
+- **Stored per-field rasters are real COGs** via `lib.raster_rules.cog_profile`
+  (continuous sinks `overview_resampling="average"`, class sinks `"nearest"`):
+  internal tiling + overviews so browser GIS clients range-read them with no
+  export step; container stays GeoTIFF so every rasterio consumer is
+  unaffected. GTiff layout keys (tiled/blockxsize/blockysize/interleave) must
+  be stripped before writing with the COG driver.
 - **Stored clips are polygon-buffered (2026-11-09 user policy):**
   `B = max(10 % of field max length, 1 source cell)` —
   `raster_rules.field_buffer_m` (`geom.buffer(B)`, never the bbox). DEM

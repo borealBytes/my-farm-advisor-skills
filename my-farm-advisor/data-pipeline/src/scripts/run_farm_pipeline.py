@@ -232,6 +232,13 @@ def main() -> None:
         action="store_true",
         help="Skip DEM terrain ingestion when terrain is explicitly added to a pipeline run",
     )
+    parser.add_argument(
+        "--skip-field-sampling",
+        action="store_true",
+        help="Skip the field-sampling leg (ingest/download_fields.py): boundaries "
+             "are already canonical on disk (user-upload ingest handoff), so the "
+             "demo-county sampling fallback must not touch them",
+    )
     parser.add_argument("--force", action="store_true", help="Force rerun all steps")
     parser.add_argument(
         "--structure-test",
@@ -300,7 +307,12 @@ def main() -> None:
         args.dem_source_policy,
     )
     steps = [
-        ("ingest/download_fields.py", "Canonical field boundaries", (), False),
+        (
+            "ingest/download_fields.py",
+            "Canonical field boundaries",
+            (),
+            args.skip_field_sampling,
+        ),
         (
             "ingest/download_dem_terrain.py",
             "Live DEM terrain derivatives",

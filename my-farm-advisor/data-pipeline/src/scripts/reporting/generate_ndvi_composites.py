@@ -150,7 +150,8 @@ def _write_mean_raster(output_path: Path, raster_paths: list[Path]) -> Path:
     with rasterio.open(reference) as src:
         profile = src.profile.copy()
     profile.update(dtype=rasterio.float32, count=1, compress="lzw", nodata=np.nan)
-    with rasterio.open(output_path, "w", **profile) as dst:
+    from raster_rules import cog_profile as _cog  # pyright: ignore[reportMissingImports]
+    with rasterio.open(output_path, "w", **_cog(profile, resampling="average")) as dst:
         dst.write(mean_array, 1)
     return output_path
 

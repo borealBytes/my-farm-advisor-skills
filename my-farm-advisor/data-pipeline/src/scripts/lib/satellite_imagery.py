@@ -176,7 +176,6 @@ def clip_asset_to_field(
 
     profile.update(
         {
-            "driver": "GTiff",
             "height": out_image.shape[1],
             "width": out_image.shape[2],
             "transform": out_transform,
@@ -184,7 +183,10 @@ def clip_asset_to_field(
         }
     )
 
-    with rasterio.open(output_path, "w", **profile) as dst:
+    # Stored satellite clips are browser-streamable COGs (mixed continuous +
+    # class bands -> nearest overviews keep QA/SCL codes real; nodata already
+    # ensured above).
+    with rasterio.open(output_path, "w", **_rr.cog_profile(profile, resampling="nearest")) as dst:
         dst.write(out_image)
 
     if not output_crs:
@@ -210,7 +212,7 @@ def clip_asset_to_field(
                 "height": height,
             }
         )
-        with rasterio.open(reprojected, "w", **profile) as dst:
+        with rasterio.open(reprojected, "w", **_rr.cog_profile(profile, resampling="nearest")) as dst:
             for band_index in range(1, src.count + 1):
                 reproject(
                     source=rasterio.band(src, band_index),
@@ -265,7 +267,8 @@ def write_single_band_raster(
     with rasterio.open(reference_raster) as src:
         profile = src.profile.copy()
     profile.update(dtype=rasterio.float32, count=1, compress="lzw", nodata=nodata)
-    with rasterio.open(output_path, "w", **profile) as dst:
+    from raster_rules import cog_profile as _cog  # pyright: ignore[reportMissingImports]
+    with rasterio.open(output_path, "w", **_cog(profile, resampling="average")) as dst:
         dst.write(data.astype("float32"), 1)
     return output_path
 

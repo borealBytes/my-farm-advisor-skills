@@ -260,6 +260,18 @@ section is the operative rule.
   Integer sources need an integer nodata sentinel — `_resolve_nodata` now
   coerces (float→int when integral, nan→dtype min). Don't reintroduce float
   nodata on integer DEMs.
+- **The COG driver drops tags set while the writer is open** (2026-11-13,
+  data-door flip): `update_tags` inside the `with` block is lost when COG
+  finalize rebuilds the body at close. Tag after close via `r+` with
+  `IGNORE_COG_LAYOUT_BREAK=YES` (GDAL's required opt-in for metadata-only
+  updates; layout is untouched). `write_raster_atomic` does exactly this — do
+  not move `update_tags` back inside the open block.
+- **Stored per-field rasters are real COGs** via `lib.raster_rules.cog_profile`
+  (continuous sinks `overview_resampling="average"`, class sinks `"nearest"`):
+  internal tiling + overviews so browser GIS clients range-read them with no
+  export step; container stays GeoTIFF so every rasterio consumer is
+  unaffected. GTiff layout keys (tiled/blockxsize/blockysize/interleave) must
+  be stripped before writing with the COG driver.
 - **Stored clips are polygon-buffered (2026-11-09 user policy):**
   `B = max(10 % of field max length, 1 source cell)` —
   `raster_rules.field_buffer_m` (`geom.buffer(B)`, never the bbox). DEM

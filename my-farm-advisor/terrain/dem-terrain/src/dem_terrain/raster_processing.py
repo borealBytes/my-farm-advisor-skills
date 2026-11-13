@@ -326,7 +326,15 @@ def write_raster_atomic(
             temp_path = Path(temp_file.name)
         with rasterio.open(temp_path, "w", **profile) as dst:
             dst.write(array)
-            if tags:
+        if tags:
+            # COG finalize rebuilds the dataset body at close: tags applied
+            # while the writer is open are dropped. Re-tag the finalized file
+            # (any driver) before the atomic replace so provenance and
+            # synthetic-fixture markers always survive. Metadata-only r+ on a
+            # COG needs GDAL's documented opt-in; the layout stays intact.
+            with rasterio.open(
+                temp_path, "r+", IGNORE_COG_LAYOUT_BREAK="YES"
+            ) as dst:
                 dst.update_tags(**tags)
         os.replace(temp_path, output)
     except Exception:
@@ -501,7 +509,6 @@ def _output_profile(
     profile = source_profile.copy()
     profile.update(
         {
-            "driver": "GTiff",
             "height": int(array.shape[1]),
             "width": int(array.shape[2]),
             "count": int(array.shape[0]),
@@ -510,14 +517,20 @@ def _output_profile(
             "transform": transform,
             "nodata": nodata,
             "compress": compress,
-            "tiled": True,
-            "blockxsize": 16,
-            "blockysize": 16,
-            "interleave": "band",
         }
     )
     if compress.lower() in {"deflate", "lzw"} and np.issubdtype(np.dtype(dtype), np.floating):
         profile["predictor"] = 3
+    # Real COG (was tiled-GTiff with 16px blocks and no overviews): stored
+    # field DEM clips must be range-readable by browser GIS clients without
+    # an export step; the container stays GeoTIFF so rasterio consumers are
+    # unaffected. Layout keys (tiled/blockxsize/blockysize/interleave) must
+    # go — the COG driver derives its own layout.
+    for key in ("tiled", "blockxsize", "blockysize", "interleave"):
+        profile.pop(key, None)
+    profile["driver"] = "COG"
+    profile["overview_resampling"] = "average"
+    profile["sparse_ok"] = True
     return profile
 
 

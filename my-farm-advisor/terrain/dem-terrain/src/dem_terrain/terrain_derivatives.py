@@ -24,10 +24,29 @@ import rasterio
 from .raster_processing import DEFAULT_NODATA, file_size, nodata_ratio, sha256_file, write_raster_atomic
 from .terrain_contract import (
     CONDITIONED_DEM_FILENAME,
+    DATA_PIPELINE_DATA_ROOT_ENV,
     DERIVED_RASTER_FILENAMES,
     SUMMARY_CSV_FILENAME,
     SUMMARY_JSON_FILENAME,
 )
+
+
+def _relativize(path: Path) -> str:
+    """Serialize *path* root-relative to ``${DATA_PIPELINE_DATA_ROOT}/data-pipeline``.
+
+    Terrain summaries are persisted provenance: absolute paths leak the machine
+    and break when the runtime tree is cloned, moved, or served from a draft
+    prefix. Absoluties remain alongside these fields for one minor for
+    back-compat; when the env root is unset or the path lies outside it, the
+    absolute string is returned unchanged.
+    """
+    root = os.environ.get(DATA_PIPELINE_DATA_ROOT_ENV)
+    if not root:
+        return str(path)
+    try:
+        return Path(path).resolve().relative_to((Path(root) / "data-pipeline").resolve()).as_posix()
+    except (ValueError, OSError):
+        return str(path)
 
 
 ADVISORY_HYDROLOGY_WARNING = (
@@ -88,6 +107,7 @@ class TerrainProductRecord:
     checksum_sha256: str
     file_size: int
     statistics: dict[str, float | None]
+    path_rel: str = ""
     warnings: tuple[dict[str, str], ...] = ()
 
     def to_dict(self) -> dict[str, Any]:
@@ -748,6 +768,7 @@ def _product_record(
         product_name=product_name,
         filename=path.name,
         path=str(path),
+        path_rel=_relativize(path),
         preview_path=preview_path,
         unit=unit,
         source_product=source_product,
@@ -820,7 +841,9 @@ def _summary_record(
     return {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "dem_clipped": str(dem_path),
+        "dem_clipped_rel": _relativize(dem_path),
         "dem_conditioned": str(conditioned_path),
+        "dem_conditioned_rel": _relativize(conditioned_path),
         "conditioning_status": conditioning_status,
         "conditioning_backend": conditioning_backend,
         "advisory_label": ADVISORY_HYDROLOGY_WARNING,
@@ -917,7 +940,9 @@ def _write_summary_csv(path: Path, summary: Mapping[str, Any]) -> None:
     erosion = summary["erosion_proxy_area"]
     row = {
         "dem_clipped": summary["dem_clipped"],
+        "dem_clipped_rel": summary["dem_clipped_rel"],
         "dem_conditioned": summary["dem_conditioned"],
+        "dem_conditioned_rel": summary["dem_conditioned_rel"],
         "conditioning_status": summary["conditioning_status"],
         "conditioning_backend": summary["conditioning_backend"] or "",
         "elevation_min_m": elevation["min"],

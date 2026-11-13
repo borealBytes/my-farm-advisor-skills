@@ -35,6 +35,7 @@ from paths import (  # pyright: ignore[reportMissingImports]
     DATA_ROOT,
     farm_boundary_path,
     farm_soilgrids_provenance_path,
+    runtime_relative,
     shared_soilgrids_field_dir,
     shared_soilgrids_journal_path,
     shared_soilgrids_stats_table_path,
@@ -290,7 +291,9 @@ def main():
         "rasters_written": written,
         "rasters_skipped_existing": skipped,
         "stats_table": str(table_path),
+        "stats_table_rel": runtime_relative(table_path),
         "journal": str(journal_path),
+        "journal_rel": runtime_relative(journal_path),
     }
     provenance_path = farm_soilgrids_provenance_path(grower_slug, farm_slug)
     provenance_path.parent.mkdir(parents=True, exist_ok=True)

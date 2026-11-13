@@ -184,6 +184,39 @@ cd ../..
 ./scripts/validate.sh
 ```
 
+## Plugin onboarding — user-boundary ingest contract
+
+My Farm Advisor plugin onboarding (`POST /onboard/boundary`) maps to
+`scripts/ingest/ingest_user_boundaries.py` (contract-first: the script is the
+first pipeline-agent task). This is the committed normative
+reference the plugin SPEC points at; the wrapper is the only net-new onboarding
+surface — every downstream leg already exists.
+
+- Input: GeoJSON FeatureCollection, EPSG:4326, closed polygon rings.
+- Per-feature `country` and `field_id` are hard requirements — validation
+  rejects the upload in seconds. `state`, `year`, `crop`, `area_ha_est`,
+  `area_acres` are optional; areas are recomputed via an equal-area reprojection
+  and user-supplied areas are journaled, never routed on.
+- Write set is exactly the repository contract in
+  `references/field-boundary-sources.md` (farm + per-field boundary GeoJSONs,
+  `field-inventory.csv`, `user_upload_fields_provenance.json` +
+  `sha256_journal.json`, `farm.json` country/state), merging by `field_id`,
+  never wholesale replace; `source=user_upload` per feature.
+- Async job handle with three checkpoints (the plugin pane polls these; never a
+  blocking POST): `accepted` (validation) → `counties_matched` (FIPS
+  assignment via the `assign_field_fips.py` lookup; the checkpoint result
+  echoes human-readable `county, state, country` per field — wrong-country
+  uploads must fail visibly here, before any downstream leg consumes the
+  routing key) → `legs_running` (hand off to `run_farm_pipeline.py` minus the
+  field-sampling leg; the orchestrator itself already passes
+  `--allow-live-downloads` to the DEM step, so the wrapper must not re-add it).
+- Idempotent: re-posting the same sha256 is a no-op; fields disappear only
+  under an explicit `--prune-missing`, never as a side effect of re-upload.
+- If the contract files already exist on disk (placed by hand),
+  `farm_dashboard.py refresh` consumes them as-is — the wrapper is a
+  validation/provenance/echo gate over the existing refresh path, not a second
+  code path.
+
 ## Local workflow notes
 
 - Keep this skill tiny and operational: copy baseline files from `src/` into live storage, preserve live data across reboot or redeploy, and use auditable `rsync` commands.

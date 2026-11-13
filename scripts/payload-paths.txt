@@ -1,0 +1,6 @@
+# Repo paths that constitute the plugin seed payload.
+# The mirror-diff-zero hook compares these HEAD trees against the deployed
+# profile mirror and the tag trailer records the manifest digest.
+my-farm-advisor
+my-farm-breeding-trial-management
+my-farm-qtl-analysis

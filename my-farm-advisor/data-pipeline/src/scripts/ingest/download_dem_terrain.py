@@ -32,6 +32,7 @@ sys.path.insert(0, str(_SCRIPTS_DIR / "lib"))
 from paths import (  # pyright: ignore[reportMissingImports]
     DATA_ROOT,
     farm_boundary_path,
+    runtime_relative,
     farm_dem_summary_table_path,
     farm_manifest_dir,
     field_boundary_path,
@@ -978,7 +979,12 @@ def _local_path_from_source_url(source_url: str) -> Path | None:
     if parsed.scheme:
         return None
     path = Path(source_url)
-    return path if path.is_absolute() else None
+    if path.is_absolute():
+        return path
+    # Root-relative journal keys (portable provenance form) resolve against
+    # the live runtime root so drafts/clones re-read cached sources in place.
+    candidate = DATA_ROOT / path
+    return candidate if candidate.exists() else None
 
 
 def _write_offline_fixture_dem(path: Path, geometry: Any) -> Path:
@@ -1219,6 +1225,7 @@ def _build_success_manifest(
         "source_vertical_datum": "unknown",
         "source_urls": list(selected.source_urls),
         "source_paths": [str(path) for path in source_paths],
+        "source_paths_rel": [runtime_relative(path) for path in source_paths],
         "license": selected.license,
         "citation": selected.citation,
         "acquisition_date": selected.acquisition_date,
@@ -1341,6 +1348,7 @@ def _asset_record(
     synthetic_fixture = selected.adapter_id == "offline_fixtures"
     return {
         "href": str(path),
+        "href_rel": runtime_relative(path),
         "type": media_type,
         "roles": roles,
         "title": title,
@@ -1389,6 +1397,7 @@ def _write_source_reference(path: Path, selection: SourceSelection, *, source_pa
         "selected_source": selection.selected.to_dict(),
         "candidate_sources": [candidate.to_dict() for candidate in selection.ranked_candidates],
         "source_paths": [str(path) for path in source_paths],
+        "source_paths_rel": [runtime_relative(path) for path in source_paths],
         "quality_warning": selection.quality_warning,
         "warnings": list(dict.fromkeys(warnings)),
     }

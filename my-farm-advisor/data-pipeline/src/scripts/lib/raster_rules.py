@@ -165,3 +165,40 @@ def outer_crop(src, geoms, *, nodata=None):
                       else int(np.iinfo(out.dtype).max))
     filled = np.where(m, out, nodata)
     return filled, tr, ~m
+
+
+def cog_profile(base: dict, *, resampling: str = "average") -> dict:
+    """COG-driver write profile from any source/base profile.
+
+    Stored per-field rasters must be browser-streamable (HTTP range reads by
+    GeoLibre / copilot / any GDAL client) without an export step: internal
+    tiling + overviews come from the COG driver, which still lands a plain
+    GeoTIFF container so every existing rasterio/GDAL consumer is unaffected.
+
+    - GTiff-only layout keys (tiled/block sizes, interleave) are stripped;
+      the COG driver derives its own layout.
+    - nodata must be explicit (our reproject zero-fill rule, enforced at write
+      time): integer sinks get a dtype-sentinel default, float sinks NaN.
+    - overview resampling is a deliberate choice: ``nearest`` for class rasters
+      (CDL, WorldCereal, QA/SCL bands) so overview pixels stay real classes,
+      ``average`` for continuous products (DEM, NDVI, reflectance).
+    """
+    import numpy as _np
+
+    p = dict(base)
+    for key in ("tiled", "blockxsize", "blockysize", "interleave"):
+        p.pop(key, None)
+    p["driver"] = "COG"
+    p["overview_resampling"] = resampling
+    p["sparse_ok"] = True
+    if p.get("nodata") is None:
+        dtype = p.get("dtype", "float32")
+        if _np.issubdtype(_np.dtype(dtype), _np.floating):
+            p["nodata"] = float("nan")
+        else:
+            p["nodata"] = int(_np.iinfo(_np.dtype(dtype)).min)
+    if "compress" in p and p.get("predictor") is not None:
+        if not (_np.issubdtype(_np.dtype(p.get("dtype", "float32")), _np.floating)
+                and str(p["compress"]).lower() in {"deflate", "lzw", "webp"}):
+            p.pop("predictor")
+    return p

@@ -37,6 +37,22 @@ def validate_path_slug(value: str, label: str = "slug") -> str:
     return slug
 
 
+def runtime_relative(path: Path) -> str:
+    """Serialize *path* root-relative to ``DATA_ROOT`` (portable journal form).
+
+    Persisted provenance is the git/portable layer of the pipeline: absolute
+    paths break the moment the tree moves, is cloned to another machine, or is
+    served from a draft prefix. Write roots keep their absolute form for one
+    minor for back-compat; new writers must record ``*_rel`` siblings produced
+    by this helper. Paths outside the runtime root return absolute unchanged.
+    """
+    resolved = Path(path)
+    try:
+        return resolved.resolve().relative_to(DATA_ROOT.resolve()).as_posix()
+    except (ValueError, OSError):
+        return str(resolved)
+
+
 def ensure_data_root_path(path: Path) -> Path:
     candidate = Path(path)
     if not candidate.is_absolute():

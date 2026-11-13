@@ -81,7 +81,8 @@ def clip_cdl(field_geom_4326, out_dir):
                     transform=src.window_transform(win), crs="EPSG:5070",
                     nodata=0, compress="deflate", tiled=True,
                     blockxsize=256, blockysize=256)
-    with rasterio.open(clip_path, "w", **prof) as dst:
+    from raster_rules import cog_profile as _cog  # pyright: ignore[reportMissingImports]
+    with rasterio.open(clip_path, "w", **_cog(prof, resampling="nearest")) as dst:
         dst.write(arr, 1)
     return state_raster, clip_path
 

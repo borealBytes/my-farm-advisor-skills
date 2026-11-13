@@ -130,6 +130,10 @@ This umbrella skill contains large supporting assets and examples. The nested fa
   logs under the data tree, not the scratch dir.
 - Public example figures redact the grower slug in titles (render `█` block; env override for a
   custom mask string) — user will not have demo grower names in the shipped gallery.
+- Validate ingest-writer and provenance-schema changes with the offline-fixture smoke (synthetic
+  data root, `--offline-fixtures --allow-synthetic-fixtures`) before mirror re-sync; serialized-field
+  ordering, DictWriter, and multi-site journaling pitfalls in
+  [references/offline-fixture-smoke.md](references/offline-fixture-smoke.md).
 
 ## Status communication
 

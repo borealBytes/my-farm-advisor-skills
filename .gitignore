@@ -26,3 +26,6 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Exception: pipeline reference data force-added (see src/scripts/data/) —
+# the RDM legend + ISRIC legend tables must ship in a fresh clone; scripts read them from src/.

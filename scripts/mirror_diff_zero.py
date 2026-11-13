@@ -72,7 +72,10 @@ def tracked_entries() -> list[tuple[str, str, str]]:
     entries = []
     for line in out.decode().splitlines():
         head, _, path = line.partition("tab=")
-        mode, otype, oid = head.split(" ")
+        parts = head.split()
+        if len(parts) != 3:
+            sys.exit(f"unparsable ls-tree line: {line!r}")
+        mode, otype, oid = parts
         if otype != "blob":
             sys.exit(f"unsupported payload object {otype} at {path} (symlinks/submodules not allowed)")
         if mode not in ("100644", "100755"):
@@ -115,8 +118,11 @@ def check(entries, mirror_root: Path, *, fix_modes: bool) -> tuple[list[str], li
         if not base.is_dir():
             extras.append(f"{root_dir}/ (missing from mirror)")
             continue
-        for dirpath, _dirs, files in os.walk(base):
+        for dirpath, dirs, files in os.walk(base):
+            dirs[:] = [d for d in dirs if d != "__pycache__"]
             for name in files:
+                if name == ".DS_Store" or name.endswith(".pyc"):
+                    continue  # interpreter/OS noise, never payload
                 rel = str((Path(dirpath) / name).relative_to(mirror_root))
                 if rel not in tracked:
                     extras.append(rel)

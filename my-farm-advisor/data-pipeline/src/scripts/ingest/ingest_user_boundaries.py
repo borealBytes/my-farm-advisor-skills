@@ -575,6 +575,24 @@ def main(argv=None) -> int:
         return _fail("startup", f"data root must be absolute, got {resolved_root!r}")
     os.environ["DATA_PIPELINE_DATA_ROOT"] = str(Path(resolved_root).expanduser())
 
+    # Spill self-verification (fossil law, 2026-11-14): when the boundaries
+    # file is named <64-hex>.geojson the name IS the content hash — the
+    # plugin door spills exactly that way. A truncated or rewritten spill
+    # must fail loudly at the door, not propagate a corpse's geometry;
+    # a mismatch is never silently re-spilled over top (restitution belongs
+    # to the poster, not the reader). Non-hex names (operator-authored
+    # files, tests) skip the check.
+    geo_path = Path(args.geojson)
+    stem = geo_path.stem
+    if len(stem) == 64 and all(c in "0123456789abcdef" for c in stem.lower()):
+        got = hashlib.sha256(geo_path.read_bytes()).hexdigest()
+        if got != stem.lower():
+            return _fail(
+                "startup",
+                f"spill checksum mismatch: sha256({geo_path}) = {got} != name {stem}"
+                " — truncated or altered spill; re-post the boundary",
+            )
+
     # Deferred imports: lib.paths/reporting_bootstrap resolve DATA_PIPELINE_DATA_ROOT at import.
     from lib import naming
     from lib.paths import (

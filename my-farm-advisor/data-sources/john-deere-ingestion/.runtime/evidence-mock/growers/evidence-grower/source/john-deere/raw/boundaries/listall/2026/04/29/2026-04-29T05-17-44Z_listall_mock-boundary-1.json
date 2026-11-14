@@ -1,0 +1,36 @@
+[
+  {
+    "id": "mock-boundary-1",
+    "farmId": "mock-farm-1",
+    "farmName": "Mock Farm 1",
+    "fieldId": "mock-field-1",
+    "fieldName": "Mock Field 1",
+    "geometry": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            -93,
+            41
+          ],
+          [
+            -92.9,
+            41
+          ],
+          [
+            -92.9,
+            41.1
+          ],
+          [
+            -93,
+            41.1
+          ],
+          [
+            -93,
+            41
+          ]
+        ]
+      ]
+    }
+  }
+]

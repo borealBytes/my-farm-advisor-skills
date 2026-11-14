@@ -1,0 +1,11 @@
+{
+  "growerSlug": "evidence-grower",
+  "farmSlug": "mock-farm-1",
+  "displayName": "Mock Farm 1",
+  "archived": false,
+  "deereId": "mock-farm-1",
+  "sourceApi": "farms",
+  "sourceOperation": "listFields",
+  "fetchedAt": "2026-04-29T05:17:44.861Z",
+  "sourceSystem": "john-deere"
+}

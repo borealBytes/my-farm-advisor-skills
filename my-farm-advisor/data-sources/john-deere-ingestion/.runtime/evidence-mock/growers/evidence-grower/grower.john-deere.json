@@ -1,0 +1,9 @@
+{
+  "growerSlug": "evidence-grower",
+  "displayName": "Organization mock-org-1",
+  "deereId": "mock-org-1",
+  "sourceApi": "organizations",
+  "sourceOperation": "listUsers",
+  "fetchedAt": "2026-04-29T05:17:44.856Z",
+  "sourceSystem": "john-deere"
+}

@@ -1,0 +1,9 @@
+{
+  "growerSlug": "evidence-grower",
+  "displayName": "Mock Tractor",
+  "deereId": "mock-equipment-1",
+  "sourceApi": "equipment",
+  "sourceOperation": "getEquipmentmodels2",
+  "fetchedAt": "2026-04-29T05:17:44.885Z",
+  "sourceSystem": "john-deere"
+}

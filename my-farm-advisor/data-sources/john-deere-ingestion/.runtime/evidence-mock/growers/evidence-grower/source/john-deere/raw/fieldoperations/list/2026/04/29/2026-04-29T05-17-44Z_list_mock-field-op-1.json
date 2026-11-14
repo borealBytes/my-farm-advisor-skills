@@ -1,0 +1,11 @@
+[
+  {
+    "id": "mock-field-op-1",
+    "operationType": "Planting",
+    "operationDate": "2026-04-01T00:00:00.000Z",
+    "farmId": "mock-farm-1",
+    "farmName": "Mock Farm 1",
+    "fieldId": "mock-field-1",
+    "fieldName": "Mock Field 1"
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "growerSlug": "evidence-grower",
+  "displayName": "Corn",
+  "deereId": "mock-crop-type-1",
+  "sourceApi": "cropTypes",
+  "sourceOperation": "listCroptypes",
+  "fetchedAt": "2026-04-29T05:17:44.875Z",
+  "sourceSystem": "john-deere"
+}

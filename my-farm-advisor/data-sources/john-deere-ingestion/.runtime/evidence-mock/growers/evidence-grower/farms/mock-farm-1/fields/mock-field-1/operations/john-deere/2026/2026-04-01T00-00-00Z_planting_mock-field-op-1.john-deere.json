@@ -1,0 +1,15 @@
+{
+  "category": "operations",
+  "growerSlug": "evidence-grower",
+  "farmSlug": "mock-farm-1",
+  "fieldSlug": "mock-field-1",
+  "farmDeereId": "mock-farm-1",
+  "fieldDeereId": "mock-field-1",
+  "operationType": "Planting",
+  "occurredAt": "2026-04-01T00:00:00.000Z",
+  "deereId": "mock-field-op-1",
+  "sourceApi": "fieldOperations",
+  "sourceOperation": "getFieldops",
+  "fetchedAt": "2026-04-29T05:17:44.869Z",
+  "sourceSystem": "john-deere"
+}

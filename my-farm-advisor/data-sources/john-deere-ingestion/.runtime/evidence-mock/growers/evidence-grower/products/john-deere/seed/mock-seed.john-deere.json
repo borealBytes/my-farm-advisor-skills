@@ -1,0 +1,10 @@
+{
+  "growerSlug": "evidence-grower",
+  "displayName": "Mock Seed",
+  "productCategory": "seed",
+  "deereId": "mock-product-1",
+  "sourceApi": "products",
+  "sourceOperation": "listDocuments",
+  "fetchedAt": "2026-04-29T05:17:44.878Z",
+  "sourceSystem": "john-deere"
+}

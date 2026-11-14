@@ -108,8 +108,10 @@ def coverage(tif_path: str | Path, geom_wgs84, *, nodata_extra: float | None = N
         field_valid = int((in_field & valid).sum())
         # margin actually present: field bounds vs raster bounds, in metres
         gb = gpd.GeoSeries([geom]).bounds.iloc[0]
-        m_lat = (ds.bounds.top - gb[3]) if ds.bounds.top > gb[3] else 0.0
-        m_lon = (gb[2] - ds.bounds.left) if ds.bounds.left < gb[2] else 0.0
+        # geopandas>=0.14 names the bounds columns (minx/miny/maxx/maxy);
+        # numeric positions (gb[2], gb[3]) raise KeyError on any modern pin.
+        m_lat = (ds.bounds.top - gb["maxy"]) if ds.bounds.top > gb["maxy"] else 0.0
+        m_lon = (gb["maxx"] - ds.bounds.left) if ds.bounds.left < gb["maxx"] else 0.0
         if ds.crs.is_geographic:
             m = max(m_lat, m_lon) * 111320.0
         else:

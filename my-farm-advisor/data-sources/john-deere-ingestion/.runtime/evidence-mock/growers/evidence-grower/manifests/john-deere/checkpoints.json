@@ -1,0 +1,2700 @@
+{
+  "growerSlug": "evidence-grower",
+  "lastSuccessfulRun": "2026-04-29T05:17:44.897Z",
+  "operationCursors": {
+    "organizations.list": {
+      "updatedAt": "2026-04-29T05:17:44.852Z",
+      "cursor": "2026-04-29T05:17:44.852Z",
+      "fingerprint": "d2ffaaeef48c8e4108e52c8d5be97bec4dbef376",
+      "requestContext": {
+        "operationKey": "organizations.list",
+        "apiGroup": "organizations",
+        "operation": "list",
+        "sdkPath": "deere.organizations.list",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "organizations.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.854Z",
+      "cursor": "2026-04-29T05:17:44.854Z",
+      "fingerprint": "d2ffaaeef48c8e4108e52c8d5be97bec4dbef376",
+      "requestContext": {
+        "operationKey": "organizations.listAll",
+        "apiGroup": "organizations",
+        "operation": "listAll",
+        "sdkPath": "deere.organizations.listAll",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "organizations.get": {
+      "updatedAt": "2026-04-29T05:17:44.855Z",
+      "cursor": "2026-04-29T05:17:44.855Z",
+      "fingerprint": "d2ffaaeef48c8e4108e52c8d5be97bec4dbef376",
+      "requestContext": {
+        "operationKey": "organizations.get",
+        "apiGroup": "organizations",
+        "operation": "get",
+        "sdkPath": "deere.organizations.get",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "organizations.listOrganizations": {
+      "updatedAt": "2026-04-29T05:17:44.855Z",
+      "cursor": "2026-04-29T05:17:44.855Z",
+      "fingerprint": "d2ffaaeef48c8e4108e52c8d5be97bec4dbef376",
+      "requestContext": {
+        "operationKey": "organizations.listOrganizations",
+        "apiGroup": "organizations",
+        "operation": "listOrganizations",
+        "sdkPath": "deere.organizations.listOrganizations",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "organizations.listUsers": {
+      "updatedAt": "2026-04-29T05:17:44.856Z",
+      "cursor": "2026-04-29T05:17:44.856Z",
+      "fingerprint": "d2ffaaeef48c8e4108e52c8d5be97bec4dbef376",
+      "requestContext": {
+        "operationKey": "organizations.listUsers",
+        "apiGroup": "organizations",
+        "operation": "listUsers",
+        "sdkPath": "deere.organizations.listUsers",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "users.get": {
+      "updatedAt": "2026-04-29T05:17:44.856Z",
+      "cursor": "2026-04-29T05:17:44.856Z",
+      "fingerprint": "8c523d82f9eb85b24258a304719bebecc595ac77",
+      "requestContext": {
+        "operationKey": "users.get",
+        "apiGroup": "users",
+        "operation": "get",
+        "sdkPath": "deere.users.get",
+        "authMode": "oauth",
+        "entityScope": "user",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "clients.list": {
+      "updatedAt": "2026-04-29T05:17:44.857Z",
+      "cursor": "2026-04-29T05:17:44.857Z",
+      "fingerprint": "4ce7197a898ebb88809d6df5ae7e2b39cd780ecd",
+      "requestContext": {
+        "operationKey": "clients.list",
+        "apiGroup": "clients",
+        "operation": "list",
+        "sdkPath": "deere.clients.list",
+        "authMode": "oauth",
+        "entityScope": "client",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "clients.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.857Z",
+      "cursor": "2026-04-29T05:17:44.857Z",
+      "fingerprint": "6df2f8a7341f832cb2daf9633a2d82c750c5248d",
+      "requestContext": {
+        "operationKey": "clients.listAll",
+        "apiGroup": "clients",
+        "operation": "listAll",
+        "sdkPath": "deere.clients.listAll",
+        "authMode": "oauth",
+        "entityScope": "client",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "clients.get": {
+      "updatedAt": "2026-04-29T05:17:44.857Z",
+      "cursor": "2026-04-29T05:17:44.857Z",
+      "fingerprint": "a2716ec0f7367dc330b08113dcf7f395fe108b1c",
+      "requestContext": {
+        "operationKey": "clients.get",
+        "apiGroup": "clients",
+        "operation": "get",
+        "sdkPath": "deere.clients.get",
+        "authMode": "oauth",
+        "entityScope": "client",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "clients.listFarms": {
+      "updatedAt": "2026-04-29T05:17:44.858Z",
+      "cursor": "2026-04-29T05:17:44.858Z",
+      "fingerprint": "19d8fb806e40b66816299462bf90e5b6a50bd408",
+      "requestContext": {
+        "operationKey": "clients.listFarms",
+        "apiGroup": "clients",
+        "operation": "listFarms",
+        "sdkPath": "deere.clients.listFarms",
+        "authMode": "oauth",
+        "entityScope": "client",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "clients.listFields": {
+      "updatedAt": "2026-04-29T05:17:44.858Z",
+      "cursor": "2026-04-29T05:17:44.858Z",
+      "fingerprint": "a6d643c12c4eba508b9a924b23c0b5f9b0a9aa83",
+      "requestContext": {
+        "operationKey": "clients.listFields",
+        "apiGroup": "clients",
+        "operation": "listFields",
+        "sdkPath": "deere.clients.listFields",
+        "authMode": "oauth",
+        "entityScope": "client",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "farms.list": {
+      "updatedAt": "2026-04-29T05:17:44.859Z",
+      "cursor": "2026-04-29T05:17:44.859Z",
+      "fingerprint": "f7a1c006959fa191e2c9f19097337a859ba3a6b9",
+      "requestContext": {
+        "operationKey": "farms.list",
+        "apiGroup": "farms",
+        "operation": "list",
+        "sdkPath": "deere.farms.list",
+        "authMode": "oauth",
+        "entityScope": "farm",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": null,
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "farms.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.859Z",
+      "cursor": "2026-04-29T05:17:44.859Z",
+      "fingerprint": "f7a1c006959fa191e2c9f19097337a859ba3a6b9",
+      "requestContext": {
+        "operationKey": "farms.listAll",
+        "apiGroup": "farms",
+        "operation": "listAll",
+        "sdkPath": "deere.farms.listAll",
+        "authMode": "oauth",
+        "entityScope": "farm",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "farms.get": {
+      "updatedAt": "2026-04-29T05:17:44.860Z",
+      "cursor": "2026-04-29T05:17:44.860Z",
+      "fingerprint": "f7a1c006959fa191e2c9f19097337a859ba3a6b9",
+      "requestContext": {
+        "operationKey": "farms.get",
+        "apiGroup": "farms",
+        "operation": "get",
+        "sdkPath": "deere.farms.get",
+        "authMode": "oauth",
+        "entityScope": "farm",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "farms.listClients": {
+      "updatedAt": "2026-04-29T05:17:44.860Z",
+      "cursor": "2026-04-29T05:17:44.860Z",
+      "fingerprint": "f7a1c006959fa191e2c9f19097337a859ba3a6b9",
+      "requestContext": {
+        "operationKey": "farms.listClients",
+        "apiGroup": "farms",
+        "operation": "listClients",
+        "sdkPath": "deere.farms.listClients",
+        "authMode": "oauth",
+        "entityScope": "farm",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "farms.listFields": {
+      "updatedAt": "2026-04-29T05:17:44.861Z",
+      "cursor": "2026-04-29T05:17:44.861Z",
+      "fingerprint": "f7a1c006959fa191e2c9f19097337a859ba3a6b9",
+      "requestContext": {
+        "operationKey": "farms.listFields",
+        "apiGroup": "farms",
+        "operation": "listFields",
+        "sdkPath": "deere.farms.listFields",
+        "authMode": "oauth",
+        "entityScope": "farm",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fields.list": {
+      "updatedAt": "2026-04-29T05:17:44.861Z",
+      "cursor": "2026-04-29T05:17:44.861Z",
+      "fingerprint": "dab2370d1c45f5ba2c05309ef00a3664b1e1b1ac",
+      "requestContext": {
+        "operationKey": "fields.list",
+        "apiGroup": "fields",
+        "operation": "list",
+        "sdkPath": "deere.fields.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": null,
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fields.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.862Z",
+      "cursor": "2026-04-29T05:17:44.862Z",
+      "fingerprint": "dab2370d1c45f5ba2c05309ef00a3664b1e1b1ac",
+      "requestContext": {
+        "operationKey": "fields.listAll",
+        "apiGroup": "fields",
+        "operation": "listAll",
+        "sdkPath": "deere.fields.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fields.get": {
+      "updatedAt": "2026-04-29T05:17:44.862Z",
+      "cursor": "2026-04-29T05:17:44.862Z",
+      "fingerprint": "dab2370d1c45f5ba2c05309ef00a3664b1e1b1ac",
+      "requestContext": {
+        "operationKey": "fields.get",
+        "apiGroup": "fields",
+        "operation": "get",
+        "sdkPath": "deere.fields.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fields.listFarms": {
+      "updatedAt": "2026-04-29T05:17:44.863Z",
+      "cursor": "2026-04-29T05:17:44.863Z",
+      "fingerprint": "dab2370d1c45f5ba2c05309ef00a3664b1e1b1ac",
+      "requestContext": {
+        "operationKey": "fields.listFarms",
+        "apiGroup": "fields",
+        "operation": "listFarms",
+        "sdkPath": "deere.fields.listFarms",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fields.listClients": {
+      "updatedAt": "2026-04-29T05:17:44.863Z",
+      "cursor": "2026-04-29T05:17:44.863Z",
+      "fingerprint": "dab2370d1c45f5ba2c05309ef00a3664b1e1b1ac",
+      "requestContext": {
+        "operationKey": "fields.listClients",
+        "apiGroup": "fields",
+        "operation": "listClients",
+        "sdkPath": "deere.fields.listClients",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "boundaries.list": {
+      "updatedAt": "2026-04-29T05:17:44.864Z",
+      "cursor": "2026-04-29T05:17:44.864Z",
+      "fingerprint": "bf6786f8590203fabd18d180a84419ec78486b2f",
+      "requestContext": {
+        "operationKey": "boundaries.list",
+        "apiGroup": "boundaries",
+        "operation": "list",
+        "sdkPath": "deere.boundaries.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "boundaries.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.865Z",
+      "cursor": "2026-04-29T05:17:44.865Z",
+      "fingerprint": "bf6786f8590203fabd18d180a84419ec78486b2f",
+      "requestContext": {
+        "operationKey": "boundaries.listAll",
+        "apiGroup": "boundaries",
+        "operation": "listAll",
+        "sdkPath": "deere.boundaries.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "boundaries.listBoundaries": {
+      "updatedAt": "2026-04-29T05:17:44.866Z",
+      "cursor": "2026-04-29T05:17:44.866Z",
+      "fingerprint": "bf6786f8590203fabd18d180a84419ec78486b2f",
+      "requestContext": {
+        "operationKey": "boundaries.listBoundaries",
+        "apiGroup": "boundaries",
+        "operation": "listBoundaries",
+        "sdkPath": "deere.boundaries.listBoundaries",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "boundaries.get": {
+      "updatedAt": "2026-04-29T05:17:44.866Z",
+      "cursor": "2026-04-29T05:17:44.866Z",
+      "fingerprint": "bf6786f8590203fabd18d180a84419ec78486b2f",
+      "requestContext": {
+        "operationKey": "boundaries.get",
+        "apiGroup": "boundaries",
+        "operation": "get",
+        "sdkPath": "deere.boundaries.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "boundaries.getBoundaries": {
+      "updatedAt": "2026-04-29T05:17:44.867Z",
+      "cursor": "2026-04-29T05:17:44.867Z",
+      "fingerprint": "bf6786f8590203fabd18d180a84419ec78486b2f",
+      "requestContext": {
+        "operationKey": "boundaries.getBoundaries",
+        "apiGroup": "boundaries",
+        "operation": "getBoundaries",
+        "sdkPath": "deere.boundaries.getBoundaries",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fieldOperations.list": {
+      "updatedAt": "2026-04-29T05:17:44.867Z",
+      "cursor": "2026-04-01T00:00:00.000Z",
+      "fingerprint": "9566ddd2ed10bb46f93c06109c2ccd09ad534f8c",
+      "requestContext": {
+        "operationKey": "fieldOperations.list",
+        "apiGroup": "fieldOperations",
+        "operation": "list",
+        "sdkPath": "deere.fieldOperations.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fieldOperations.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.868Z",
+      "cursor": "2026-04-01T00:00:00.000Z",
+      "fingerprint": "9566ddd2ed10bb46f93c06109c2ccd09ad534f8c",
+      "requestContext": {
+        "operationKey": "fieldOperations.listAll",
+        "apiGroup": "fieldOperations",
+        "operation": "listAll",
+        "sdkPath": "deere.fieldOperations.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fieldOperations.get": {
+      "updatedAt": "2026-04-29T05:17:44.869Z",
+      "cursor": "2026-04-01T00:00:00.000Z",
+      "fingerprint": "9566ddd2ed10bb46f93c06109c2ccd09ad534f8c",
+      "requestContext": {
+        "operationKey": "fieldOperations.get",
+        "apiGroup": "fieldOperations",
+        "operation": "get",
+        "sdkPath": "deere.fieldOperations.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "fieldOperations.getFieldops": {
+      "updatedAt": "2026-04-29T05:17:44.869Z",
+      "cursor": "2026-04-01T00:00:00.000Z",
+      "fingerprint": "9566ddd2ed10bb46f93c06109c2ccd09ad534f8c",
+      "requestContext": {
+        "operationKey": "fieldOperations.getFieldops",
+        "apiGroup": "fieldOperations",
+        "operation": "getFieldops",
+        "sdkPath": "deere.fieldOperations.getFieldops",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "guidanceLines.list": {
+      "updatedAt": "2026-04-29T05:17:44.870Z",
+      "cursor": "2026-04-29T05:17:44.870Z",
+      "fingerprint": "13c15ea7baf85096f3211f13176a9f09a508838a",
+      "requestContext": {
+        "operationKey": "guidanceLines.list",
+        "apiGroup": "guidanceLines",
+        "operation": "list",
+        "sdkPath": "deere.guidanceLines.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "guidanceLines.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.870Z",
+      "cursor": "2026-04-29T05:17:44.870Z",
+      "fingerprint": "be8684ee703162cb95fc0a84dd4b588fccb38850",
+      "requestContext": {
+        "operationKey": "guidanceLines.listAll",
+        "apiGroup": "guidanceLines",
+        "operation": "listAll",
+        "sdkPath": "deere.guidanceLines.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "guidanceLines.get": {
+      "updatedAt": "2026-04-29T05:17:44.871Z",
+      "cursor": "2026-04-29T05:17:44.871Z",
+      "fingerprint": "021e89a8005120c050f3ccb642dd66a21fe5cc25",
+      "requestContext": {
+        "operationKey": "guidanceLines.get",
+        "apiGroup": "guidanceLines",
+        "operation": "get",
+        "sdkPath": "deere.guidanceLines.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "flags.get": {
+      "updatedAt": "2026-04-29T05:17:44.871Z",
+      "cursor": "2026-04-29T05:17:44.871Z",
+      "fingerprint": "414e9909b7a2be3e4076cd7e0bab382de8366cab",
+      "requestContext": {
+        "operationKey": "flags.get",
+        "apiGroup": "flags",
+        "operation": "get",
+        "sdkPath": "deere.flags.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "flags.getFlags": {
+      "updatedAt": "2026-04-29T05:17:44.871Z",
+      "cursor": "2026-04-29T05:17:44.871Z",
+      "fingerprint": "cf25ddf724177ac12ce5c8f5056fd3e50dcb45bf",
+      "requestContext": {
+        "operationKey": "flags.getFlags",
+        "apiGroup": "flags",
+        "operation": "getFlags",
+        "sdkPath": "deere.flags.getFlags",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "flags.list": {
+      "updatedAt": "2026-04-29T05:17:44.872Z",
+      "cursor": "2026-04-29T05:17:44.872Z",
+      "fingerprint": "6fc13a6168a275f4a9ccfa12251d0f9a648c5d53",
+      "requestContext": {
+        "operationKey": "flags.list",
+        "apiGroup": "flags",
+        "operation": "list",
+        "sdkPath": "deere.flags.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "flags.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.872Z",
+      "cursor": "2026-04-29T05:17:44.872Z",
+      "fingerprint": "39515fc847a6f3709a0de83aa05107deebf87646",
+      "requestContext": {
+        "operationKey": "flags.listAll",
+        "apiGroup": "flags",
+        "operation": "listAll",
+        "sdkPath": "deere.flags.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "mapLayers.list": {
+      "updatedAt": "2026-04-29T05:17:44.872Z",
+      "cursor": "2026-04-29T05:17:44.872Z",
+      "fingerprint": "9fd11e423104efc00cc9f14faec06bcc2c6b2aec",
+      "requestContext": {
+        "operationKey": "mapLayers.list",
+        "apiGroup": "mapLayers",
+        "operation": "list",
+        "sdkPath": "deere.mapLayers.list",
+        "authMode": "oauth",
+        "entityScope": "farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "mapLayers.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.873Z",
+      "cursor": "2026-04-29T05:17:44.873Z",
+      "fingerprint": "f2589c6d0e1e76afe9a05bffe1ab41cf586b828c",
+      "requestContext": {
+        "operationKey": "mapLayers.listAll",
+        "apiGroup": "mapLayers",
+        "operation": "listAll",
+        "sdkPath": "deere.mapLayers.listAll",
+        "authMode": "oauth",
+        "entityScope": "farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "mapLayers.get": {
+      "updatedAt": "2026-04-29T05:17:44.873Z",
+      "cursor": "2026-04-29T05:17:44.873Z",
+      "fingerprint": "9c51292a31f99307e5c1af52e04c944b90b5319f",
+      "requestContext": {
+        "operationKey": "mapLayers.get",
+        "apiGroup": "mapLayers",
+        "operation": "get",
+        "sdkPath": "deere.mapLayers.get",
+        "authMode": "oauth",
+        "entityScope": "farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "cropTypes.list": {
+      "updatedAt": "2026-04-29T05:17:44.873Z",
+      "cursor": "2026-04-29T05:17:44.873Z",
+      "fingerprint": "83c6cb1f5268a2a3c11c07bf68d7cbb2289c1fe8",
+      "requestContext": {
+        "operationKey": "cropTypes.list",
+        "apiGroup": "cropTypes",
+        "operation": "list",
+        "sdkPath": "deere.cropTypes.list",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "cropTypes.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.874Z",
+      "cursor": "2026-04-29T05:17:44.874Z",
+      "fingerprint": "83c6cb1f5268a2a3c11c07bf68d7cbb2289c1fe8",
+      "requestContext": {
+        "operationKey": "cropTypes.listAll",
+        "apiGroup": "cropTypes",
+        "operation": "listAll",
+        "sdkPath": "deere.cropTypes.listAll",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "cropTypes.get": {
+      "updatedAt": "2026-04-29T05:17:44.874Z",
+      "cursor": "2026-04-29T05:17:44.874Z",
+      "fingerprint": "83c6cb1f5268a2a3c11c07bf68d7cbb2289c1fe8",
+      "requestContext": {
+        "operationKey": "cropTypes.get",
+        "apiGroup": "cropTypes",
+        "operation": "get",
+        "sdkPath": "deere.cropTypes.get",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "cropTypes.getCroptypes": {
+      "updatedAt": "2026-04-29T05:17:44.875Z",
+      "cursor": "2026-04-29T05:17:44.875Z",
+      "fingerprint": "83c6cb1f5268a2a3c11c07bf68d7cbb2289c1fe8",
+      "requestContext": {
+        "operationKey": "cropTypes.getCroptypes",
+        "apiGroup": "cropTypes",
+        "operation": "getCroptypes",
+        "sdkPath": "deere.cropTypes.getCroptypes",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "cropTypes.listCroptypes": {
+      "updatedAt": "2026-04-29T05:17:44.875Z",
+      "cursor": "2026-04-29T05:17:44.875Z",
+      "fingerprint": "83c6cb1f5268a2a3c11c07bf68d7cbb2289c1fe8",
+      "requestContext": {
+        "operationKey": "cropTypes.listCroptypes",
+        "apiGroup": "cropTypes",
+        "operation": "listCroptypes",
+        "sdkPath": "deere.cropTypes.listCroptypes",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.list": {
+      "updatedAt": "2026-04-29T05:17:44.876Z",
+      "cursor": "2026-04-29T05:17:44.876Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.list",
+        "apiGroup": "products",
+        "operation": "list",
+        "sdkPath": "deere.products.list",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.876Z",
+      "cursor": "2026-04-29T05:17:44.876Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.listAll",
+        "apiGroup": "products",
+        "operation": "listAll",
+        "sdkPath": "deere.products.listAll",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.get": {
+      "updatedAt": "2026-04-29T05:17:44.877Z",
+      "cursor": "2026-04-29T05:17:44.877Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.get",
+        "apiGroup": "products",
+        "operation": "get",
+        "sdkPath": "deere.products.get",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.listVarieties": {
+      "updatedAt": "2026-04-29T05:17:44.877Z",
+      "cursor": "2026-04-29T05:17:44.877Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.listVarieties",
+        "apiGroup": "products",
+        "operation": "listVarieties",
+        "sdkPath": "deere.products.listVarieties",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.getVarieties": {
+      "updatedAt": "2026-04-29T05:17:44.878Z",
+      "cursor": "2026-04-29T05:17:44.878Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.getVarieties",
+        "apiGroup": "products",
+        "operation": "getVarieties",
+        "sdkPath": "deere.products.getVarieties",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "products.listDocuments": {
+      "updatedAt": "2026-04-29T05:17:44.878Z",
+      "cursor": "2026-04-29T05:17:44.878Z",
+      "fingerprint": "233adc628d556318fcad3e848ef9578f2169ce27",
+      "requestContext": {
+        "operationKey": "products.listDocuments",
+        "apiGroup": "products",
+        "operation": "listDocuments",
+        "sdkPath": "deere.products.listDocuments",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "equipment.get": {
+      "updatedAt": "2026-04-29T05:17:44.879Z",
+      "cursor": "2026-04-29T05:17:44.879Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.get",
+        "apiGroup": "equipment",
+        "operation": "get",
+        "sdkPath": "deere.equipment.get",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": null,
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipment": {
+      "updatedAt": "2026-04-29T05:17:44.879Z",
+      "cursor": "2026-04-29T05:17:44.879Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipment",
+        "apiGroup": "equipment",
+        "operation": "getEquipment",
+        "sdkPath": "deere.equipment.getEquipment",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.list": {
+      "updatedAt": "2026-04-29T05:17:44.880Z",
+      "cursor": "2026-04-29T05:17:44.880Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.list",
+        "apiGroup": "equipment",
+        "operation": "list",
+        "sdkPath": "deere.equipment.list",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.880Z",
+      "cursor": "2026-04-29T05:17:44.880Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.listAll",
+        "apiGroup": "equipment",
+        "operation": "listAll",
+        "sdkPath": "deere.equipment.listAll",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmentmakes": {
+      "updatedAt": "2026-04-29T05:17:44.881Z",
+      "cursor": "2026-04-29T05:17:44.881Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmentmakes",
+        "apiGroup": "equipment",
+        "operation": "getEquipmentmakes",
+        "sdkPath": "deere.equipment.getEquipmentmakes",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmenttypes": {
+      "updatedAt": "2026-04-29T05:17:44.881Z",
+      "cursor": "2026-04-29T05:17:44.881Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmenttypes",
+        "apiGroup": "equipment",
+        "operation": "getEquipmenttypes",
+        "sdkPath": "deere.equipment.getEquipmenttypes",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.listEquipmenttypes": {
+      "updatedAt": "2026-04-29T05:17:44.882Z",
+      "cursor": "2026-04-29T05:17:44.882Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.listEquipmenttypes",
+        "apiGroup": "equipment",
+        "operation": "listEquipmenttypes",
+        "sdkPath": "deere.equipment.listEquipmenttypes",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.listEquipmentmodels": {
+      "updatedAt": "2026-04-29T05:17:44.882Z",
+      "cursor": "2026-04-29T05:17:44.882Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.listEquipmentmodels",
+        "apiGroup": "equipment",
+        "operation": "listEquipmentmodels",
+        "sdkPath": "deere.equipment.listEquipmentmodels",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.listEquipmentisgtypes": {
+      "updatedAt": "2026-04-29T05:17:44.883Z",
+      "cursor": "2026-04-29T05:17:44.883Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.listEquipmentisgtypes",
+        "apiGroup": "equipment",
+        "operation": "listEquipmentisgtypes",
+        "sdkPath": "deere.equipment.listEquipmentisgtypes",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmentisgtypes": {
+      "updatedAt": "2026-04-29T05:17:44.883Z",
+      "cursor": "2026-04-29T05:17:44.883Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmentisgtypes",
+        "apiGroup": "equipment",
+        "operation": "getEquipmentisgtypes",
+        "sdkPath": "deere.equipment.getEquipmentisgtypes",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmentisgtypes2": {
+      "updatedAt": "2026-04-29T05:17:44.884Z",
+      "cursor": "2026-04-29T05:17:44.884Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmentisgtypes2",
+        "apiGroup": "equipment",
+        "operation": "getEquipmentisgtypes2",
+        "sdkPath": "deere.equipment.getEquipmentisgtypes2",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmentmodels": {
+      "updatedAt": "2026-04-29T05:17:44.884Z",
+      "cursor": "2026-04-29T05:17:44.884Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmentmodels",
+        "apiGroup": "equipment",
+        "operation": "getEquipmentmodels",
+        "sdkPath": "deere.equipment.getEquipmentmodels",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "equipment.getEquipmentmodels2": {
+      "updatedAt": "2026-04-29T05:17:44.885Z",
+      "cursor": "2026-04-29T05:17:44.885Z",
+      "fingerprint": "eab8547d46f6ef65db906f7a596891bed03942fd",
+      "requestContext": {
+        "operationKey": "equipment.getEquipmentmodels2",
+        "apiGroup": "equipment",
+        "operation": "getEquipmentmodels2",
+        "sdkPath": "deere.equipment.getEquipmentmodels2",
+        "authMode": "oauth",
+        "entityScope": "equipment",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "assets.list": {
+      "updatedAt": "2026-04-29T05:17:44.885Z",
+      "cursor": "2026-04-29T05:17:44.885Z",
+      "fingerprint": "e13c92a0b13132fbb72bb22f5940adf19ed03ef3",
+      "requestContext": {
+        "operationKey": "assets.list",
+        "apiGroup": "assets",
+        "operation": "list",
+        "sdkPath": "deere.assets.list",
+        "authMode": "oauth",
+        "entityScope": "asset",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "assets.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.885Z",
+      "cursor": "2026-04-29T05:17:44.885Z",
+      "fingerprint": "ecb7286fbe28957a97c64d834c755986303c69fa",
+      "requestContext": {
+        "operationKey": "assets.listAll",
+        "apiGroup": "assets",
+        "operation": "listAll",
+        "sdkPath": "deere.assets.listAll",
+        "authMode": "oauth",
+        "entityScope": "asset",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "assets.get": {
+      "updatedAt": "2026-04-29T05:17:44.886Z",
+      "cursor": "2026-04-29T05:17:44.886Z",
+      "fingerprint": "9b6a996403fada58f52f757d8ac7f4dcd6706ea8",
+      "requestContext": {
+        "operationKey": "assets.get",
+        "apiGroup": "assets",
+        "operation": "get",
+        "sdkPath": "deere.assets.get",
+        "authMode": "oauth",
+        "entityScope": "asset",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "assets.listLocations": {
+      "updatedAt": "2026-04-29T05:17:44.886Z",
+      "cursor": "2026-04-29T05:17:44.886Z",
+      "fingerprint": "815af53ef1982de20199b65a4a08264507d6e8b1",
+      "requestContext": {
+        "operationKey": "assets.listLocations",
+        "apiGroup": "assets",
+        "operation": "listLocations",
+        "sdkPath": "deere.assets.listLocations",
+        "authMode": "oauth",
+        "entityScope": "asset",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "assets.getAssetcatalog": {
+      "updatedAt": "2026-04-29T05:17:44.886Z",
+      "cursor": "2026-04-29T05:17:44.886Z",
+      "fingerprint": "c194ab4920dba671f8791f5eb589635d9dd086d9",
+      "requestContext": {
+        "operationKey": "assets.getAssetcatalog",
+        "apiGroup": "assets",
+        "operation": "getAssetcatalog",
+        "sdkPath": "deere.assets.getAssetcatalog",
+        "authMode": "oauth",
+        "entityScope": "asset",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "operators.list": {
+      "updatedAt": "2026-04-29T05:17:44.887Z",
+      "cursor": "2026-04-29T05:17:44.887Z",
+      "fingerprint": "bc35716b94f2663c5539b43ab8cd9c28153827fa",
+      "requestContext": {
+        "operationKey": "operators.list",
+        "apiGroup": "operators",
+        "operation": "list",
+        "sdkPath": "deere.operators.list",
+        "authMode": "oauth",
+        "entityScope": "operator",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "operators.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.887Z",
+      "cursor": "2026-04-29T05:17:44.887Z",
+      "fingerprint": "bc35716b94f2663c5539b43ab8cd9c28153827fa",
+      "requestContext": {
+        "operationKey": "operators.listAll",
+        "apiGroup": "operators",
+        "operation": "listAll",
+        "sdkPath": "deere.operators.listAll",
+        "authMode": "oauth",
+        "entityScope": "operator",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "operators.get": {
+      "updatedAt": "2026-04-29T05:17:44.888Z",
+      "cursor": "2026-04-29T05:17:44.888Z",
+      "fingerprint": "bc35716b94f2663c5539b43ab8cd9c28153827fa",
+      "requestContext": {
+        "operationKey": "operators.get",
+        "apiGroup": "operators",
+        "operation": "get",
+        "sdkPath": "deere.operators.get",
+        "authMode": "oauth",
+        "entityScope": "operator",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "partnerships.list": {
+      "updatedAt": "2026-04-29T05:17:44.888Z",
+      "cursor": "2026-04-29T05:17:44.888Z",
+      "fingerprint": "dee020b650c489f935999a8682968c3ab7a334ec",
+      "requestContext": {
+        "operationKey": "partnerships.list",
+        "apiGroup": "partnerships",
+        "operation": "list",
+        "sdkPath": "deere.partnerships.list",
+        "authMode": "oauth",
+        "entityScope": "partnership",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "partnerships.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.889Z",
+      "cursor": "2026-04-29T05:17:44.889Z",
+      "fingerprint": "f0bc7a7d2d425e05c73dfc5eb44825ad99e839fd",
+      "requestContext": {
+        "operationKey": "partnerships.listAll",
+        "apiGroup": "partnerships",
+        "operation": "listAll",
+        "sdkPath": "deere.partnerships.listAll",
+        "authMode": "oauth",
+        "entityScope": "partnership",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "partnerships.get": {
+      "updatedAt": "2026-04-29T05:17:44.889Z",
+      "cursor": "2026-04-29T05:17:44.889Z",
+      "fingerprint": "4224dafa01a6ff734b6c0dc1bad101109ba56207",
+      "requestContext": {
+        "operationKey": "partnerships.get",
+        "apiGroup": "partnerships",
+        "operation": "get",
+        "sdkPath": "deere.partnerships.get",
+        "authMode": "oauth",
+        "entityScope": "partnership",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "partnerships.listPermissions": {
+      "updatedAt": "2026-04-29T05:17:44.889Z",
+      "cursor": "2026-04-29T05:17:44.889Z",
+      "fingerprint": "4dd535ab30073b285530850e61dec72f9175ff53",
+      "requestContext": {
+        "operationKey": "partnerships.listPermissions",
+        "apiGroup": "partnerships",
+        "operation": "listPermissions",
+        "sdkPath": "deere.partnerships.listPermissions",
+        "authMode": "oauth",
+        "entityScope": "partnership",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "connectionManagement.list": {
+      "updatedAt": "2026-04-29T05:17:44.889Z",
+      "cursor": "2026-04-29T05:17:44.889Z",
+      "fingerprint": "fe0883e05245d368332b2a9b365db7855ebf54d9",
+      "requestContext": {
+        "operationKey": "connectionManagement.list",
+        "apiGroup": "connectionManagement",
+        "operation": "list",
+        "sdkPath": "deere.connectionManagement.list",
+        "authMode": "client_credentials",
+        "entityScope": "connection",
+        "requiredScopes": [],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "connectionManagement.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.890Z",
+      "cursor": "2026-04-29T05:17:44.890Z",
+      "fingerprint": "fa226ff3962fbb766eb0f9d93323fff4aca5b8ad",
+      "requestContext": {
+        "operationKey": "connectionManagement.listAll",
+        "apiGroup": "connectionManagement",
+        "operation": "listAll",
+        "sdkPath": "deere.connectionManagement.listAll",
+        "authMode": "client_credentials",
+        "entityScope": "connection",
+        "requiredScopes": [],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "webhook.list": {
+      "updatedAt": "2026-04-29T05:17:44.890Z",
+      "cursor": "2026-04-29T05:17:44.890Z",
+      "fingerprint": "66a710bfef05fa72d03c20f2e0a6de3782778647",
+      "requestContext": {
+        "operationKey": "webhook.list",
+        "apiGroup": "webhook",
+        "operation": "list",
+        "sdkPath": "deere.webhook.list",
+        "authMode": "oauth_or_client_app",
+        "entityScope": "webhook",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "webhook.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.890Z",
+      "cursor": "2026-04-29T05:17:44.890Z",
+      "fingerprint": "b0cbb7a4fb70f7e1d34dd98474ee66de5cf6df37",
+      "requestContext": {
+        "operationKey": "webhook.listAll",
+        "apiGroup": "webhook",
+        "operation": "listAll",
+        "sdkPath": "deere.webhook.listAll",
+        "authMode": "oauth_or_client_app",
+        "entityScope": "webhook",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "webhook.get": {
+      "updatedAt": "2026-04-29T05:17:44.891Z",
+      "cursor": "2026-04-29T05:17:44.891Z",
+      "fingerprint": "643a0348c0ec1734a8e52a3de284f867196a8221",
+      "requestContext": {
+        "operationKey": "webhook.get",
+        "apiGroup": "webhook",
+        "operation": "get",
+        "sdkPath": "deere.webhook.get",
+        "authMode": "oauth_or_client_app",
+        "entityScope": "webhook",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "notifications.get": {
+      "updatedAt": "2026-04-29T05:17:44.891Z",
+      "cursor": "2026-04-29T05:17:44.891Z",
+      "fingerprint": "c5266e01f3e284431ac6f0e51eb764a5f891fe79",
+      "requestContext": {
+        "operationKey": "notifications.get",
+        "apiGroup": "notifications",
+        "operation": "get",
+        "sdkPath": "deere.notifications.get",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "notifications.list": {
+      "updatedAt": "2026-04-29T05:17:44.891Z",
+      "cursor": "2026-04-29T05:17:44.891Z",
+      "fingerprint": "c478582396836b768d09137387688cd60ab3592b",
+      "requestContext": {
+        "operationKey": "notifications.list",
+        "apiGroup": "notifications",
+        "operation": "list",
+        "sdkPath": "deere.notifications.list",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "notifications.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.892Z",
+      "cursor": "2026-04-29T05:17:44.892Z",
+      "fingerprint": "612b282378ece2a67901d58e2de7655a9280a0fc",
+      "requestContext": {
+        "operationKey": "notifications.listAll",
+        "apiGroup": "notifications",
+        "operation": "listAll",
+        "sdkPath": "deere.notifications.listAll",
+        "authMode": "oauth",
+        "entityScope": "grower",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "files.list": {
+      "updatedAt": "2026-04-29T05:17:44.892Z",
+      "cursor": "2026-04-29T05:17:44.892Z",
+      "fingerprint": "835866f1b5892d7c73d4db2daea5f235145c6810",
+      "requestContext": {
+        "operationKey": "files.list",
+        "apiGroup": "files",
+        "operation": "list",
+        "sdkPath": "deere.files.list",
+        "authMode": "oauth",
+        "entityScope": "grower_or_farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "files.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.892Z",
+      "cursor": "2026-04-29T05:17:44.892Z",
+      "fingerprint": "498b6b87e8cb77450180d7317e6a49d3611c99e8",
+      "requestContext": {
+        "operationKey": "files.listAll",
+        "apiGroup": "files",
+        "operation": "listAll",
+        "sdkPath": "deere.files.listAll",
+        "authMode": "oauth",
+        "entityScope": "grower_or_farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "files.get": {
+      "updatedAt": "2026-04-29T05:17:44.893Z",
+      "cursor": "2026-04-29T05:17:44.893Z",
+      "fingerprint": "6c9f4e2aa79e1ef0ad9e3ed9fcd2cce6dc36e5bc",
+      "requestContext": {
+        "operationKey": "files.get",
+        "apiGroup": "files",
+        "operation": "get",
+        "sdkPath": "deere.files.get",
+        "authMode": "oauth",
+        "entityScope": "grower_or_farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "files.listFiles": {
+      "updatedAt": "2026-04-29T05:17:44.893Z",
+      "cursor": "2026-04-29T05:17:44.893Z",
+      "fingerprint": "5530126cd20e277d3d7bc5fe169dcc60f5db246a",
+      "requestContext": {
+        "operationKey": "files.listFiles",
+        "apiGroup": "files",
+        "operation": "listFiles",
+        "sdkPath": "deere.files.listFiles",
+        "authMode": "oauth",
+        "entityScope": "grower_or_farm_or_field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "machineLocations.get": {
+      "updatedAt": "2026-04-29T05:17:44.893Z",
+      "cursor": "2026-04-29T05:17:44.893Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineLocations.get",
+        "apiGroup": "machineLocations",
+        "operation": "get",
+        "sdkPath": "deere.machineLocations.get",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": null
+        }
+      }
+    },
+    "machineAlerts.list": {
+      "updatedAt": "2026-04-29T05:17:44.894Z",
+      "cursor": "2026-04-29T05:17:44.894Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineAlerts.list",
+        "apiGroup": "machineAlerts",
+        "operation": "list",
+        "sdkPath": "deere.machineAlerts.list",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineAlerts.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.894Z",
+      "cursor": "2026-04-29T05:17:44.894Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineAlerts.listAll",
+        "apiGroup": "machineAlerts",
+        "operation": "listAll",
+        "sdkPath": "deere.machineAlerts.listAll",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineEngineHours.list": {
+      "updatedAt": "2026-04-29T05:17:44.894Z",
+      "cursor": "2026-04-29T05:17:44.894Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineEngineHours.list",
+        "apiGroup": "machineEngineHours",
+        "operation": "list",
+        "sdkPath": "deere.machineEngineHours.list",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineEngineHours.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.895Z",
+      "cursor": "2026-04-29T05:17:44.895Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineEngineHours.listAll",
+        "apiGroup": "machineEngineHours",
+        "operation": "listAll",
+        "sdkPath": "deere.machineEngineHours.listAll",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineHoursOfOperation.list": {
+      "updatedAt": "2026-04-29T05:17:44.895Z",
+      "cursor": "2026-04-29T05:17:44.895Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineHoursOfOperation.list",
+        "apiGroup": "machineHoursOfOperation",
+        "operation": "list",
+        "sdkPath": "deere.machineHoursOfOperation.list",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineHoursOfOperation.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.896Z",
+      "cursor": "2026-04-29T05:17:44.896Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineHoursOfOperation.listAll",
+        "apiGroup": "machineHoursOfOperation",
+        "operation": "listAll",
+        "sdkPath": "deere.machineHoursOfOperation.listAll",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "machineDeviceStateReports.get": {
+      "updatedAt": "2026-04-29T05:17:44.896Z",
+      "cursor": "2026-04-29T05:17:44.896Z",
+      "fingerprint": "3240d6c921a1ba6940829fb81058524928abbaaf",
+      "requestContext": {
+        "operationKey": "machineDeviceStateReports.get",
+        "apiGroup": "machineDeviceStateReports",
+        "operation": "get",
+        "sdkPath": "deere.machineDeviceStateReports.get",
+        "authMode": "oauth",
+        "entityScope": "machine",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "harvestId.list": {
+      "updatedAt": "2026-04-29T05:17:44.896Z",
+      "cursor": "2026-04-29T05:17:44.896Z",
+      "fingerprint": "2dae5add08282bfe1ba4e2d97af1caeafae2e91e",
+      "requestContext": {
+        "operationKey": "harvestId.list",
+        "apiGroup": "harvestId",
+        "operation": "list",
+        "sdkPath": "deere.harvestId.list",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "harvestId.listAll": {
+      "updatedAt": "2026-04-29T05:17:44.897Z",
+      "cursor": "2026-04-29T05:17:44.897Z",
+      "fingerprint": "d58af19f810ce215668c3aafba204d32e5f57adb",
+      "requestContext": {
+        "operationKey": "harvestId.listAll",
+        "apiGroup": "harvestId",
+        "operation": "listAll",
+        "sdkPath": "deere.harvestId.listAll",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "harvestId.get": {
+      "updatedAt": "2026-04-29T05:17:44.897Z",
+      "cursor": "2026-04-29T05:17:44.897Z",
+      "fingerprint": "8ef9f6b220f8b5ef50eeaf1b5459178408393067",
+      "requestContext": {
+        "operationKey": "harvestId.get",
+        "apiGroup": "harvestId",
+        "operation": "get",
+        "sdkPath": "deere.harvestId.get",
+        "authMode": "oauth",
+        "entityScope": "field",
+        "requiredScopes": [
+          "ag1"
+        ],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    },
+    "aemp.get": {
+      "updatedAt": "2026-04-29T05:17:44.897Z",
+      "cursor": "2026-04-29T05:17:44.897Z",
+      "fingerprint": "1eca89baf9971b0d7adbca9245a8f892e5f25c85",
+      "requestContext": {
+        "operationKey": "aemp.get",
+        "apiGroup": "aemp",
+        "operation": "get",
+        "sdkPath": "deere.aemp.get",
+        "authMode": "special",
+        "entityScope": "grower_or_equipment",
+        "requiredScopes": [],
+        "orgId": "mock-org-1",
+        "growerSlug": "evidence-grower",
+        "mock": true,
+        "force": false,
+        "since": null,
+        "scope": {
+          "farmId": "mock-farm-1",
+          "fieldId": "mock-field-1",
+          "equipmentId": "mock-equipment-1",
+          "machineId": "mock-machine-1"
+        }
+      }
+    }
+  }
+}

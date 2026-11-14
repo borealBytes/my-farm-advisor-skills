@@ -17,7 +17,14 @@
 | Area | Boundary property `area_acres` | Converted to hectares; original value is not redistributed |
 | Basemap | Esri World Imagery (`server.arcgisonline.com`) | © Esri, Maxar, Earthstar Geographics, and the GIS User Community; attribution rendered in the map |
 | Labels | Esri World Boundaries and Places reference tiles | © Esri; optional overlay |
-| Street fallback | OpenStreetMap standard tiles | © OpenStreetMap contributors, ODbL |
+| Street map | Esri World Street Map (`server.arcgisonline.com`) | © Esri; optional base layer, off by default |
+
+Tile services were chosen for policy compliance, not just availability:
+`tile.openstreetmap.org` is not used because OSM's tile usage policy forbids embedding
+its volunteer-run tiles in a distributed page (and `file://` pages cannot supply the
+required identifying `Referer`), which returns `403 Access blocked` interstitials.
+OpenStreetMap still appears in this skill as the **source of the field polygons**, which
+is ODbL data, not tiles.
 
 ## Coordinate and measurement decisions
 

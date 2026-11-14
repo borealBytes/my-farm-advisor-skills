@@ -368,6 +368,11 @@ def build_grower_payload(grower_dir: Path) -> dict[str, Any]:
     }
 
 
+# Basemap tiles are Esri's keyless ArcGIS endpoints (World Imagery, World Street Map,
+# and the Boundaries and Places reference layer). tile.openstreetmap.org is deliberately
+# NOT used: OSM's tile usage policy forbids embedding its volunteer-run tiles in a
+# distributed page, and a file:// page cannot send the identifying Referer the policy
+# requires, so those tiles are served as "403 Access blocked" interstitials.
 _HTML_TEMPLATE = r"""<!DOCTYPE html>
 <html lang="en" data-generator="__GENERATOR__" data-generator-version="__VERSION__">
 <head>
@@ -444,7 +449,7 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
     <div id="field-list"></div>
     <footer>
       <button id="fit-all" type="button">Fit all fields</button>
-      <p class="hint">Click a field on the map or in this list for grower, farm, and field details. Satellite imagery loads from Esri; area is shown in hectares.</p>
+      <p class="hint">Click a field on the map or in this list for grower, farm, and field details. Basemap imagery loads from Esri; area is shown in hectares.</p>
     </footer>
   </aside>
   <main id="map-wrap">
@@ -498,10 +503,15 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
       attribution: 'Imagery &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics, and the GIS User Community'
     }
   );
-  var streets = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-  });
+  // Street reference comes from Esri, the same keyless host as the imagery.
+  var streets = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    {
+      maxZoom: 19,
+      maxNativeZoom: 19,
+      attribution: 'Street map &copy; <a href="https://www.esri.com/">Esri</a>'
+    }
+  );
   var labels = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
     {maxZoom: 19, attribution: 'Labels &copy; <a href="https://www.esri.com/">Esri</a>'}
@@ -510,8 +520,25 @@ body{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helveti
   imagery.addTo(map);
   labels.addTo(map);
   var locators = L.layerGroup().addTo(map);
+  // The Esri street tiles carry their own labels, so the separate place-label
+  // overlay double-prints every town name when both are shown. Hide it on the
+  // street base and restore the user's previous choice when returning to imagery.
+  // Defer by a tick: Leaflet's layers control suppresses its checkbox refresh while
+  // it is still handling the radio click, so a synchronous toggle leaves the
+  // "Place labels" box checked even though the layer is gone.
+  var labelsWanted = true;
+  map.on('baselayerchange', function (event) {
+    setTimeout(function () {
+      if (event.layer === streets) {
+        labelsWanted = map.hasLayer(labels);
+        if (labelsWanted) { map.removeLayer(labels); }
+      } else if (labelsWanted && !map.hasLayer(labels)) {
+        labels.addTo(map);
+      }
+    }, 0);
+  });
   L.control.layers(
-    {'Satellite (Esri World Imagery)': imagery, 'Street map (OpenStreetMap)': streets},
+    {'Satellite (Esri World Imagery)': imagery, 'Street map (Esri World Street Map)': streets},
     {'Place labels': labels, 'Field locators': locators},
     {collapsed: true}
   ).addTo(map);

@@ -61,10 +61,19 @@ Each feature property set is exactly:
 
 - Default base layer: Esri World Imagery
   (`.../World_Imagery/MapServer/tile/{z}/{y}/{x}`), `maxZoom: 19`.
-- Overlay: Esri World Boundaries and Places labels, on by default.
-- Secondary base: OpenStreetMap standard tiles, off by default.
+- Overlay: Esri World Boundaries and Places labels, on by default. The street base
+  already carries labels, so the overlay is removed while street is selected (and
+  restored, if the user had it on, when the satellite base returns) to avoid printing
+  every town name twice.
+- Secondary base: Esri World Street Map
+  (`.../World_Street_Map/MapServer/tile/{z}/{y}/{x}`), off by default.
 - Attribution is mandatory and rendered by Leaflet; do not remove it.
 - Tiles are fetched at view time. Never inline tile images or raster products.
+- **Do not use `tile.openstreetmap.org`.** OSM's tile usage policy forbids embedding
+  their volunteer-run tiles in a distributed page such as this one, and a `file://`
+  page cannot send the identifying `Referer` the policy requires; requests come back
+  as `403 Access blocked` interstitials. Every tile service used here must be either
+  keyless and permitted for this use (Esri, as above) or explicitly licensed.
 
 ## Size budget
 

@@ -5,7 +5,7 @@ polygons the data pipeline already downloaded.
 
 - **Input:** installed runtime tree — `growers/<grower>/farms/<farm>/boundary/field_boundaries.geojson`
 - **Output:** `growers/<grower>/derived/maps/<grower>_fields_map.html` plus a small manifest
-- **Basemap:** Esri World Imagery tiles (online), optional place labels and OpenStreetMap streets
+- **Basemap:** Esri World Imagery and Esri World Street Map tiles (online), plus optional place labels
 - **Areas:** hectares, converted from the boundary file's `area_acres`
 
 ## Why it exists
@@ -55,8 +55,10 @@ the low megabytes, and no raster is ever embedded.
 
 ## Map behavior
 
-- Satellite imagery is the default base layer; place labels are on, streets are a
-  toggle. Zoom, pan, scale bar, and layer control are standard Leaflet.
+- Satellite imagery is the default base layer; place labels are on by default, and a
+  street map from the same Esri host is a toggle. The street tiles carry their own
+  labels, so the place-label overlay hides itself on that base and comes back when you
+  return to imagery. Zoom, pan, scale bar, and layer control are standard Leaflet.
 - Every field for the grower is drawn, colored per farm, with a legend in the sidebar.
 - Constant-size locator dots mark each field centroid, so a grower with dispersed fields
   still sees every field in the fit-all view. Dots are toggleable in the layer control.
@@ -104,9 +106,14 @@ spherically and converts m² to hectares, recording nothing extra.
 ## Limits
 
 - This is a viewer, not a GIS editor. It does not create or modify boundaries.
-- Public Esri World Imagery tiles are used with attribution for demo and operational
-  review. A production deployment that needs guaranteed tile availability or
-  contractual terms should supply its own licensed tile service.
+- Public Esri basemap tiles (World Imagery, World Street Map, Boundaries and Places) are
+  used with attribution for demo and operational review. A production deployment that
+  needs guaranteed tile availability or contractual terms should supply its own licensed
+  tile service.
+- `tile.openstreetmap.org` is deliberately not used: OSM's tile usage policy forbids
+  embedding its volunteer-run tiles in a distributed page, and requests are returned as
+  `403 Access blocked` interstitials. OpenStreetMap is the source of the field polygons
+  (ODbL), not of the basemap.
 - Field boundaries retain their source license (OpenStreetMap/Overpass is ODbL and
   needs attribution; the map footer and README record it).
 - Acres from the source file are the pipeline's figure of record; this skill does not

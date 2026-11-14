@@ -26,6 +26,10 @@ shape, popup fields, or basemap behavior. If routing context is needed, read
   rasters, no base64 tiles, no per-year data bundles.
 - **Pin browser dependencies.** Leaflet stays version-pinned from a CDN. Do not move
   the map to an unpinned `latest` URL.
+- **Tile providers must permit this use.** Never point a layer at
+  `tile.openstreetmap.org`: OSM's tile policy forbids embedding its volunteer-run tiles,
+  and browsers get `403 Access blocked` interstitials instead of imagery. Keep basemaps
+  on Esri's keyless ArcGIS endpoints or an explicitly licensed service, with attribution.
 - **Stay standard-library only.** The generator must import nothing outside the Python
   standard library so runtime numpy/pandas pins are never at risk.
 - **Write only under the runtime tree.** HTML and manifests belong in

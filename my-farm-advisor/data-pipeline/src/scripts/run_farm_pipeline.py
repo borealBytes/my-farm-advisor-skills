@@ -162,6 +162,51 @@ def _run(
     return result.returncode == 0
 
 
+def _install_exit_sink(path: str) -> None:
+    """Stratum four — the run carries its own birth certificate (2026-11-14).
+
+    A leg that dies without a verdict leaves a ``legs_running`` fossil for the
+    census to interpret, and interpretation is what the job wall drowned in all
+    night (jobs nine, eleven, twelve — three dated corpses summoning this file).
+    When ``--exit-record`` names a path, this process records its terminal state
+    atomically (tmp + os.replace) at every exit it can touch: normal, error, and
+    SIGTERM/SIGINT (converted to SystemExit so the sink runs — enable-ceremony
+    kills are SIGTERM, not SIGKILL). SIGKILL and power loss stay honest
+    absences: the sibling record plus no live pid is the tier-1 inference, and
+    only a certified killer may claim that shortcut. The sink never masks the
+    run's own verdict — a failed write here is silent by design.
+    """
+    import signal
+
+    holder = {"code": None}
+    globals()["_EXIT_SINK"] = holder
+
+    def _write(code: int) -> None:
+        try:
+            p = Path(path)
+            tmp = p.with_name(p.name + ".tmp")
+            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(
+                json.dumps({
+                    "exit_code": int(code),
+                    "terminal": "done" if int(code) == 0 else "failed",
+                    "at": datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z"),
+                }) + "\n",
+                encoding="utf-8",
+            )
+            os.replace(tmp, p)
+        except OSError:
+            pass
+
+    def _sig(signum, _frame):
+        holder["code"] = 128 + signum
+        raise SystemExit(128 + signum)
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, _sig)
+    globals()["_EXIT_SINK_WRITE"] = _write
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Farm intelligence reporting pipeline")
     parser.add_argument(
@@ -241,11 +286,20 @@ def main() -> None:
     )
     parser.add_argument("--force", action="store_true", help="Force rerun all steps")
     parser.add_argument(
+        "--exit-record",
+        default=None,
+        help="Write {exit_code, terminal, at} here at every touchable exit "
+             "(stratum four: the run testifies to its own verdict; the plugin "
+             "job store keeps the record beside the spill it is the hash of).",
+    )
+    parser.add_argument(
         "--structure-test",
         action="store_true",
         help="Create and verify canonical data tree, then exit",
     )
     args = parser.parse_args()
+    if getattr(args, "exit_record", None):
+        _install_exit_sink(args.exit_record)
     if args.weather_start_year > args.weather_end_year:
         print("ERROR: --weather-start-year must be <= --weather-end-year")
         sys.exit(1)
@@ -405,4 +459,20 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    # Stratum four exit protocol: the code is recorded where it is actually
+    # visible — SystemExit carries it, propagation does not (an atexit hook
+    # sees exitcode 0 for every sys.exit(1); measured, not assumed).
+    try:
+        main()
+        _EXIT_SINK = {"code": 0}
+    except SystemExit as _e:
+        _c = _e.code
+        _EXIT_SINK = {"code": 0 if _c is None else (int(_c) if isinstance(_c, int) else 1)}
+        raise
+    except BaseException:
+        _EXIT_SINK = {"code": 1}
+        raise
+    finally:
+        _w = globals().get("_EXIT_SINK_WRITE")
+        if _w is not None:
+            _w(_EXIT_SINK.get("code", 1))

@@ -584,7 +584,8 @@ def main(argv=None) -> int:
     # files, tests) skip the check.
     geo_path = Path(args.geojson)
     stem = geo_path.stem
-    if len(stem) == 64 and all(c in "0123456789abcdef" for c in stem.lower()):
+    spill_hex_named = len(stem) == 64 and all(c in "0123456789abcdef" for c in stem.lower())
+    if spill_hex_named:
         got = hashlib.sha256(geo_path.read_bytes()).hexdigest()
         if got != stem.lower():
             return _fail(
@@ -847,6 +848,14 @@ def main(argv=None) -> int:
         _out(f"checkpoint=legs_running job_id={sha} handoff=off")
         return 0
     command = _pipeline_command(scripts_dir, grower_slug, farm_slug, boundaries_path)
+    if spill_hex_named:
+        # Stratum four (2026-11-14): a 64-hex spill IS a job id (the plugin's
+        # boundary door names files by content hash and the self-check at the
+        # door proved it); the detached run therefore carries --exit-record set
+        # to the sibling .exit path, so the job store gains a terminal verdict
+        # the moment the run touches any exit. Hand-written boundaries (non-hex
+        # names) run un-witnessed, as before.
+        command += ["--exit-record", str(geo_path.with_suffix(".exit"))]
     log_path = farm_logs_dir(grower_slug, farm_slug) / f"user_upload_handoff_{sha[:12]}.log"
     log_path.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()

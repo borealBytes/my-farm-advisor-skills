@@ -7,7 +7,11 @@ tqdm>=4.66
 
 # Geospatial dependencies
 geopandas>=0.14
-fiona>=1.9
+# pyogrio replaces fiona as the vector engine (2026-11-14): fiona needs
+# system libgdal and ships no cp314 wheel; pyogrio is wheels-only, is
+# geopandas' recommended IO engine, and the gauntlet rig installed it on
+# the first try where fiona's sdist build died.
+pyogrio>=0.8
 pyproj>=3.6
 shapely>=2.0
 rasterio>=1.3

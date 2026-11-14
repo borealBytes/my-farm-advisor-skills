@@ -13,7 +13,6 @@ import raster_rules as _rrw
 from rasterio.vrt import WarpedVRT
 from rasterio.windows import from_bounds
 from rasterio.enums import Resampling
-import fiona
 import pyproj
 import geopandas as gpd
 from shapely.geometry import shape
@@ -197,9 +196,8 @@ def render_year_series(farm, field, years, season, fname, title):
                        f"{sorted(run['files'])}")
     n = len(years)
     fig, axes = plt.subplots(1, n, figsize=(4.6 * n, 5.4), squeeze=False)
-    with fiona.open(os.path.join(ROOT, farm, "fields", field, "boundary",
-                                 "field_boundary.geojson")) as src:
-        geom = shape(next(iter(src))["geometry"])
+    geom = gpd.read_file(os.path.join(ROOT, farm, "fields", field, "boundary",
+                                      "field_boundary.geojson")).geometry.iloc[0]
     legend_seen = {}
     _segs_by_ax: dict[int, tuple] = {}
     frame = _field_frame_for(geom, 5.4, 4.6)
@@ -382,9 +380,8 @@ def class_panel(ax, tif, kind, field_geom=None, frame=None, legend=True):
 def render(farm, field, season, scene_month, title, fname, extra_note=""):
     run = find_run(farm, field, season)
     fdir = os.path.join(ROOT, farm)
-    with fiona.open(os.path.join(fdir, "fields", field, "boundary",
-                                 "field_boundary.geojson")) as src:
-        geom = shape(next(iter(src))["geometry"])
+    geom = gpd.read_file(os.path.join(fdir, "fields", field, "boundary",
+                                      "field_boundary.geojson")).geometry.iloc[0]
     epsg = run["epsg"]
     tfm = pyproj.Transformer.from_crs("EPSG:4326", f"EPSG:{epsg}",
                                       always_xy=True)
@@ -496,16 +493,14 @@ def render_rdm_overlay(farm, field, year, season, ref_geojson, fname, title,
     the default model cannot (e.g. sugarcane) and labels parcels in years the
     optical time series cannot see through clouds.
     """
-    import fiona as _fiona
     fig, axes = plt.subplots(1, 2, figsize=(11.6, 5.2), squeeze=False)
     ax_l, ax_r = axes[0]
     run = find_run(farm, field, season, year=year)
     rel = run["files"].get(f"croptype_classification:{season}",
                            run["files"].get("croptype_classification"))["path"]
     tif = rel if os.path.isabs(rel) else os.path.join(ROOT, farm, rel)
-    with _fiona.open(os.path.join(ROOT, farm, "fields", field, "boundary",
-                                  "field_boundary.geojson")) as src_:
-        geom = shape(next(iter(src_))["geometry"])
+    geom = gpd.read_file(os.path.join(ROOT, farm, "fields", field, "boundary",
+                                      "field_boundary.geojson")).geometry.iloc[0]
     frame = _field_frame_for(geom, 5.2, 5.8)
     _hist = class_panel(ax_l, tif, "crop", frame=frame, legend=False)
     if ax_l.get_legend():

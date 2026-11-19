@@ -164,6 +164,49 @@ def _write_text(path: Path, text: str, *, overwrite: bool = True) -> None:
     path.write_text(text, encoding="utf-8")
 
 
+def _merge_metadata(path: Path, defaults: dict, *, refresh: tuple[str, ...] = ()) -> None:
+    """Write canonical metadata without discarding values a user already set.
+
+    Every ingest step calls this, so an unconditional overwrite would relabel an
+    existing grower or farm on each run. Stored non-empty values win; ``refresh``
+    names keys that boundary-derived data is allowed to correct.
+    """
+    payload: dict = {key: value for key, value in defaults.items() if value not in (None, "")}
+    stored: dict = {}
+    if path.exists():
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+        if isinstance(existing, dict):
+            stored = existing
+    for key, value in stored.items():
+        if value in (None, ""):
+            continue
+        # A boundary-derived default wins over the stored value for `refresh`
+        # keys; everything else the user set is kept as-is and in place.
+        if key in refresh and key in defaults:
+            continue
+        payload[key] = value
+    _write_json(path, payload)
+
+
+def _boundary_state_code(boundary_path: Path) -> str | None:
+    """Return the two-letter state code carried by a farm boundary, if any."""
+    if not boundary_path.exists():
+        return None
+    try:
+        payload = json.loads(boundary_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    for feature in payload.get("features", []):
+        properties = feature.get("properties") or {}
+        code = str(properties.get("state") or "").strip()
+        if len(code) == 2 and code.isalpha():
+            return code.upper()
+    return None
+
+
 def ensure_canonical_field_artifacts(
     field_slug: str, grower_slug: str = DEFAULT_GROWER, farm_slug: str = DEFAULT_FARM
 ) -> None:
@@ -387,7 +430,7 @@ def ensure_canonical_data_tree(
     grower.mkdir(parents=True, exist_ok=True)
     (grower / "manifests").mkdir(parents=True, exist_ok=True)
     (grower / "logs").mkdir(parents=True, exist_ok=True)
-    _write_json(
+    _merge_metadata(
         grower / "grower.json",
         {
             "grower_slug": grower_slug,
@@ -406,18 +449,20 @@ def ensure_canonical_data_tree(
     (farm / "derived" / "summaries").mkdir(parents=True, exist_ok=True)
     (farm / "derived" / "dashboards").mkdir(parents=True, exist_ok=True)
     (farm / "derived" / "tables").mkdir(parents=True, exist_ok=True)
-    _write_json(
-        farm / "farm.json",
-        {
-            "grower_slug": grower_slug,
-            "farm_slug": farm_slug,
-            "display_name": farm_name,
-            "state": "IA",
-            "country": "US",
-            "default_crs": "EPSG:4326",
-            "notes": "Canonical farm metadata",
-        },
-    )
+    farm_metadata = {
+        "grower_slug": grower_slug,
+        "farm_slug": farm_slug,
+        "display_name": farm_name,
+        "country": "US",
+        "default_crs": "EPSG:4326",
+        "notes": "Canonical farm metadata",
+    }
+    state_code = _boundary_state_code(farm / "boundary" / "field_boundaries.geojson")
+    if state_code:
+        farm_metadata["state"] = state_code
+    # `state` follows the boundary when it carries one; other keys are the
+    # user's, and a later ingest must not reset them to defaults.
+    _merge_metadata(farm / "farm.json", farm_metadata, refresh=("state",))
     _write_text(farm / "logs" / "pipeline_runs.jsonl", "", overwrite=False)
 
     slugs = field_slugs_from_inventory(inventory_path=inventory_path)

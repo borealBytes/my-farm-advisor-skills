@@ -266,6 +266,13 @@ figure:target .close {
 }
 figure:target figcaption { max-width: 820px; margin: 16px auto 0; }
 figcaption { margin-top: 10px; font-size: .87rem; color: #3c4752; }
+figcaption .figid { font-size: .78rem; margin: 0 0 4px; color: #3c4752; }
+figcaption .figid b {
+  color: var(--green);
+  letter-spacing: .07em;
+  text-transform: uppercase;
+  margin-right: 2px;
+}
 figcaption .q { font-weight: 600; color: var(--ink); margin: 0 0 5px; }
 figcaption .q span {
   text-transform: uppercase; letter-spacing: .1em; font-size: .66rem;
@@ -424,15 +431,19 @@ def min_cdl_pixels(manifest: dict, runtime: Path) -> int | None:
 
 
 def parse_caption(path: Path) -> dict:
-    fields = {"title": path.stem, "question": "", "story": "", "caveat": "",
-              "notes": [], "inputs": []}
+    fields = {"id": "", "title": path.stem, "question": "", "story": "",
+              "caveat": "", "notes": [], "inputs": []}
     mode = None
     for raw in path.read_text(encoding="utf-8").splitlines():
         line = raw.strip()
         if not line:
             continue
         if line.startswith("# "):
-            fields["title"] = line[2:].strip()
+            heading = line[2:].strip()
+            if " — " in heading:
+                fields["id"], fields["title"] = heading.split(" — ", 1)
+            else:
+                fields["title"] = heading
             continue
         if line.startswith("**Question:**"):
             fields["question"] = line.split("**Question:**", 1)[1].strip()
@@ -490,6 +501,7 @@ def render_figure(
   </a>
   <a class="close" href="#{close_anchor}">Close</a>
   <figcaption>
+    <p class="figid"><b>{html.escape(caption['id'])}</b>{" · " + html.escape(caption['title']) if caption['title'] else ""}</p>
     <p class="q"><span>Question</span>{html.escape(caption['question'])}</p>
     <p>{html.escape(caption['story'])}</p>
     <p class="caveat"><b>Caveat</b>{html.escape(caption['caveat'])}</p>
@@ -760,9 +772,9 @@ def build(runtime: Path, out_path: Path) -> None:
 
   <h3>1.3 Weather is a grower and year covariate — not a field one</h3>
   <p>
-    Growing-season heat is mostly a grower property: {fmt(gdd_between)}% of GDD
+    Growing-season heat is mostly a grower property: {gdd_between:.1f}% of GDD
     variance sits between growers. Precipitation is mostly year-to-year:
-    {fmt(precip_year)}% of its variance sits between years within a grower, with a
+    {precip_year:.1f}% of its variance sits between years within a grower, with a
     consistent grower offset. In both cases only {within_text}
     of the variance sits within a grower-year, because fields share NASA POWER
     grid cells. The map in section 4 shows the same thing visually: within a
@@ -782,10 +794,12 @@ def build(runtime: Path, out_path: Path) -> None:
     Every row below is an existing data-pipeline output. The EDA reads it, never
     modifies it, and never opens a soil table.
   </p>
+  <h3>D1 — Dataset snapshot</h3>
   {summary_table}
   <p class="table-note">
     NASA POWER grid cells: {cell_text}. Seasonal means are April–September.
-    Software: {html.escape(version_text)}.
+    Software: {html.escape(version_text)}. D1 and D2 are derived for this report;
+    A1–A3 are the subskill's analysis tables.
   </p>
 </section>
 
@@ -837,6 +851,7 @@ python3 build_report.py</code></pre>
     One row per field: geometry in EPSG:5070, five-year rotation summary,
     CDL coverage, and seasonal weather means.
   </p>
+  <h3>D2 — Field metrics</h3>
   {appendix}
 </section>
 

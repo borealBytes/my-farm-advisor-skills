@@ -60,3 +60,11 @@ report-generation code. Regenerating the report does not change the skill.
 OpenStreetMap contributors (ODbL 1.0) · USDA NASS CDL and Crop Sequence
 Boundaries (public domain) · NASA POWER (public). Figures contain no personal or
 proprietary farm data.
+
+## Labels and IDs
+
+Every chart carries both axis labels. Figure and map captions show the subskill's
+catalog ID (`F1`–`F6`, `M1`–`M3`) taken from the caption sidecar's title line, and
+the three analysis tables keep their `A1`–`A3` headings. The two tables derived
+for this report alone — the dataset snapshot and the field appendix — are `D1`
+and `D2`; the `D` prefix marks report-derived content, not a subskill output.

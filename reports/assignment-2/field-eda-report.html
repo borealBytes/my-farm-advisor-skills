@@ -538,8 +538,13 @@ footer {
     the between-source comparison rather than attributing the effect to one.</li>
     <li><b>Small n.</b> Thirty fields and fifteen grower-years support effect
     sizes and intervals, not population claims about “growers” in general.</li>
-    <li><b>Five CDL years only.</b> No 2024–2025, so no completed rotation cycle
-    is guaranteed and the pipeline's predicted next crop cannot be tested here.</li>
+    <li><b>Five CDL years only, 2019–2023.</b> That is the pipeline's pinned CDL
+    window, not a gap in the analysis: the program's external-data rule requires
+    sources public by 1 February 2026, and
+    <code>data-pipeline/src/scripts/ingest/download_cdl.py</code> pins
+    <code>DEFAULT_CDL_LATEST_YEAR = 2023</code> to stay inside it. No 2024–2025,
+    so no completed rotation cycle is guaranteed and the pipeline's predicted
+    next crop cannot be tested here.</li>
   </ul>
 </section>
 

@@ -58,7 +58,7 @@ def _figure_gdd(analysis: Analysis) -> Path:
                 linewidth=2.6, alpha=0.35, zorder=2)
         ax.set_xticks([tick for tick, _ in SEASON_TICKS])
         ax.set_xticklabels([label for _, label in SEASON_TICKS])
-        ax.set_xlabel("growing season")
+        ax.set_xlabel("Growing season")
         ax.grid(axis="x", visible=False)
         style.panel_title(
             ax,
@@ -66,7 +66,7 @@ def _figure_gdd(analysis: Analysis) -> Path:
             f"mean season total {mean_curve.iloc[-1]:,.0f} GDD",
         )
 
-    axes[0].set_ylabel("cumulative GDD (\u00b0C-days, base 10)")
+    axes[0].set_ylabel("Cumulative GDD (\u00b0C-days, base 10)")
     handles = [
         plt.Line2D([], [], color=colour, linewidth=1.6, label=str(year))
         for colour, year in zip(colours, years)
@@ -153,7 +153,7 @@ def _figure_precip(analysis: Analysis) -> Path:
         )
         ax.set_xticks(np.arange(len(months)))
         ax.set_xticklabels(names)
-        ax.set_xlabel("month")
+        ax.set_xlabel("Month")
         ax.grid(axis="x", visible=False)
         total = float(subset.groupby("year")["precip_mm"].sum().mean())
         style.panel_title(
@@ -162,7 +162,7 @@ def _figure_precip(analysis: Analysis) -> Path:
             f"mean season total {total:,.0f} mm",
         )
 
-    axes[0].set_ylabel("monthly precipitation (mm)")
+    axes[0].set_ylabel("Monthly precipitation (mm)")
     handles = [
         plt.Rectangle((0, 0), 1, 1, facecolor=style.MUTED, alpha=0.7,
                       label="monthly mean, 5 years"),

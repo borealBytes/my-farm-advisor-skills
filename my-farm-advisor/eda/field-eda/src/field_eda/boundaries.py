@@ -82,7 +82,8 @@ def _figure_area(analysis: Analysis, frame: pd.DataFrame) -> Path:
     ax.set_yticks(range(len(growers)))
     ax.set_yticklabels(labels)
     ax.set_xscale("log")
-    ax.set_xlabel("field area (ha, log scale)")
+    ax.set_xlabel("Field area (ha, log scale)")
+    ax.set_ylabel("Grower")
     ax.set_title("Field size: two populations in Illinois and Iowa, one in Nebraska", loc="left")
     ax.set_ylim(-0.65, len(growers) - 0.35)
 
@@ -166,13 +167,13 @@ def _figure_shape(analysis: Analysis, frame: pd.DataFrame) -> Path:
     ax.text(1.15, 1.007, "circle  1.0", fontsize=7.4, color=style.MUTED)
 
     ax.set_xscale("log")
-    ax.set_xlabel("field area (ha, log scale)")
-    ax.set_ylabel(r"compactness  $4\pi A / P^2$")
+    ax.set_xlabel("Field area (ha, log scale)")
+    ax.set_ylabel(r"Compactness  $4\pi A / P^2$")
     ax.set_ylim(0.0, 1.08)
     ax.set_title("Shape is set by boundary provenance first, size second", loc="left")
 
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, loc="lower right", ncol=2, handletextpad=0.5,
+    ax.legend(handles, labels, loc="lower left", ncol=2, handletextpad=0.5,
               columnspacing=1.0, fontsize=7.4)
 
     style.footnote(

@@ -74,7 +74,7 @@ def _figure_composition(analysis: Analysis) -> Path:
         ax.set_yticks(np.arange(len(subset)))
         ax.set_yticklabels(subset.index.get_level_values("field_id"), fontsize=7.2)
         ax.set_xlim(0, 100)
-        ax.set_xlabel("share of classified area (%)")
+        ax.set_xlabel("Share of classified area (%)")
         ax.grid(axis="x", color=style.GRID, linewidth=0.6)
         ax.grid(axis="y", visible=False)
         style.panel_title(
@@ -85,6 +85,7 @@ def _figure_composition(analysis: Analysis) -> Path:
 
     for ax in axes:
         ax.set_ylim(-0.6, y_max - 0.4)
+    axes[0].set_ylabel("Field")
 
     handles = style.crop_legend(crops)
     fig.legend(handles=handles, loc="lower center", ncol=min(len(crops), 5),
@@ -175,6 +176,7 @@ def _figure_rotation(analysis: Analysis) -> Path:
         ax.set_xticklabels([str(year) for year in years], fontsize=8)
         ax.set_yticks(range(len(grid)))
         ax.set_yticklabels(grid.index, fontsize=7.2)
+        ax.set_xlabel("Year", labelpad=6)
         ax.set_xticks(np.arange(-0.5, len(years), 1), minor=True)
         ax.set_yticks(np.arange(-0.5, len(grid), 1), minor=True)
         ax.grid(which="minor", color="white", linewidth=1.4)
@@ -188,6 +190,7 @@ def _figure_rotation(analysis: Analysis) -> Path:
 
     for ax in axes:
         ax.set_ylim(y_max - 0.5, -0.5)
+    axes[0].set_ylabel("Field")
 
     handles = style.crop_legend(crops)
     fig.legend(handles=handles, loc="lower center", ncol=min(len(crops), 5),

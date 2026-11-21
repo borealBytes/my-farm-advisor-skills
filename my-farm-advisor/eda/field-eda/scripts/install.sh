@@ -41,9 +41,11 @@ for relative in \
   src/field_eda/style.py \
   src/field_eda/maps.py \
   src/field_eda/context.py \
+  src/field_eda/maturity.py \
   src/field_eda/boundaries.py \
   src/field_eda/cdl.py \
   src/field_eda/weather.py \
+  src/field_eda/signals.py \
   scripts/run_field_eda.py; do
   if ! cmp -s "${SKILL_DIR}/${relative}" "${DEST}/${relative}"; then
     printf 'ERROR: installed copy differs from source: %s\n' "${relative}" >&2

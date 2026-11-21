@@ -1,8 +1,8 @@
 # Field EDA
 
 Cross-grower, field-level exploratory analysis over an installed My Farm Advisor
-runtime. Reads the pipeline's own boundary, CDL, and weather outputs, and writes
-static figures and tables. No soil, no report, no dashboard.
+runtime. Reads the pipeline's own boundary, CDL, weather, and county maturity
+outputs, and writes static figures and tables. No soil, no report, no dashboard.
 
 ## What it answers
 
@@ -12,6 +12,10 @@ static figures and tables. No soil, no report, no dashboard.
   differ, and how often does corn follow corn?
 - **Weather** — How do the growing seasons compare between growers, and can
   weather actually distinguish fields inside a grower?
+- **Signals** — Does the heat each season delivers support the county's
+  recommended corn relative maturity? Which fields have stayed in corn longest,
+  and how long are the dry spells and July heat waves? These are descriptive
+  signals, not yield, cost, or profit.
 
 ## Inputs
 
@@ -19,18 +23,22 @@ Everything is read from the runtime under `${DATA_PIPELINE_DATA_ROOT}/data-pipel
 
 | Input | Path | Used by |
 | --- | --- | --- |
-| Field boundaries | `growers/<grower>/farms/<farm>/boundary/field_boundaries.geojson` | boundaries, CDL map, weather map |
+| Field boundaries | `growers/<grower>/farms/<farm>/boundary/field_boundaries.geojson` | boundaries, CDL map, weather map, county lookup |
 | Farm metadata | `growers/<grower>/farms/<farm>/farm.json` | labels and state code |
-| Weather table | `growers/<grower>/farms/<farm>/derived/tables/<prefix>_weather_<start>_<end>.csv` | weather |
-| CDL composition | `growers/<grower>/farms/<farm>/derived/tables/<prefix>_cdl_<start>_<end>_full_composition.csv` | CDL |
+| Weather table | `growers/<grower>/farms/<farm>/derived/tables/<prefix>_weather_<start>_<end>.csv` | weather, signals |
+| CDL composition | `growers/<grower>/farms/<farm>/derived/tables/<prefix>_cdl_<start>_<end>_full_composition.csv` | CDL, signals |
+| County corn maturity | `shared/corn_maturity/tables/rm_by_fips_<year>.parquet` and `rm_by_fips_<start>_<end>_average.parquet` | signals |
+| County soybean maturity | `shared/soybean_maturity/tables/mg_by_fips_<start>_<end>_average.parquet` | signals (reference value only) |
 
 `<prefix>` is the farm slug with a trailing `-farm` removed and hyphens turned
 into underscores, matching `data-pipeline/src/scripts/lib/paths.py`.
 
 Required columns are asserted at discovery time; a missing column fails the run
-with the file name and the column name. Soil is never read: discovery selects
-only weather and CDL file patterns, and `assert_schema` rejects a soil-named
-path outright if one is ever passed in.
+with the file name and the column name. The farm's county FIPS comes from its own
+boundary attributes, so a farm must sit in exactly one county. The maturity files
+must cover the same years as the weather tables. Soil is never read: discovery
+selects boundary, weather, CDL, and shared maturity patterns only, and
+`assert_schema` rejects a soil-named path outright if one is ever passed in.
 
 ## Outputs
 
@@ -40,10 +48,11 @@ Written to `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-eda` by default
 ```text
 manifest.json                 inputs, hashes, row counts, grid cells, parameters
 tables/
-  field_metrics.csv           one row per field: geometry, crop history, season
+  field_metrics.csv           one row per field: geometry, crop history, season, signals
   boundary_analysis.csv       geometry tests by grower and by boundary source
   cdl_analysis.csv            rotation, corn-after-corn, crop-mix test
   weather_analysis.csv        variance attribution and GDD/precipitation coupling
+  field_signals.csv           rotation continuity, maturity fit, weather risk
 figures/
   01_boundary_area.png        + 01_boundary_area.caption.md
   02_boundary_shape.png       + caption
@@ -51,6 +60,7 @@ figures/
   04_cdl_rotation.png         + caption
   05_weather_gdd.png          + caption
   06_weather_precip.png       + caption
+  07_signals_maturity.png     + caption
 maps/
   01_boundary_sources.png     + caption
   02_cdl_2023.png             + caption
@@ -79,6 +89,9 @@ cd my-farm-advisor/eda/field-eda
 
 # one category, one grower
 ... run_field_eda.py --grower ne-york-grower --category cdl
+
+# only the field-signal table and maturity figure
+... run_field_eda.py --category signals
 ```
 
 `--grower` is repeatable. Without it, every grower with a boundary, a weather
@@ -92,7 +105,8 @@ inputs fails loudly rather than being skipped.
   embeds a timestamp. Two consecutive runs produce identical tables.
 - Runtime-only: nothing is written inside the skill checkout or under Git.
 - Captions carry the caveat mechanically. Weather captions must state the
-  NASA POWER grid-cell count; CDL captions must state the minimum pixel count.
+  NASA POWER grid-cell count; CDL captions must state the minimum pixel count;
+  maturity captions must state the county reference and the GDD definition used.
 
 ## Limits to state, not hide
 
@@ -105,6 +119,10 @@ inputs fails loudly rather than being skipped.
 - **Boundary source is confounded with size.** CSB fields in this dataset are
   large and irregular; OSM parcels are small and more compact. The analysis
   reports the confound instead of attributing it to management.
+- **Maturity fit is not yield.** The county RM target is a county-average
+  planning value built from the county weather table, not from these ten fields,
+  so a level offset is location. A shortfall says the recommended maturity is
+  late for that heat, nothing about how the hybrid actually performed.
 - **Small n.** Thirty fields and fifteen grower-years support effect sizes and
   confidence intervals, not population-level claims about "growers".
 

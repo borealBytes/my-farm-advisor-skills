@@ -7,6 +7,7 @@ Examples
     python run_field_eda.py --check-only
     python run_field_eda.py
     python run_field_eda.py --grower ne-york-grower --category cdl
+    python run_field_eda.py --category signals
 """
 
 from __future__ import annotations
@@ -22,7 +23,7 @@ from pathlib import Path
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SKILL_ROOT / "src"))
 
-CATEGORIES = ("boundaries", "cdl", "weather")
+CATEGORIES = ("boundaries", "cdl", "weather", "signals")
 
 
 def _sha256(path: Path) -> str:
@@ -35,7 +36,10 @@ def _sha256(path: Path) -> str:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Cross-grower field EDA for boundary, CDL, and weather data."
+        description=(
+            "Cross-grower field EDA for boundary, CDL, weather, and field-signal "
+            "data."
+        )
     )
     parser.add_argument(
         "--data-root",
@@ -116,6 +120,47 @@ def _field_metrics(analysis) -> "object":
     )
     table = table.merge(weather, on=["grower", "field_id"], how="left")
 
+    runs = metrics.corn_run_lengths(analysis.dominant)
+    table = table.merge(
+        runs[["grower", "field_id", "longest_corn_run", "current_corn_run"]],
+        on=["grower", "field_id"], how="left",
+    )
+
+    fit = analysis.field_maturity
+    maturity = (
+        fit.groupby(["grower", "field_id"], sort=True)
+        .agg(
+            gdd_required_c=("gdd_required_c", "first"),
+            mean_maturity_gdd=("gdd_maturity", "mean"),
+            seasons_below_maturity_target=("shortfall_c", lambda values: int((values > 0).sum())),
+            max_gdd_shortfall_c=("shortfall_c", "max"),
+        )
+        .reset_index()
+    )
+    table = table.merge(maturity, on=["grower", "field_id"], how="left")
+
+    risk = (
+        analysis.risk.groupby(["grower", "field_id"], sort=True)
+        .agg(
+            mean_dry_spell_days=("dry_spell_days", "mean"),
+            mean_july_heat_days=("july_heat_days", "mean"),
+            mean_jul_aug_precip_mm=("jul_aug_precip_mm", "mean"),
+        )
+        .reset_index()
+    )
+    table = table.merge(risk, on=["grower", "field_id"], how="left")
+
+    counties = {
+        farm.farm_slug: (farm.county_fips, farm.county_name)
+        for farm in analysis.dataset.farms
+    }
+    table["county_fips"] = table["farm_slug"].map(
+        lambda slug: counties.get(slug, ("", ""))[0]
+    )
+    table["county_name"] = table["farm_slug"].map(
+        lambda slug: counties.get(slug, ("", ""))[1]
+    )
+
     numeric = table.select_dtypes("number").columns
     table[numeric] = table[numeric].round(4)
     table = table.sort_values(["grower", "field_id"]).reset_index(drop=True)
@@ -133,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
     if runtime_src.is_dir():
         sys.path.insert(0, str(runtime_src))
 
-    from field_eda import boundaries, cdl, weather
+    from field_eda import boundaries, cdl, signals, weather
     from field_eda.context import Analysis
     from field_eda.discover import RunConfig, describe, discover
 
@@ -148,7 +193,10 @@ def main(argv: list[str] | None = None) -> int:
     print(describe(dataset))
 
     if args.check_only:
-        print("inputs valid: boundary, weather, and CDL tables present; no soil input")
+        print(
+            "inputs valid: boundary, weather, CDL, and county maturity tables "
+            "present; no soil input"
+        )
         return 0
 
     out_dir = Path(args.out).expanduser() if args.out else root / "data-pipeline" / "eda" / "field-eda"
@@ -164,7 +212,12 @@ def main(argv: list[str] | None = None) -> int:
     analysis.ensure_dirs()
 
     selected = args.category or list(CATEGORIES)
-    modules = {"boundaries": boundaries, "cdl": cdl, "weather": weather}
+    modules = {
+        "boundaries": boundaries,
+        "cdl": cdl,
+        "weather": weather,
+        "signals": signals,
+    }
     written: list[Path] = []
     for name in CATEGORIES:
         if name not in selected:
@@ -182,9 +235,20 @@ def main(argv: list[str] | None = None) -> int:
     captions = [path.with_suffix(".caption.md") for path in written if path.suffix == ".png"]
     written += [path for path in captions if path.is_file()]
 
+    maturity_inputs = []
+    if dataset.maturity is not None:
+        maturity_paths = sorted(dataset.maturity.annual.values()) + [
+            dataset.maturity.average,
+            dataset.maturity.soybean_average,
+        ]
+        maturity_inputs = [
+            {"path": str(path), "kind": "maturity", "sha256": _sha256(path)}
+            for path in maturity_paths
+        ]
+
     manifest = {
         "skill": "field-eda",
-        "version": "0.1.0",
+        "version": "0.2.0",
         "runtime": str(root),
         "output_dir": str(out_dir),
         "categories": selected,
@@ -192,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
             "season_start_month": config.season_start_month,
             "season_end_month": config.season_end_month,
             "gdd_base_c": 10.0,
+            "gdd_cap_c": 30.0,
+            "gdd_per_rm_c": 20.0,
             "dpi": config.dpi,
             "seed": config.seed,
             "bootstrap": config.bootstrap,
@@ -205,6 +271,13 @@ def main(argv: list[str] | None = None) -> int:
                 "fields": len(grower.fields),
                 "farms": [farm.farm_slug for farm in grower.farms],
                 "grid_cells": grower.grid_cells,
+                "counties": [
+                    {
+                        "fips": farm.county_fips,
+                        "name": farm.county_name,
+                    }
+                    for farm in grower.farms
+                ],
             }
             for grower in dataset.growers
         ],
@@ -214,6 +287,7 @@ def main(argv: list[str] | None = None) -> int:
             "farms": len(dataset.farms),
             "field_years_cdl": int(len(analysis.dominant)),
             "field_years_weather": int(len(analysis.field_year_weather)),
+            "field_years_maturity": int(len(analysis.field_maturity)),
         },
         "inputs": [
             {
@@ -238,7 +312,8 @@ def main(argv: list[str] | None = None) -> int:
                 "sha256": _sha256(farm.cdl_path),
             }
             for farm in dataset.farms
-        ],
+        ]
+        + maturity_inputs,
         "outputs": [
             {"path": str(path.relative_to(out_dir)), "sha256": _sha256(path)}
             for path in sorted(written)

@@ -126,3 +126,36 @@ authoritative wording.
 - **Caveat:** shared colour scale across growers; the map would look dramatic on
   a per-grower scale, which is exactly why the scale is shared.
 - **Inputs:** weather tables, boundary files.
+
+## Signals
+
+### F7 — `figures/07_signals_maturity.png`
+
+- **Question:** Does each season deliver the heat the county's recommended
+  relative maturity assumes?
+- **Story:** Iowa runs about 57 GDD below its county target and its season mean
+  falls short in four of five seasons; Illinois runs 25 GDD below and falls short
+  in three of five; Nebraska runs 7 GDD above, yet two of five seasons still come
+  in under. Part of the gap is where the farm sits relative to the county
+  reference and part is the season, but in every case the shortfall is small
+  enough in RM terms (3–6 RM) to be an earlier-hybrid decision, not a change of
+  crop.
+- **Caveat:** maturity fit uses whole-calendar-year GDD with a 30 °C cap, not the
+  April–September uncapped GDD in F5. The county target is not derived from these
+  ten fields, so the verdict is per grower.
+- **Inputs:** weather tables, county corn and soybean maturity tables.
+
+### A4 — `tables/field_signals.csv`
+
+- **Content:** per grower — share of fields with a corn run of three or more
+  years (Wilson interval), share that never left corn, longest corn run; county
+  RM target and its GDD requirement, share of season means and field-years below
+  it, worst season shortfall, mean GDD gap, and the soybean MG reference; mean dry
+  spell, July heat days, and July–August precipitation.
+- **Story:** rotation continuity is a Nebraska property (7 of 10 fields with a
+  3+ year corn run, 5 never leaving corn), while the maturity shortfall is largest
+  in Iowa and Illinois because those farms sit below their county reference.
+- **Caveat:** five seasons and ten fields per grower. Rotation runs are bounded by
+  the 2019–2023 CDL window; maturity shortfall is a heat test, not a yield test.
+  A season counts as short only when the grower-year mean is under target, so the
+  season count is not the sum of the field-year count.

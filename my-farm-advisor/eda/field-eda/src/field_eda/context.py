@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import metrics
+from . import maturity, metrics
 from .discover import Dataset
 
 
@@ -22,6 +22,9 @@ class Analysis:
     _weather: pd.DataFrame | None = field(default=None, repr=False)
     _season: pd.DataFrame | None = field(default=None, repr=False)
     _field_year: pd.DataFrame | None = field(default=None, repr=False)
+    _maturity_targets: dict | None = field(default=None, repr=False)
+    _maturity_fit: pd.DataFrame | None = field(default=None, repr=False)
+    _risk: pd.DataFrame | None = field(default=None, repr=False)
 
     # ------------------------------------------------------------------ #
     # Output locations
@@ -83,6 +86,30 @@ class Analysis:
             self._field_year = metrics.field_year_weather(self.season)
         return self._field_year
 
+    @property
+    def farm_county(self) -> dict[str, str]:
+        return {farm.farm_slug: farm.county_fips for farm in self.dataset.farms}
+
+    @property
+    def maturity_targets(self) -> dict:
+        if self._maturity_targets is None:
+            self._maturity_targets = maturity.county_targets(self.dataset)
+        return self._maturity_targets
+
+    @property
+    def field_maturity(self) -> pd.DataFrame:
+        if self._maturity_fit is None:
+            self._maturity_fit = maturity.maturity_fit(
+                self.weather, self.farm_county, self.maturity_targets
+            )
+        return self._maturity_fit
+
+    @property
+    def risk(self) -> pd.DataFrame:
+        if self._risk is None:
+            self._risk = metrics.field_year_risk(self.season)
+        return self._risk
+
     # ------------------------------------------------------------------ #
     # Convenience
     # ------------------------------------------------------------------ #
@@ -95,14 +122,23 @@ class Analysis:
     def grower_index(self) -> dict[str, int]:
         return {grower.slug: index for index, grower in enumerate(self.dataset.growers)}
 
-    def input_names(self) -> list[str]:
+    def input_names(self, *, maturity: bool = False) -> list[str]:
         """Input paths relative to the runtime root, safe to commit in captions."""
+
         root = self.dataset.root
-        names: list[str] = []
+        paths: list[Path] = []
         for farm in self.dataset.farms:
-            for path in (farm.boundary_path, farm.weather_path, farm.cdl_path):
-                try:
-                    names.append(path.relative_to(root).as_posix())
-                except ValueError:
-                    names.append(path.name)
+            paths.extend((farm.boundary_path, farm.weather_path, farm.cdl_path))
+        if maturity and self.dataset.maturity is not None:
+            paths.extend(sorted(self.dataset.maturity.annual.values()))
+            paths.extend(
+                (self.dataset.maturity.average, self.dataset.maturity.soybean_average)
+            )
+
+        names: list[str] = []
+        for path in paths:
+            try:
+                names.append(path.relative_to(root).as_posix())
+            except ValueError:
+                names.append(path.name)
         return names

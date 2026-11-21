@@ -22,6 +22,12 @@ PIXEL_AREA_M2 = 900.0
 SQ_M_PER_HA = 10_000.0
 GDD_BASE_C = 10.0
 HEAT_THRESHOLD_C = 35.0
+#: Upper cap used by the maturity-by-FIPS product. Must stay identical to
+#: ``strategy/maturity-by-fips/src/maturity_by_fips.py::compute_county_gdd``;
+#: the two GDD definitions are deliberately not interchangeable.
+MATURITY_MAX_C = 30.0
+DRY_SPELL_MM = 1.0
+CORN_GDD_PER_RM = 20.0
 SEASON_MONTHS = ("Jan", "Feb", "Mar", "Apr", "May", "Jun",
                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
 
@@ -174,6 +180,64 @@ def corn_after_corn(dominant: pd.DataFrame) -> pd.DataFrame:
 def shannon_diversity(crops: Iterable[str]) -> float:
     counts = pd.Series(list(crops)).value_counts(normalize=True)
     return float(-(counts * np.log(counts)).sum())
+
+
+def _runs(flags: Sequence[bool]) -> list[int]:
+    """Lengths of consecutive true runs in a boolean sequence."""
+    lengths: list[int] = []
+    current = 0
+    for flag in flags:
+        if flag:
+            current += 1
+        elif current:
+            lengths.append(current)
+            current = 0
+    if current:
+        lengths.append(current)
+    return lengths
+
+
+def corn_run_lengths(dominant: pd.DataFrame) -> pd.DataFrame:
+    """Per field: longest and current consecutive-corn run in the window.
+
+    A run only continues across adjacent years; a missing CDL year breaks it.
+    ``current_corn_run`` counts backwards from the field's last year, so it is
+    the run a grower is still inside.
+    """
+
+    rows = []
+    ordered = dominant.sort_values(["grower", "field_id", "year"])
+    for (grower, field_id), group in ordered.groupby(
+        ["grower", "field_id"], sort=True
+    ):
+        sequence = group.sort_values("year")
+        years = sequence["year"].astype(int).tolist()
+        is_corn = (sequence["dominant_crop"] == "Corn").tolist()
+
+        contiguous: list[bool] = []
+        for index, flag in enumerate(is_corn):
+            if index and years[index] != years[index - 1] + 1:
+                contiguous.append(False)
+            contiguous.append(flag)
+
+        lengths = _runs(contiguous)
+        longest = max(lengths, default=0)
+        current = 0
+        for flag in reversed(contiguous):
+            if flag:
+                current += 1
+            else:
+                break
+        rows.append(
+            {
+                "grower": grower,
+                "field_id": field_id,
+                "longest_corn_run": int(longest),
+                "current_corn_run": int(current),
+                "corn_years": int(sum(is_corn)),
+            }
+        )
+    return pd.DataFrame(rows)
 
 
 def field_crop_summary(cdl: pd.DataFrame, dominant: pd.DataFrame) -> pd.DataFrame:
@@ -341,6 +405,64 @@ def field_year_precip_map(field_year: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+def maturity_gdd(weather: pd.DataFrame) -> pd.DataFrame:
+    """Full-calendar-year GDD with the maturity product's base and cap.
+
+    This is *not* the seasonal GDD used by F5 and A3. It reproduces
+    ``compute_county_gdd`` exactly so a field can be compared with the county
+    value that produced the recommended relative maturity.
+    """
+
+    frame = pd.DataFrame(
+        {
+            "grower": weather["grower"],
+            "farm_slug": weather["farm_slug"],
+            "field_id": weather["field_id"],
+            "year": weather["year"],
+            "date": weather["date"],
+        }
+    )
+    tmax = weather["T2M_MAX"].clip(upper=MATURITY_MAX_C)
+    tmin = weather["T2M_MIN"].clip(lower=GDD_BASE_C)
+    frame["gdd_maturity"] = (
+        ((tmax + tmin) / 2.0) - GDD_BASE_C
+    ).clip(lower=0.0)
+
+    return (
+        frame.groupby(["grower", "farm_slug", "field_id", "year"], sort=True)
+        .agg(gdd_maturity=("gdd_maturity", "sum"), days=("date", "nunique"))
+        .reset_index()
+    )
+
+
+def field_year_risk(season: pd.DataFrame) -> pd.DataFrame:
+    """Per field-year water and heat stress descriptors for the season window."""
+
+    rows = []
+    ordered = season.sort_values(["grower", "field_id", "date"])
+    for (grower, field_id, year), group in ordered.groupby(
+        ["grower", "field_id", "year"], sort=True
+    ):
+        dry = (group["PRECTOTCORR"] < DRY_SPELL_MM).tolist()
+        july = group["month"] == 7
+        rows.append(
+            {
+                "grower": grower,
+                "field_id": field_id,
+                "year": int(year),
+                "dry_spell_days": int(max(_runs(dry), default=0)),
+                "july_heat_days": int(
+                    (july & (group["T2M_MAX"] > HEAT_THRESHOLD_C)).sum()
+                ),
+                "jul_aug_precip_mm": float(
+                    group.loc[group["month"].isin((7, 8)), "PRECTOTCORR"].sum()
+                ),
+                "days": int(group["date"].nunique()),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
 # --------------------------------------------------------------------------- #
 # Statistics
 # --------------------------------------------------------------------------- #
@@ -485,16 +607,19 @@ __all__ = [
     "cdl_coverage",
     "chi_square",
     "corn_after_corn",
+    "corn_run_lengths",
     "daily_grower_series",
     "dominant_crops",
     "field_crop_summary",
     "field_year_precip_map",
+    "field_year_risk",
     "field_year_weather",
     "grower_year_weather",
     "load_boundaries",
     "load_cdl",
     "load_weather",
     "mann_whitney",
+    "maturity_gdd",
     "monthly_weather",
     "season_slice",
     "shannon_diversity",

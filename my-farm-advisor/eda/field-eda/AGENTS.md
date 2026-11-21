@@ -2,23 +2,25 @@
 
 ## Purpose
 
-Static, cross-grower field-level EDA for boundary, CDL, and weather data. It is
-an analysis consumer of the data pipeline, not part of it.
+Static, cross-grower field-level EDA for boundary, CDL, weather, and county
+maturity data. It is an analysis consumer of the data pipeline, not part of it.
 
 ## Boundary of this subskill
 
 - In scope: discovery, derived metrics, statistical tests, static PNG figures,
   CSV tables, caption sidecars, and a manifest.
 - Out of scope: report or HTML generation, interactive dashboards, data ingest,
-  soil, imagery, terrain, yield modelling, and any change to pipeline data.
+  soil, imagery, terrain, and yield, cost, or profit modelling, plus any change
+  to pipeline data.
 - Never wire this into `run_farm_pipeline.py`. It is explicit-invocation only.
 - Never write outputs inside the skill checkout. Runtime outputs belong under
   `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-eda/`.
 
 ## Analytical rules
 
-- No soil input. Discovery only selects weather and CDL file patterns, and a
-  soil-named path is rejected outright. Do not add a soil loader.
+- No soil input. Discovery selects boundary, weather, CDL, and shared county
+  maturity files only, and a soil-named path is rejected outright. Do not add a
+  soil loader.
 - Totals and shares must be computed per field, then aggregated. Summing a
   per-field weather table across fields multiplies precipitation by the field
   count — a real bug this rule exists to prevent.
@@ -30,6 +32,12 @@ an analysis consumer of the data pipeline, not part of it.
 - The within-grower weather result is a null result. If a future change makes it
   look like fields differ meaningfully, suspect the aggregation before believing
   the plot.
+- Two GDD definitions are deliberate and must never be mixed: April–September
+  with no cap for the weather category, and the whole calendar year with a 30 °C
+  cap for maturity fit. Comparing one against the other manufactures a shortfall.
+- Maturity fit is a county-level verdict. Do not rank fields on it: field spread
+  is NASA POWER grid spread, and the county target is not derived from these
+  fields.
 
 ## Figure rules
 

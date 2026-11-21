@@ -1,8 +1,8 @@
 # Examples
 
-Four reviewed anchor figures, one per workflow family. They are the smallest set
-that shows boundary, CDL, and weather output without turning the gallery into the
-whole run.
+Five reviewed anchor figures, one per workflow family. They are the smallest set
+that shows boundary, CDL, weather, and signal output without turning the gallery
+into the whole run.
 
 | File | What it shows | Why this one |
 | --- | --- | --- |
@@ -10,6 +10,7 @@ whole run.
 | [`output/04_cdl_rotation.png`](output/04_cdl_rotation.png) | Field-by-field rotation heatmap, 2019–2023 | The clearest within-field-over-time signal |
 | [`output/05_weather_gdd.png`](output/05_weather_gdd.png) | Cumulative GDD per season, faceted by grower | Shows the between-grower heat contrast and small within-grower spread |
 | [`output/02_cdl_2023.png`](output/02_cdl_2023.png) | 2023 dominant crop per field, three farm-overview panels | Spatial evidence with one shared categorical legend |
+| [`output/07_signals_maturity.png`](output/07_signals_maturity.png) | Full-year GDD against the county RM target, faceted by grower | The decision-facing reading: heat received against recommended maturity |
 
 Each PNG has a `.caption.md` sidecar recording its question, story, and caveat.
 The remaining figures and every analysis table are runtime-only; regenerate them
@@ -25,7 +26,7 @@ cd my-farm-advisor/eda/field-eda
   "${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-eda/scripts/run_field_eda.py"
 ```
 
-Then copy the four files above from
+Then copy the five files above from
 `${DATA_PIPELINE_DATA_ROOT}/data-pipeline/eda/field-eda/` into `output/`. The
 figures are deterministic for unchanged inputs, so a regeneration should produce
 the same image.

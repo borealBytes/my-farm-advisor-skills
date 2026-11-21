@@ -91,6 +91,30 @@ CATEGORIES = [
             "cell receive identical weather."
         ),
     },
+    {
+        "id": "signals",
+        "number": "6",
+        "title": "Maturity fit and field signals",
+        "lede": (
+            "The county maturity product turns a five-year heat total into a "
+            "relative maturity. Tested against each season, that recommendation is "
+            "met in some years and missed in others — and the shortfall is a hybrid "
+            "decision, not a yield claim. The runtime carries no yield, cost, or "
+            "profit data."
+        ),
+        "figures": [
+            ("figures/07_signals_maturity.png", "figures/07_signals_maturity.caption.md"),
+        ],
+        "table": "tables/field_signals.csv",
+        "table_title": "A4 — Rotation continuity, maturity fit, and weather risk",
+        "table_note": (
+            "Maturity fit compares whole-calendar-year GDD with a 30 °C cap against "
+            "the county RM requirement, a different definition from A3. The county "
+            "target is built from the county weather table, so a level offset is "
+            "location. Wilson intervals cover the two proportions; n is five "
+            "seasons or ten fields per grower."
+        ),
+    },
 ]
 
 CSS = """
@@ -195,7 +219,7 @@ p { margin: 10px 0; }
 .toc ol { margin: 0; padding-left: 20px; columns: 2; column-gap: 32px; font-size: .9rem; }
 .toc a { color: var(--ink); text-decoration: none; }
 .toc a:hover { color: var(--green); text-decoration: underline; }
-.cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin: 22px 0 8px; }
+.cards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin: 22px 0 8px; }
 .card {
   border: 1px solid var(--line);
   border-top: 4px solid var(--green);
@@ -206,7 +230,7 @@ p { margin: 10px 0; }
 .card.gold { border-top-color: var(--gold); }
 .card .big {
   font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
-  font-size: 1.35rem;
+  font-size: 1.16rem;
   line-height: 1.2;
   font-weight: 600;
   display: block;
@@ -357,6 +381,34 @@ def metric(rows, group, name):
     return None
 
 
+def metric_row(rows, group, name) -> dict:
+    for row in rows:
+        if row.get("group") == group and row.get("metric") == name:
+            return row
+    return {}
+
+
+def signed(value) -> str:
+    return f"{value:+,.0f}" if value is not None else "n/a"
+
+
+def fmt0(value) -> str:
+    return f"{value:,.0f}" if value is not None else "n/a"
+
+
+def fmt1(value) -> str:
+    return f"{value:,.1f}" if value is not None else "n/a"
+
+
+def above_below(value, floor: float = 0.5) -> str:
+    """Directional phrase for a signed gap, avoiding a bare minus sign."""
+    if value is None:
+        return "level with"
+    if abs(value) < floor:
+        return "level with"
+    return "above" if value > 0 else "below"
+
+
 def fmt(value) -> str:
     if value is None:
         return ""
@@ -376,6 +428,30 @@ def fmt(value) -> str:
     if abs(number) >= 1000:
         return f"{number:,.1f}"
     return f"{number:.3f}".rstrip("0").rstrip(".")
+
+
+def fmt_num(value) -> str:
+    """Table formatter: no false precision on large quantities.
+
+    Shares keep enough digits to be read as proportions; counts, GDD, and
+    millimetres are shown whole, because the underlying data is not that precise.
+    """
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text == "":
+        return ""
+    try:
+        number = float(text)
+    except ValueError:
+        return html.escape(text)
+    if number != number:
+        return ""
+    if abs(number) >= 20:
+        return f"{number:,.1f}".rstrip("0").rstrip(".")
+    if abs(number) >= 1:
+        return f"{number:,.2f}".rstrip("0").rstrip(".")
+    return fmt(text)
 
 
 def pct(value) -> str:
@@ -540,7 +616,7 @@ def render_table(rows: list[dict], numeric_columns: set[str], collapsible: bool 
                 classes.append("num")
             if column == "note":
                 classes.append("note")
-            rendered = fmt(value)
+            rendered = fmt_num(value) if column in numeric_columns else fmt(value)
             cells.append(
                 f"<td class='{' '.join(classes)}'>{rendered}</td>"
                 if classes
@@ -591,6 +667,7 @@ def build(runtime: Path, out_path: Path) -> None:
     boundary_rows = read_csv(eda / "tables" / "boundary_analysis.csv")
     cdl_rows = read_csv(eda / "tables" / "cdl_analysis.csv")
     weather_rows = read_csv(eda / "tables" / "weather_analysis.csv")
+    signal_rows = read_csv(eda / "tables" / "field_signals.csv")
 
     counts = manifest["counts"]
     csb_median = metric(boundary_rows, "csb", "compactness_median")
@@ -612,8 +689,38 @@ def build(runtime: Path, out_path: Path) -> None:
     within_low = min(within_values) if within_values else None
     within_high = max(within_values) if within_values else None
 
+    ne_run3 = metric(signal_rows, "NE", "field_share_corn_run_3plus")
+    ne_all_corn = metric(signal_rows, "NE", "field_share_corn_all_years")
+    ia_short_row = metric_row(signal_rows, "IA", "season_share_below_target")
+    il_short_row = metric_row(signal_rows, "IL", "season_share_below_target")
+    ne_short_row = metric_row(signal_rows, "NE", "season_share_below_target")
+    season_count = int(as_float(ia_short_row.get("n")) or 5)
+    ia_short = as_float(ia_short_row.get("value"))
+    il_short = as_float(il_short_row.get("value"))
+    ne_short = as_float(ne_short_row.get("value"))
+    ia_gap = metric(signal_rows, "IA", "mean_gdd_gap_c")
+    il_gap = metric(signal_rows, "IL", "mean_gdd_gap_c")
+    ne_gap = metric(signal_rows, "NE", "mean_gdd_gap_c")
+    ia_rmin = metric(signal_rows, "IA", "county_rm_target")
+    il_rmin = metric(signal_rows, "IL", "county_rm_target")
+    ne_rmin = metric(signal_rows, "NE", "county_rm_target")
+    ia_worst = metric(signal_rows, "IA", "max_season_shortfall_c")
+    il_worst = metric(signal_rows, "IL", "max_season_shortfall_c")
+    ne_worst = metric(signal_rows, "NE", "max_season_shortfall_c")
+    ne_dry = metric(signal_rows, "NE", "mean_dry_spell_days")
+    ne_heat = metric(signal_rows, "NE", "mean_july_heat_days")
+    il_heat = metric(signal_rows, "IL", "mean_july_heat_days")
+    ne_julaug = metric(signal_rows, "NE", "mean_jul_aug_precip_mm")
+    il_julaug = metric(signal_rows, "IL", "mean_jul_aug_precip_mm")
+    ia_short_n = int(round((ia_short or 0.0) * season_count))
+    il_short_n = int(round((il_short or 0.0) * season_count))
+    ne_short_n = int(round((ne_short or 0.0) * season_count))
+    ia_gap_mag = abs(ia_gap) if ia_gap is not None else None
+    il_gap_mag = abs(il_gap) if il_gap is not None else None
+    ne_gap_mag = abs(ne_gap) if ne_gap is not None else None
+
     toc = "".join(
-        f"<li><a href='#{section['id']}'>{section['number']}. {section['title']}</a></li>"
+        f"<li><a href='#{section['id']}'>{section['title']}</a></li>"
         for section in CATEGORIES
     )
 
@@ -651,7 +758,10 @@ def build(runtime: Path, out_path: Path) -> None:
         sorted(field_metrics, key=lambda row: (row["grower"], row["field_id"])),
         {"area_ha", "perimeter_m", "compactness", "bearing_deg", "vertices",
          "crop_diversity", "corn_years", "soybean_years", "cdl_coverage",
-         "mean_precip_mm", "mean_gdd", "mean_heat_days"},
+         "mean_precip_mm", "mean_gdd", "mean_heat_days", "longest_corn_run",
+         "current_corn_run", "gdd_required_c", "mean_maturity_gdd",
+         "seasons_below_maturity_target", "max_gdd_shortfall_c",
+         "mean_dry_spell_days", "mean_july_heat_days", "mean_jul_aug_precip_mm"},
         collapsible=True,
     )
 
@@ -686,11 +796,11 @@ def build(runtime: Path, out_path: Path) -> None:
 
 <header class="cover">
   <p class="eyebrow">My Farm Advisor · Assignment 2</p>
-  <h1>Three growers, thirty fields, three data layers</h1>
+  <h1>Three growers, thirty fields, five seasons</h1>
   <p class="standfirst">
-    A field-level exploratory comparison of boundary geometry, five years of
-    cropland history, and five growing seasons across Illinois, Iowa, and
-    Nebraska. Static outputs, assembled once.
+    A field-level comparison of boundary geometry, the 2019–2023 cropland
+    history, the 2021–2025 growing seasons, and whether that heat supports the
+    county's recommended corn maturity. Static outputs, assembled once.
   </p>
   <div class="meta">
     <span><b>{counts['fields']}</b> fields</span>
@@ -723,8 +833,8 @@ def build(runtime: Path, out_path: Path) -> None:
 <section id="findings">
   <h2><span class="num">1</span>What the data says</h2>
   <p class="lede">
-    Three findings survived the checks. One of them is a null result, and it is
-    the most useful of the three.
+    Five findings survived the checks. One of them is a null result, and it is
+    the most useful of the five.
   </p>
 
   <div class="cards">
@@ -748,6 +858,12 @@ def build(runtime: Path, out_path: Path) -> None:
       <span class="small">Of weather variance sits within a grower-year. Weather
       cannot rank fields, and the report says so.</span>
     </div>
+    <div class="card">
+      <span class="big">{ia_short_n} of {season_count} seasons</span>
+      <span class="small">Iowa falls short of its county corn-maturity target.
+      Illinois misses {il_short_n} of {season_count}, Nebraska {ne_short_n} of
+      {season_count}.</span>
+    </div>
   </div>
 
   <h3>1.1 Boundary provenance dominates field shape</h3>
@@ -767,7 +883,9 @@ def build(runtime: Path, out_path: Path) -> None:
     follow corn. Illinois and Iowa alternate, at {pct(il_cac)} and {pct(ia_cac)}.
     The crop-mix association across growers is real but moderate (Cramér's V
     0.24), because Illinois and Iowa are more similar to each other than either
-    is to Nebraska.
+    is to Nebraska. Continuity makes it concrete: {pct(ne_run3)} of Nebraska
+    fields have held corn for three or more consecutive years, and
+    {pct(ne_all_corn)} never left corn in the five-year window.
   </p>
 
   <h3>1.3 Weather is a grower and year covariate — not a field one</h3>
@@ -777,7 +895,7 @@ def build(runtime: Path, out_path: Path) -> None:
     {precip_year:.1f}% of its variance sits between years within a grower, with a
     consistent grower offset. In both cases only {within_text}
     of the variance sits within a grower-year, because fields share NASA POWER
-    grid cells. The map in section 4 shows the same thing visually: within a
+    grid cells. The map in section 5 shows the same thing visually: within a
     grower the colour barely changes.
   </p>
   <div class="callout">
@@ -786,6 +904,27 @@ def build(runtime: Path, out_path: Path) -> None:
     differences measure the grid, not the farm. Ranking fields on weather would
     be manufacturing a signal.
   </div>
+
+  <h3>1.4 The recommended maturity is close, but not met every season</h3>
+  <p>
+    The county maturity product turns a five-year heat total into a relative
+    maturity: RM {fmt1(ia_rmin)} for Iowa, {fmt1(il_rmin)} for Illinois, and
+    {fmt1(ne_rmin)} for Nebraska. Season by season, and using the same GDD
+    definition the maturity product uses, Iowa runs {fmt0(ia_gap_mag)} GDD
+    {above_below(ia_gap)} its target and misses it in {ia_short_n} of
+    {season_count} seasons; Illinois runs {fmt0(il_gap_mag)} GDD
+    {above_below(il_gap)} and misses {il_short_n}; Nebraska runs
+    {fmt0(ne_gap_mag)} GDD {above_below(ne_gap)} and misses {ne_short_n}. The
+    worst single season is Iowa, {fmt0(ia_worst)} GDD short in one year — about
+    {(ia_worst or 0) / 20:.1f} RM of hybrid.
+  </p>
+  <p>
+    This is a heat test, not a yield test. The county target is a county average,
+    so part of each gap is where the farm sits; what it supports is a decision
+    about moving to an earlier hybrid, and the answer differs by grower. The
+    runtime carries no yield, as-applied, or cost data, so nothing here claims a
+    performance or profit effect.
+  </p>
 </section>
 
 <section id="dataset">
@@ -799,14 +938,14 @@ def build(runtime: Path, out_path: Path) -> None:
   <p class="table-note">
     NASA POWER grid cells: {cell_text}. Seasonal means are April–September.
     Software: {html.escape(version_text)}. D1 and D2 are derived for this report;
-    A1–A3 are the subskill's analysis tables.
+    A1–A4 are the subskill's analysis tables.
   </p>
 </section>
 
 {''.join(sections_html)}
 
 <section id="limits">
-  <h2><span class="num">6</span>Limits and caveats</h2>
+  <h2><span class="num">7</span>Limits and caveats</h2>
   <ul class="plain">
     <li><b>Weather is gridded.</b> NASA POWER resolves to {cell_text}
     for the three growers. Within-grower field comparison is therefore a
@@ -820,6 +959,18 @@ def build(runtime: Path, out_path: Path) -> None:
     the between-source comparison rather than attributing the effect to one.</li>
     <li><b>Small n.</b> Thirty fields and fifteen grower-years support effect
     sizes and intervals, not population claims about “growers” in general.</li>
+    <li><b>Maturity fit is not yield.</b> The county RM target is a county-average
+    planning value built from the county weather table, not from these ten
+    fields, so a level offset is location rather than management. A shortfall
+    says the recommended maturity is late for that heat; it says nothing about
+    how the hybrid actually yielded.</li>
+    <li><b>Two GDD definitions.</b> Seasonal figures use April–September with no
+    cap; maturity fit uses the whole calendar year capped at 30 °C, matching the
+    county maturity product. Subtracting one from the other would invent a
+    shortfall.</li>
+    <li><b>No yield, as-applied, or economics data exists in this runtime.</b>
+    Every signal here is a proxy built from rotation, weather, and geometry. The
+    report does not claim crop performance, cost, or profit.</li>
     <li><b>Five CDL years only, {cdl_years}.</b> That is the pipeline's pinned CDL
     window, not a gap in the analysis: the program's external-data rule requires
     sources public by 1 February 2026, and
@@ -831,12 +982,13 @@ def build(runtime: Path, out_path: Path) -> None:
 </section>
 
 <section id="provenance">
-  <h2><span class="num">7</span>Sources and provenance</h2>
+  <h2><span class="num">8</span>Sources and provenance</h2>
   <div class="tablewrap"><table class="kv">
     <tr><td>Field polygons (OSM subset)</td><td>OpenStreetMap via Overpass. ODbL 1.0; attribution retained.</td></tr>
     <tr><td>Field polygons (CSB subset)</td><td>USDA NASS Crop Sequence Boundaries via FIBOA GeoParquet. CC-BY-4.0 / USDA public.</td></tr>
     <tr><td>Crop history</td><td>USDA NASS Cropland Data Layer, 2019–2023. USDA public data.</td></tr>
-    <tr><td>Weather</td><td>NASA POWER daily data, 2021–2025, April–September. Public; gridded, not on-farm measurement.</td></tr>
+    <tr><td>Weather</td><td>NASA POWER daily data, 2021–2025, April–September for seasonal figures and the full year for maturity fit. Public; gridded, not on-farm measurement.</td></tr>
+    <tr><td>County maturity</td><td>Corn RM and soybean MG by FIPS from <code>strategy/maturity-by-fips</code>, derived from the same NASA POWER data. Heuristic planning values, not seed recommendations.</td></tr>
     <tr><td>Analysis</td><td>Original code in <code>my-farm-advisor/eda/field-eda</code>. This report is a one-time artifact outside that subskill.</td></tr>
   </table></div>
   <h3>Reproduce</h3>
@@ -851,10 +1003,11 @@ python3 build_report.py</code></pre>
 </section>
 
 <section id="appendix">
-  <h2><span class="num">8</span>Appendix: field metrics</h2>
+  <h2><span class="num">9</span>Appendix: field metrics</h2>
   <p class="lede">
-    One row per field: geometry in EPSG:5070, five-year rotation summary,
-    CDL coverage, and seasonal weather means.
+    One row per field: geometry in EPSG:5070, five-year rotation summary and corn
+    run, CDL coverage, seasonal weather means, maturity shortfall, and weather
+    risk windows.
   </p>
   <h3>D2 — Field metrics</h3>
   {appendix}

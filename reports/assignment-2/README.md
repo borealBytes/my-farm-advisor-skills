@@ -10,7 +10,7 @@ GitHub shows `.html` files as source, not as a rendered page. Two ways to read i
 
 1. **Download and open** — grab
    [`field-eda-report.html`](field-eda-report.html) (raw download, then open it in
-   any browser). The file is self-contained: all nine figures are embedded, so
+   any browser). The file is self-contained: all ten figures are embedded, so
    there is nothing else to fetch.
 2. **Render from the branch** —
    [htmlpreview link](https://htmlpreview.github.io/?https://raw.githubusercontent.com/Windfery/my-farm-advisor-skills/assignment-2/reports/assignment-2/field-eda-report.html).
@@ -19,9 +19,10 @@ GitHub shows `.html` files as source, not as a rendered page. Two ways to read i
 ## What is inside
 
 - Cover and dataset snapshot: 3 growers, 30 fields, 150 CDL field-years.
-- Four headline numbers and the three findings that survived the checks.
-- One section per category — boundaries, cropland history, seasonal weather —
-  with every figure, its question/story/caveat, and the analysis table.
+- Five headline numbers and the five findings that survived the checks.
+- One section per category — boundaries, cropland history, seasonal weather,
+  maturity fit and field signals — with every figure, its question/story/caveat,
+  and the analysis table.
 - Limits, sources and attribution, and a 30-row field appendix.
 
 All statistics are read from the CSVs at build time, so the prose cannot drift
@@ -64,7 +65,7 @@ proprietary farm data.
 ## Labels and IDs
 
 Every chart carries both axis labels. Figure and map captions show the subskill's
-catalog ID (`F1`–`F6`, `M1`–`M3`) taken from the caption sidecar's title line, and
-the three analysis tables keep their `A1`–`A3` headings. The two tables derived
+catalog ID (`F1`–`F7`, `M1`–`M3`) taken from the caption sidecar's title line, and
+the four analysis tables keep their `A1`–`A4` headings. The two tables derived
 for this report alone — the dataset snapshot and the field appendix — are `D1`
 and `D2`; the `D` prefix marks report-derived content, not a subskill output.

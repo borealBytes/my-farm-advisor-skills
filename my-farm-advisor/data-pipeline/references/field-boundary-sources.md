@@ -13,7 +13,7 @@ coverage, then record which one you used in the boundary properties
 | Field-level boundary | `<farm>/fields/<field_slug>/boundary/field_boundary.geojson` | single feature |
 | Inventory | `<farm>/manifests/field-inventory.csv` | columns `field_id,field_slug` |
 | Provenance | `<farm>/manifests/<source>_fields_provenance.json` + shared `sha256_journal.json` | query, instance, accessed_at, response hash |
-| Farm manifest | `<farm>/farm.json` | `country`/`state` here is the **fallback** when a boundary lacks the property |
+| Farm manifest | `<farm>/farm.json` | `country`/`state` here is the **fallback** when a boundary lacks the property. Preserved across pipeline runs: a later ingest never resets `display_name`, and `state` is refreshed from the boundary's `state` property when it carries one |
 
 **Routing keys off boundary properties**: `field_id, country, state, year,
 area_ha_est, crop, area_acres` (+ `source`, and source-specific ids like
@@ -49,6 +49,8 @@ better than US-Corn-Belt OSM (there, use CSB instead).
 Hard-won Overpass rules:
 
 1. **User-Agent header is mandatory** or every instance returns 406/HTML.
+   Implemented in `download_osm_fields.py`, `bootstrap_farm_from_county.py`,
+   and `field_boundaries.py`.
 2. Query body must be `--data-urlencode "data=<QL>"` (or urllib
    `data=`-prefixed). A bare urlencode of the QL without the `data=` name
    yields an XHTML error page that looks like a server failure — don't blame
